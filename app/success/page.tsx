@@ -14,6 +14,7 @@ function SuccessContent() {
   const orderId = searchParams.get("orderId")
   const [orderData, setOrderData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const { dispatch } = useCart()
 
   useEffect(() => {
     // Try to get order data from localStorage (if available)
