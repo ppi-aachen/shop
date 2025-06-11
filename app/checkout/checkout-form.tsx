@@ -12,7 +12,6 @@ import { Upload, FileText, ImageIcon, AlertTriangle } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import { CountryRestriction } from "@/components/country-restriction"
 import { submitOrder } from "./actions"
-import { LoadingOverlay } from "@/components/loading-overlay" // Import the new component
 
 export default function CheckoutForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -29,12 +28,12 @@ export default function CheckoutForm() {
     state.items.forEach((item, index) => {
       // Check if item has size options but no size selected
       if (item.sizes && item.sizes.length > 0 && !item.selectedSize) {
-        errors.push(`Item <span class="math-inline">\{index \+ 1\} \(</span>{item.name}): Size is required`)
+        errors.push(`Item ${index + 1} (${item.name}): Size is required`)
       }
 
       // Check if item has color options but no color selected
       if (item.colors && item.colors.length > 0 && !item.selectedColor) {
-        errors.push(`Item <span class="math-inline">\{index \+ 1\} \(</span>{item.name}): Color is required`)
+        errors.push(`Item ${index + 1} (${item.name}): Color is required`)
       }
     })
 
@@ -266,7 +265,6 @@ export default function CheckoutForm() {
           </Button>
         </form>
       </CardContent>
-      {isSubmitting && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
     </Card>
   )
 }
