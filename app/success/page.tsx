@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, Download, Instagram, FileText, Package, Clock } from "lucide-react"
 import { generateOrderPDF, downloadPDF } from "@/lib/pdf-generator"
+import { useCart } from "@/lib/cart-context"
 
 function SuccessContent() {
   const searchParams = useSearchParams()
