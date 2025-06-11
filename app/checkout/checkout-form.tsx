@@ -58,6 +58,10 @@ export default function CheckoutForm() {
   }
 
   const handleSubmit = async (formData: FormData) => {
+    if (isSubmitting) {
+      console.log("Submission already in progress. Ignoring multiple click.")
+      return; // Exit if already submitting
+    }
     // Validate cart items first
     const cartErrors = validateCartItems()
     if (cartErrors.length > 0) {
