@@ -15,6 +15,7 @@ function SuccessContent() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    dispatch({ type: "CLEAR_CART" })
     // Try to get order data from localStorage (if available)
     if (orderId) {
       const savedOrderData = localStorage.getItem(`order-${orderId}`)
@@ -22,7 +23,6 @@ function SuccessContent() {
         try {
           const parsedData = JSON.parse(savedOrderData)
           setOrderData(parsedData)
-          dispatch({ type: "CLEAR_CART" })
         } catch (error) {
           console.error("Error parsing order data:", error)
         }
