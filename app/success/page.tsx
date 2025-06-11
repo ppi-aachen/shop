@@ -18,6 +18,7 @@ function SuccessContent() {
     // Try to get order data from localStorage (if available)
     if (orderId) {
       const savedOrderData = localStorage.getItem(`order-${orderId}`)
+      dispatch({ type: "CLEAR_CART" })
       if (savedOrderData) {
         try {
           const parsedData = JSON.parse(savedOrderData)
