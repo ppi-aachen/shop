@@ -12,7 +12,6 @@ import { Upload, FileText, ImageIcon, AlertTriangle } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import { CountryRestriction } from "@/components/country-restriction"
 import { submitOrder } from "./actions"
-import { LoadingPopup } from "@/app/success/loading"
 
 export default function CheckoutForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -59,21 +58,16 @@ export default function CheckoutForm() {
   }
 
   const handleSubmit = async (formData: FormData) => {
-    // Set submitting state to true immediately to show the loading popup
-    setIsSubmitting(true)
-
     // Validate cart items first
     const cartErrors = validateCartItems()
     if (cartErrors.length > 0) {
       setValidationErrors(cartErrors)
       alert("Please select required options for all items:\n\n" + cartErrors.join("\n"))
-      setIsSubmitting(false) // Turn off loading if validation fails
       return
     }
 
     if (!selectedFile) {
       alert("Please upload proof of payment")
-      setIsSubmitting(false) // Turn off loading if validation fails
       return
     }
 
@@ -85,10 +79,10 @@ export default function CheckoutForm() {
       selectedCountry.toLowerCase() !== "deutschland"
     ) {
       alert("We currently only deliver within Germany. Please contact us on Instagram for international orders.")
-      setIsSubmitting(false) // Turn off loading if validation fails
       return
     }
 
+    setIsSubmitting(true)
     setValidationErrors([])
 
     try {
@@ -121,8 +115,6 @@ export default function CheckoutForm() {
       console.error("Error:", error)
       alert("Error submitting order. Please try again or contact support.")
     } finally {
-      // This will run regardless of success or error, but the redirect will happen first on success.
-      // In case of an error alert, the loading screen will be hidden.
       setIsSubmitting(false)
     }
   }
@@ -271,18 +263,5 @@ export default function CheckoutForm() {
         </form>
       </CardContent>
     </Card>
-  )
-  return (
-    <> {/* Use a Fragment to wrap the Card and the Popup */}
-      <LoadingPopup isSubmitting={isSubmitting} /> {/* 2. Add the popup component here */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Customer Details & Proof of Payment</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* ... (all your existing form JSX) ... */}
-        </CardContent>
-      </Card>
-    </>
   )
 }
