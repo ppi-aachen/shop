@@ -172,12 +172,19 @@ export default function HomePage() {
 
   const addToCart = (product: Product) => {
     // Check if product requires size or color selection
-    if ((product.sizes && product.sizes.length > 0) || (product.colors && product.colors.length > 0)) {
+    const requiresSize = product.sizes && product.sizes.length > 0
+    const requiresColor = product.colors && product.colors.length > 0
+
+    if (requiresSize || requiresColor) {
       // Show toast and automatically open modal
+      const missingOptions = []
+      if (requiresSize) missingOptions.push("size")
+      if (requiresColor) missingOptions.push("color")
+
       toast({
         variant: "warning",
         title: "Options Required",
-        description: "Please select size and color options first.",
+        description: `Please select ${missingOptions.join(" and ")} options first.`,
       })
 
       // Automatically open the product modal
@@ -259,6 +266,13 @@ export default function HomePage() {
                     Chapter II
                   </div>
                 )}
+
+                {/* Options Required Badge */}
+                {((product.sizes && product.sizes.length > 0) || (product.colors && product.colors.length > 0)) && (
+                  <div className="absolute bottom-2 left-2 bg-orange-500 text-white text-xs px-2 py-1 rounded">
+                    Options Required
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="p-4">
                 <CardTitle
@@ -268,12 +282,28 @@ export default function HomePage() {
                   {product.name}
                 </CardTitle>
                 <p className="text-gray-600 text-sm mb-3 line-clamp-2">{product.description}</p>
+
+                {/* Show required options */}
+                {((product.sizes && product.sizes.length > 0) || (product.colors && product.colors.length > 0)) && (
+                  <div className="mb-3">
+                    <p className="text-xs text-orange-600 font-medium">
+                      {product.sizes && product.sizes.length > 0 && product.colors && product.colors.length > 0
+                        ? "Size & Color selection required"
+                        : product.sizes && product.sizes.length > 0
+                          ? "Size selection required"
+                          : "Color selection required"}
+                    </p>
+                  </div>
+                )}
+
                 <p className="text-2xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
               </CardContent>
               <CardFooter className="p-4 pt-0 flex gap-2">
                 <Button onClick={() => addToCart(product)} className="flex-1">
                   <Plus className="h-4 w-4 mr-2" />
-                  Add to Cart
+                  {(product.sizes && product.sizes.length > 0) || (product.colors && product.colors.length > 0)
+                    ? "Select Options"
+                    : "Add to Cart"}
                 </Button>
                 <Button variant="outline" onClick={() => openProductModal(product)}>
                   <Eye className="h-4 w-4" />
