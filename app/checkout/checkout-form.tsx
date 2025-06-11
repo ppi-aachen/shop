@@ -12,7 +12,6 @@ import { Upload, FileText, ImageIcon, AlertTriangle } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import { CountryRestriction } from "@/components/country-restriction"
 import { submitOrder } from "./actions"
-import { LoadingOverlay } from "@/components/loading-overlay"
 
 export default function CheckoutForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -266,7 +265,6 @@ export default function CheckoutForm() {
           </Button>
         </form>
       </CardContent>
-      {isSubmitting && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
     </Card>
   )
 }
