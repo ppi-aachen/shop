@@ -6,7 +6,6 @@ import { Header } from "@/components/header"
 import { useCart } from "@/lib/cart-context"
 import { Package, MapPin, Truck } from "lucide-react"
 import CheckoutForm from "./checkout-form"
-import { LoadingOverlay } from "@/components/loading-overlay"
 
 export default function CheckoutPage() {
   const { state } = useCart()
@@ -120,10 +119,8 @@ export default function CheckoutPage() {
           </div>
 
           {/* Checkout Form */}
-          <CheckoutForm setIsSubmittingParent={setIsSubmitting} /> {/* Pass setIsSubmitting */}
         </div>
       </main>
-      {isSubmitting && <LoadingOverlay />} {/* Conditionally render LoadingOverlay here */}
     </div>
   )
 }
