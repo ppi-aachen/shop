@@ -22,6 +22,7 @@ function SuccessContent() {
         try {
           const parsedData = JSON.parse(savedOrderData)
           setOrderData(parsedData)
+          dispatch({ type: "CLEAR_CART" })
         } catch (error) {
           console.error("Error parsing order data:", error)
         }

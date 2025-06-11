@@ -98,7 +98,6 @@ export default function CheckoutForm() {
 
       if (result.success) {
         router.push(`/success?orderId=${result.orderId}`)
-        dispatch({ type: "CLEAR_CART" })
       } else {
         const errorMessage = result.error || "Unknown error occurred"
         if (errorMessage.includes("Email") || errorMessage.includes("API key")) {
