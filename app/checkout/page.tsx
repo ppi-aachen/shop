@@ -10,7 +10,6 @@ import CheckoutForm from "./checkout-form"
 export default function CheckoutPage() {
   const { state } = useCart()
   const router = useRouter()
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (state.items.length === 0) {
@@ -119,6 +118,7 @@ export default function CheckoutPage() {
           </div>
 
           {/* Checkout Form */}
+          <CheckoutForm />
         </div>
       </main>
     </div>
