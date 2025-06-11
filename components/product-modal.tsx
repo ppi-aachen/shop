@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, X, Truck, Shield, RotateCcw, AlertTriangle } from "lucide-react"
+import { Plus, X, Truck, Shield, RotateCcw } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import { ImageGallery } from "@/components/image-gallery"
 import { getProductImages } from "@/lib/image-utils"
@@ -41,25 +41,12 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
   if (!product) return null
 
   const addToCart = () => {
-    // Check for required options
-    const requiresSize = product.sizes && product.sizes.length > 0
-    const requiresColor = product.colors && product.colors.length > 0
-
-    // Validate required selections
-    if (requiresSize && !selectedSize) {
+    // For products with sizes, require size selection
+    if (product.sizes && product.sizes.length > 0 && !selectedSize) {
       toast({
         variant: "warning",
         title: "Size Required",
         description: "Please select a size before adding to cart.",
-      })
-      return
-    }
-
-    if (requiresColor && !selectedColor) {
-      toast({
-        variant: "warning",
-        title: "Color Required",
-        description: "Please select a color before adding to cart.",
       })
       return
     }
@@ -79,20 +66,12 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
       description: `${product.name}${selectedSize ? ` (Size: ${selectedSize})` : ""}${selectedColor ? ` (Color: ${selectedColor})` : ""} has been added to your cart.`,
     })
 
-    // Reset selections and close modal
-    setSelectedSize("")
-    setSelectedColor("")
     onClose()
   }
 
   // Use multiple images if available, otherwise fall back to single image
   const productImages =
     product.images && product.images.length > 0 ? getProductImages(product.images) : getProductImages([product.image])
-
-  // Check if all required options are selected
-  const requiresSize = product.sizes && product.sizes.length > 0
-  const requiresColor = product.colors && product.colors.length > 0
-  const canAddToCart = (!requiresSize || selectedSize) && (!requiresColor || selectedColor)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -141,62 +120,45 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             )}
 
             {/* Size Selection */}
-            {requiresSize && (
+            {product.sizes && product.sizes.length > 0 && (
               <div>
-                <h3 className="font-semibold text-lg mb-2">
-                  Size <span className="text-red-500">*</span>
-                </h3>
+                <h3 className="font-semibold text-lg mb-2">Size *</h3>
                 <div className="flex flex-wrap gap-2">
-                  {product.sizes!.map((size) => (
+                  {product.sizes.map((size) => (
                     <Button
                       key={size}
                       variant={selectedSize === size ? "default" : "outline"}
                       size="sm"
                       onClick={() => setSelectedSize(size)}
-                      className={selectedSize === size ? "bg-green-600 hover:bg-green-700" : ""}
                     >
                       {size}
                     </Button>
                   ))}
                 </div>
-                {!selectedSize && (
+                {product.sizes.length > 0 && !selectedSize && (
                   <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-red-600" />
-                      <p className="text-sm text-red-700 font-medium">Please select a size to continue</p>
-                    </div>
+                    <p className="text-sm text-red-700 font-medium">⚠️ Please select a size to continue</p>
                   </div>
                 )}
               </div>
             )}
 
             {/* Color Selection */}
-            {requiresColor && (
+            {product.colors && product.colors.length > 0 && (
               <div>
-                <h3 className="font-semibold text-lg mb-2">
-                  Color <span className="text-red-500">*</span>
-                </h3>
+                <h3 className="font-semibold text-lg mb-2">Color</h3>
                 <div className="flex flex-wrap gap-2">
-                  {product.colors!.map((color) => (
+                  {product.colors.map((color) => (
                     <Button
                       key={color}
                       variant={selectedColor === color ? "default" : "outline"}
                       size="sm"
                       onClick={() => setSelectedColor(color)}
-                      className={selectedColor === color ? "bg-green-600 hover:bg-green-700" : ""}
                     >
                       {color}
                     </Button>
                   ))}
                 </div>
-                {!selectedColor && (
-                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-red-600" />
-                      <p className="text-sm text-red-700 font-medium">Please select a color to continue</p>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
@@ -261,11 +223,9 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             </div>
 
             {/* Add to Cart Button */}
-            <Button onClick={addToCart} className="w-full" size="lg" disabled={!canAddToCart}>
+            <Button onClick={addToCart} className="w-full" size="lg">
               <Plus className="h-4 w-4 mr-2" />
-              {canAddToCart
-                ? `Add to Cart - €${product.price.toFixed(2)}`
-                : `Select ${!selectedSize && requiresSize ? "Size" : ""}${!selectedSize && requiresSize && !selectedColor && requiresColor ? " & " : ""}${!selectedColor && requiresColor ? "Color" : ""} to Continue`}
+              Add to Cart - €{product.price.toFixed(2)}
             </Button>
           </div>
         </div>
