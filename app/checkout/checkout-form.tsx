@@ -102,6 +102,15 @@ export default function CheckoutForm() {
       const result = await submitOrder(formData)
 
       if (result.success) {
+        if (typeof window !== "undefined" && result.orderData && result.orderItemsData) {
+          localStorage.setItem(
+            `order-${result.orderId}`,
+            JSON.stringify({
+              order: result.orderData,
+              items: result.orderItemsData,
+            }),
+          )
+        }
         router.push(`/success?orderId=${result.orderId}`)
       } else {
         const errorMessage = result.error || "Unknown error occurred"

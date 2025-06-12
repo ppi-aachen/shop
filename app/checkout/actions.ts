@@ -700,16 +700,7 @@ export async function submitOrder(formData: FormData) {
 
     await Promise.all([addOrderToGoogleSheet(orderData), addOrderItemsToGoogleSheet(orderItemsData)])
 
-    // Store order data for PDF generation
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem(
-        `order-${orderId}`,
-        JSON.stringify({
-          order: orderData,
-          items: orderItemsData,
-        }),
-      )
-    }
+    
 
     const emailResults = await Promise.allSettled([
       sendCustomerConfirmationEmail(orderData, orderItemsData),
@@ -738,7 +729,7 @@ export async function submitOrder(formData: FormData) {
       console.log(plainTextEmail)
     }
 
-    return { success: true, orderId, emailsSent: !emailsFailed }
+    return { success: true, orderId, emailsSent: !emailsFailed, orderData, orderItemsData }
   } catch (error) {
     console.error("Error submitting order:", error)
     return { success: false, error: "Failed to submit order" }
