@@ -88,7 +88,6 @@ export default function CheckoutForm() {
     }
 
     setIsSubmitting(true)
-    setLoadingscreen(true)
     setValidationErrors([])
 
     try {
@@ -130,7 +129,6 @@ export default function CheckoutForm() {
       alert("Error submitting order. Please try again or contact support.")
     } finally {
       setIsSubmitting(false)
-      setLoadingscreen(false)
     }
   }
 
@@ -277,7 +275,7 @@ export default function CheckoutForm() {
           </Button>
         </form>
       </CardContent>
-      {loadingscreen && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
+      {isSubmitting && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
     </Card>
   )
 }
