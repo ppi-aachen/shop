@@ -89,6 +89,9 @@ export default function CheckoutForm() {
 
     setIsSubmitting(true)
     setValidationErrors([])
+    
+    // Introduce a manual delay here to observe the loading state
+    await new Promise(resolve => setTimeout(resolve, 1500)); // Delay for 1.5 seconds
 
     try {
       formData.append("cartItems", JSON.stringify(state.items))
