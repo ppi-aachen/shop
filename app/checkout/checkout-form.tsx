@@ -59,10 +59,11 @@ export default function CheckoutForm() {
   }
 
   const handleSubmit = async (formData: FormData) => {
-    if (isSubmitting) {
-      console.log("Submission already in progress. Ignoring multiple click.")
-      return; // Exit if already submitting
-    }
+      if (isSubmitting) {
+        console.log("Submission already in progress. Ignoring multiple click.")
+        return;
+      }
+
     // Validate cart items first
     const cartErrors = validateCartItems()
     if (cartErrors.length > 0) {
@@ -87,13 +88,13 @@ export default function CheckoutForm() {
       return
     }
 
+    console.log("handleSubmit: Setting isSubmitting to true"); // Log 1
     setIsSubmitting(true)
+    console.log("handleSubmit: isSubmitting is now", isSubmitting); // Log 2 (Note: this will still log false due to closure)
     setValidationErrors([])
-    
-    // Introduce a manual delay here to observe the loading state
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Delay for 1.5 seconds
 
     try {
+      console.log("handleSubmit: Starting server action call"); // Log 3
       formData.append("cartItems", JSON.stringify(state.items))
       formData.append("deliveryMethod", state.deliveryMethod)
       formData.append("subtotal", state.total.toString())
@@ -103,6 +104,7 @@ export default function CheckoutForm() {
       formData.append("proofOfPayment", selectedFile)
 
       const result = await submitOrder(formData)
+      console.log("handleSubmit: Server action call completed, result:", result); // Log 4
 
       if (result.success) {
         if (typeof window !== "undefined" && result.orderData && result.orderItemsData) {
@@ -131,6 +133,7 @@ export default function CheckoutForm() {
       console.error("Error:", error)
       alert("Error submitting order. Please try again or contact support.")
     } finally {
+      console.log("handleSubmit: Setting isSubmitting to false in finally block"); // Log 5
       setIsSubmitting(false)
     }
   }
