@@ -16,6 +16,7 @@ import { LoadingOverlay } from "@/components/loading-overlay"
 
 export default function CheckoutForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [country, setCountry] = useState("")
   const [validationErrors, setValidationErrors] = useState<string[]>([])
@@ -88,6 +89,7 @@ export default function CheckoutForm() {
     }
 
     setIsSubmitting(true)
+    setIsLoading(true)
     setValidationErrors([])
 
     try {
@@ -129,6 +131,7 @@ export default function CheckoutForm() {
       alert("Error submitting order. Please try again or contact support.")
     } finally {
       setIsSubmitting(false)
+      setIsLoading(false)
     }
   }
 
@@ -275,7 +278,7 @@ export default function CheckoutForm() {
           </Button>
         </form>
       </CardContent>
-      {isSubmitting && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
+      {isLoading && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
     </Card>
   )
 }
