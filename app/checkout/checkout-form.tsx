@@ -15,7 +15,7 @@ import { submitOrder } from "./actions"
 import { LoadingOverlay } from "@/components/loading-overlay"
 
 export default function CheckoutForm() {
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSubmittig, setIsSubmittig] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [country, setCountry] = useState("")
   const [validationErrors, setValidationErrors] = useState<string[]>([])
@@ -59,7 +59,7 @@ export default function CheckoutForm() {
   }
 
   const handleSubmit = async (formData: FormData) => {
-    if (isSubmitting) {
+    if (isSubmittig) {
       console.log("Submission already in progress. Ignoring multiple click.")
       return; // Exit if already submitting
     }
