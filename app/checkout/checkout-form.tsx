@@ -269,13 +269,13 @@ export default function CheckoutForm() {
           <Button
             type="submit"
             className="w-full"
-            disabled={setIsSubmitting || !selectedFile || validationErrors.length > 0}
+            disabled={IsSubmitting || !selectedFile || validationErrors.length > 0}
           >
-            {isSubmitting ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
+            {IsSubmitting ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
           </Button>
         </form>
       </CardContent>
-      {setIsSubmitting && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
+      {IsSubmitting && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
     </Card>
   )
 }
