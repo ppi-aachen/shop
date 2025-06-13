@@ -15,7 +15,7 @@ import { submitOrder } from "./actions"
 import { LoadingOverlay } from "@/components/loading-overlay"
 
 export default function CheckoutForm() {
-  const [isSubmittig, setIsSubmittig] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [country, setCountry] = useState("")
   const [validationErrors, setValidationErrors] = useState<string[]>([])
@@ -59,7 +59,7 @@ export default function CheckoutForm() {
   }
 
   const handleSubmit = async (formData: FormData) => {
-    if (isSubmittig) {
+    if (isSubmitting) {
       console.log("Submission already in progress. Ignoring multiple click.")
       return; // Exit if already submitting
     }
@@ -87,7 +87,7 @@ export default function CheckoutForm() {
       return
     }
 
-    setIsSubmittig(true)
+    setIsSubmitting(true)
     setValidationErrors([])
 
     try {
@@ -128,7 +128,7 @@ export default function CheckoutForm() {
       console.error("Error:", error)
       alert("Error submitting order. Please try again or contact support.")
     } finally {
-      setIsSubmittig(false)
+      setIsSubmitting(false)
     }
   }
 
@@ -269,13 +269,13 @@ export default function CheckoutForm() {
           <Button
             type="submit"
             className="w-full"
-            disabled={isSubmittig || !selectedFile || validationErrors.length > 0}
+            disabled={isSubmitting || !selectedFile || validationErrors.length > 0}
           >
-            {isSubmittig ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
+            {isSubmitting ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
           </Button>
         </form>
       </CardContent>
-      {isSubmittig && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
+      {isSubmitting && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
     </Card>
   )
 }
