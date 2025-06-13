@@ -87,7 +87,7 @@ export default function CheckoutForm() {
       return
     }
 
-    setIsSubmitting(true)
+    setIsSubmittig(true)
     setValidationErrors([])
 
     try {
@@ -128,7 +128,7 @@ export default function CheckoutForm() {
       console.error("Error:", error)
       alert("Error submitting order. Please try again or contact support.")
     } finally {
-      setIsSubmitting(false)
+      setIsSubmittig(false)
     }
   }
 
@@ -269,13 +269,13 @@ export default function CheckoutForm() {
           <Button
             type="submit"
             className="w-full"
-            disabled={isSubmitting || !selectedFile || validationErrors.length > 0}
+            disabled={isSubmittig || !selectedFile || validationErrors.length > 0}
           >
-            {isSubmitting ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
+            {isSubmittig ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
           </Button>
         </form>
       </CardContent>
-      {isSubmitting && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
+      {isSubmittig && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
     </Card>
   )
 }
