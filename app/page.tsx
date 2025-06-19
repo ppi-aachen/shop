@@ -72,7 +72,7 @@ const products: Product[] = [
     image: "https://drive.google.com/thumbnail?id=1FzJrKLbrORg7pE1BYpVR_beHJR0bGhmy&sz=w1000",
     images: [
       "/placeholder.svg?height=400&width=400&text=Nasi+Tumpeng+Front",
-      "/placeholder.svg?height=400&width=400&text=Nasi+Tumpeng+Back",
+      "https://drive.google.com/file/d/1lLSvTnbfY2p9M-9IhJkRsr3YazZ8HqKv/view?usp=sharing",
       "/placeholder.svg?height=400&width=400&text=Nasi+Tumpeng+Detail",
     ],
     description: "Comfortable oversized t-shirt featuring traditional Indonesian Nasi Tumpeng design",
