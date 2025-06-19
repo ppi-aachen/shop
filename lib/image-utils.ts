@@ -39,18 +39,9 @@ export function getGoogleDriveImageUrl(driveUrl: string): string {
 
   console.log("Extracted file ID:", fileId);
   
-  // Try multiple Google Drive URL formats
-  const urlFormats = [
-    `https://drive.google.com/uc?export=view&id=${fileId}`,
-    `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`,
-    `https://drive.google.com/file/d/${fileId}/preview`,
-    `https://docs.google.com/uc?id=${fileId}`
-  ];
-  
-  // Return the first format (most commonly working)
-  const directUrl = urlFormats[0];
-  console.log("Generated direct URL:", directUrl);
-  console.log("Alternative URLs available:", urlFormats.slice(1));
+  // Use the thumbnail format which is more reliable for img tags
+  const directUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+  console.log("Generated thumbnail URL:", directUrl);
   
   return directUrl
 }
@@ -82,9 +73,9 @@ export function getProductImage(imageSource: string): string {
 
   // Check if it's a Google Drive file ID (without full URL)
   if (imageSource.match(/^[a-zA-Z0-9-_]{25,}$/)) {
-    console.log("Google Drive file ID detected, generating URL...");
-    const directUrl = `https://drive.google.com/uc?export=view&id=${imageSource}`
-    console.log("Generated direct URL from file ID:", directUrl);
+    console.log("Google Drive file ID detected, generating thumbnail URL...");
+    const directUrl = `https://drive.google.com/thumbnail?id=${imageSource}&sz=w1000`;
+    console.log("Generated thumbnail URL from file ID:", directUrl);
     return directUrl
   }
 
