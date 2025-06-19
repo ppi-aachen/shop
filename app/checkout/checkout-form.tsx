@@ -59,6 +59,12 @@ export default function CheckoutForm() {
     window.open("https://instagram.com/aachen.studio", "_blank")
   }
 
+  const submitClick = useCallback(()=>{
+    setIsSubmitting(true)
+    setIsLoading(true)
+    setValidationErrors([])
+  }, [])
+
   const handleSubmit = async (formData: FormData) => {
     if (isSubmitting) {
       console.log("Submission already in progress. Ignoring multiple click.")
@@ -87,10 +93,6 @@ export default function CheckoutForm() {
       alert("We currently only deliver within Germany. Please contact us on Instagram for international orders.")
       return
     }
-
-    setIsSubmitting(true)
-    setIsLoading(true)
-    setValidationErrors([])
 
     try {
       formData.append("cartItems", JSON.stringify(state.items))
@@ -235,7 +237,7 @@ export default function CheckoutForm() {
           )}
 
           <div className="space-y-4">
-            <h3 className="font-medium text-lg">Proof of Payment</h3>
+            <h3 className="font-medium text-lg">Proof of Payment *</h3>
 
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
               <input
@@ -273,6 +275,7 @@ export default function CheckoutForm() {
             type="submit"
             className="w-full"
             disabled={isSubmitting || !selectedFile || validationErrors.length > 0}
+            onClick={submitClick}
           >
             {isSubmitting ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
           </Button>
