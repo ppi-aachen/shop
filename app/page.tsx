@@ -156,7 +156,6 @@ const products: Product[] = [
       "Fabric Weight": "180 GSM",
       "Print Method": "Screen Print",
       Collar: "Crew Neck",
-      Collection: "Chapter II",
     },
     careInstructions: ["Machine wash cold", "Tumble dry low", "Do not iron directly on print", "Wash inside out"],
     sizes: ["S", "M", "L", "XL", "XXL"],
@@ -261,18 +260,7 @@ export default function HomePage() {
                   </div>
                 )}
 
-                {product.id === 4 && (
-                  <div className="absolute top-2 left-2 bg-green-600 text-white text-xs px-2 py-1 rounded">
-                    Chapter II
-                  </div>
-                )}
-
-                {/* Options Required Badge */}
-                {((product.sizes && product.sizes.length > 0) || (product.colors && product.colors.length > 0)) && (
-                  <div className="absolute bottom-2 left-2 bg-orange-500 text-white text-xs px-2 py-1 rounded">
-                    Options Required
-                  </div>
-                )}
+                
               </CardHeader>
               <CardContent className="p-4">
                 <CardTitle
