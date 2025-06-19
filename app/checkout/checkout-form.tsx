@@ -20,6 +20,7 @@ export default function CheckoutForm() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [country, setCountry] = useState("")
   const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const [DisableButton, setDisableButton] = useState(false)
   const { state, dispatch } = useCart()
   const router = useRouter()
 
@@ -58,6 +59,10 @@ export default function CheckoutForm() {
   const handleContactInstagram = () => {
     window.open("https://instagram.com/aachen.studio", "_blank")
   }
+
+  const submitClick = useCallback(()=>{
+    setDisableButton(true)
+  }, [])
 
   const handleSubmit = async (formData: FormData) => {
     if (isSubmitting) {
@@ -272,7 +277,7 @@ export default function CheckoutForm() {
           <Button
             type="submit"
             className="w-full"
-            disabled={isSubmitting || !selectedFile || validationErrors.length > 0}
+            disabled={DisableButton || !selectedFile || validationErrors.length > 0}
           >
             {isSubmitting ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
           </Button>
