@@ -11,19 +11,46 @@ export function getGoogleDriveImageUrl(driveUrl: string): string {
     return "/placeholder.svg?height=200&width=200"
   }
 
-  // Extract file ID from Google Drive URL
-  const fileIdMatch = driveUrl.match(/\/d\/([a-zA-Z0-9-_]+)/)
-  if (!fileIdMatch || !fileIdMatch[1]) {
+  // Extract file ID from Google Drive URL - try multiple patterns
+  let fileId = null;
+  
+  // Pattern 1: /file/d/FILE_ID/view
+  const pattern1 = driveUrl.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+  if (pattern1 && pattern1[1]) {
+    fileId = pattern1[1];
+  }
+  
+  // Pattern 2: /d/FILE_ID/
+  const pattern2 = driveUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (!fileId && pattern2 && pattern2[1]) {
+    fileId = pattern2[1];
+  }
+  
+  // Pattern 3: Just the file ID itself
+  const pattern3 = driveUrl.match(/^([a-zA-Z0-9-_]{25,})$/);
+  if (!fileId && pattern3 && pattern3[1]) {
+    fileId = pattern3[1];
+  }
+
+  if (!fileId) {
     console.log("Could not extract file ID from URL:", driveUrl);
     return "/placeholder.svg?height=200&width=200"
   }
 
-  const fileId = fileIdMatch[1]
   console.log("Extracted file ID:", fileId);
   
-  // Use the direct export URL format
-  const directUrl = `https://drive.google.com/uc?export=view&id=${fileId}`
+  // Try multiple Google Drive URL formats
+  const urlFormats = [
+    `https://drive.google.com/uc?export=view&id=${fileId}`,
+    `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`,
+    `https://drive.google.com/file/d/${fileId}/preview`,
+    `https://docs.google.com/uc?id=${fileId}`
+  ];
+  
+  // Return the first format (most commonly working)
+  const directUrl = urlFormats[0];
   console.log("Generated direct URL:", directUrl);
+  console.log("Alternative URLs available:", urlFormats.slice(1));
   
   return directUrl
 }
