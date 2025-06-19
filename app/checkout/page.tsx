@@ -108,10 +108,10 @@ export default function CheckoutPage() {
                   <strong>Name:</strong> PPI Aachen
                 </p>
                 <p>
-                  <strong>Account:</strong> treasury@ppiaachen.de
+                  <strong>Account:</strong> macariozachary@gmail.com
                 </p>
                 <p>
-                  <strong>Note:</strong> Aachen Studio-"Name of Recipient"
+                  <strong>Note:</strong> Aachen Studio-"Your name here"
                 </p>
               </div>
             </div>
