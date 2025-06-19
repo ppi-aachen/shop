@@ -98,7 +98,7 @@ const products: Product[] = [
     id: 3,
     name: "Aksara Oversized T-Shirt",
     price: 12.0,
-    image: "/placeholder.svg?height=200&width=200&text=Aksara",
+    image: "https://drive.google.com/file/d/1FzJrKLbrORg7pE1BYpVR_beHJR0bGhmy/view?usp=sharing",
     images: [
       "/placeholder.svg?height=400&width=400&text=Aksara+Front",
       "/placeholder.svg?height=400&width=400&text=Aksara+Back",
