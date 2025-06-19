@@ -386,7 +386,7 @@ async function sendCustomerConfirmationEmail(orderData: OrderData, orderItems: O
     `
 
     const { data, error } = await resend.emails.send({
-      from: "Aachen Studio <orders@ppiaachen.de>",
+      from: "Aachen Studio <orders@shop.ppiaachen.de>",
       to: [orderData.email],
       subject: `Order Confirmation - ${orderData.orderId} | Aachen Studio`,
       html: emailHtml,
@@ -578,7 +578,7 @@ async function sendBusinessNotificationEmail(orderData: OrderData, orderItems: O
     `
 
     const { data, error } = await resend.emails.send({
-      from: "Aachen Studio Orders <orders@ppiaachen.de>",
+      from: "Aachen Studio Orders <orders@shop.ppiaachen.de>",
       to: ["funding@ppiaachen.de"],
       subject: `🚨 NEW ORDER: ${orderData.orderId} - €${orderData.totalAmount.toFixed(2)} | Action Required`,
       html: emailHtml,
