@@ -278,6 +278,7 @@ export default function CheckoutForm() {
             type="submit"
             className="w-full"
             disabled={DisableButton || !selectedFile || validationErrors.length > 0}
+            onClick={submitClick}
           >
             {isSubmitting ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
           </Button>
