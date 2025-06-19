@@ -58,51 +58,48 @@ export default function CheckoutForm() {
     window.open("https://instagram.com/aachen.studio", "_blank")
   }
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async (formData: FormData) => {
     if (isSubmitting) {
-      console.log("Submission already in progress. Ignoring multiple click.");
+      console.log("Submission already in progress. Ignoring multiple click.")
       return; // Exit if already submitting
     }
     // Validate cart items first
-    const cartErrors = validateCartItems();
+    const cartErrors = validateCartItems()
     if (cartErrors.length > 0) {
-      setValidationErrors(cartErrors);
-      alert("Please select required options for all items:\n\n" + cartErrors.join("\n"));
-      return;
+      setValidationErrors(cartErrors)
+      alert("Please select required options for all items:\n\n" + cartErrors.join("\n"))
+      return
     }
 
     if (!selectedFile) {
-      alert("Please upload proof of payment");
-      return;
+      alert("Please upload proof of payment")
+      return
     }
 
     // Check if delivery is to Germany
-    const form = e.currentTarget;
-    const formData = new FormData(form);
-    const selectedCountry = formData.get("country") as string;
+    const selectedCountry = formData.get("country") as string
     if (
       state.deliveryMethod === "delivery" &&
       selectedCountry.toLowerCase() !== "germany" &&
       selectedCountry.toLowerCase() !== "deutschland"
     ) {
-      alert("We currently only deliver within Germany. Please contact us on Instagram for international orders.");
-      return;
+      alert("We currently only deliver within Germany. Please contact us on Instagram for international orders.")
+      return
     }
 
-    setIsSubmitting(true);
-    setValidationErrors([]);
+    setIsSubmitting(true)
+    setValidationErrors([])
 
     try {
-      formData.append("cartItems", JSON.stringify(state.items));
-      formData.append("deliveryMethod", state.deliveryMethod);
-      formData.append("subtotal", state.total.toString());
-      formData.append("shippingCost", state.shippingCost.toString());
-      formData.append("totalAmount", state.finalTotal.toString());
-      formData.append("itemCount", state.itemCount.toString());
-      formData.append("proofOfPayment", selectedFile);
+      formData.append("cartItems", JSON.stringify(state.items))
+      formData.append("deliveryMethod", state.deliveryMethod)
+      formData.append("subtotal", state.total.toString())
+      formData.append("shippingCost", state.shippingCost.toString())
+      formData.append("totalAmount", state.finalTotal.toString())
+      formData.append("itemCount", state.itemCount.toString())
+      formData.append("proofOfPayment", selectedFile)
 
-      const result = await submitOrder(formData);
+      const result = await submitOrder(formData)
 
       if (result.success) {
         if (typeof window !== "undefined" && result.orderData && result.orderItemsData) {
@@ -112,28 +109,28 @@ export default function CheckoutForm() {
               order: result.orderData,
               items: result.orderItemsData,
             }),
-          );
+          )
         }
-        router.push(`/success?orderId=${result.orderId}`);
+        router.push(`/success?orderId=${result.orderId}`)
       } else {
-        const errorMessage = result.error || "Unknown error occurred";
+        const errorMessage = result.error || "Unknown error occurred"
         if (errorMessage.includes("Email") || errorMessage.includes("API key")) {
           alert(
             "Order submitted successfully, but email notifications may not have been sent. You will be contacted directly.",
-          );
-          dispatch({ type: "CLEAR_CART" });
-          router.push(`/success?orderId=${result.orderId}`);
+          )
+          dispatch({ type: "CLEAR_CART" })
+          router.push(`/success?orderId=${result.orderId}`)
         } else {
-          alert(`Error submitting order: ${errorMessage}. Please try again.`);
+          alert(`Error submitting order: ${errorMessage}. Please try again.`)
         }
       }
     } catch (error) {
-      console.error("Error:", error);
-      alert("Error submitting order. Please try again or contact support.");
+      console.error("Error:", error)
+      alert("Error submitting order. Please try again or contact support.")
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
+  }
 
   return (
     <Card>
@@ -159,7 +156,7 @@ export default function CheckoutForm() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form action={handleSubmit} className="space-y-4">
           <div className="space-y-4">
             <h3 className="font-medium text-lg">Customer Information</h3>
 
