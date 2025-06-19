@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -237,7 +237,7 @@ export default function CheckoutForm() {
           )}
 
           <div className="space-y-4">
-            <h3 className="font-medium text-lg">Proof of Payment *</h3>
+            <h3 className="font-medium text-lg">Proof of Payment</h3>
 
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
               <input
