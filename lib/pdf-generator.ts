@@ -298,6 +298,9 @@ export function generateOrderPDF(orderData: OrderData, orderItems: OrderItem[]):
         <!-- Payment Information -->
         <div class="section">
           <h3>💰 Payment Information</h3>
+          <p style="margin: 0 0 15px 0;">
+            <strong>Payment Method:</strong> Bank Transfer / PayPal
+          </p>
           <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 15px;">
             <p style="margin: 0 0 10px 0; font-weight: 600; color: #1e40af;">Payment Details:</p>
             <p style="margin: 0; color: #1e40af;">
