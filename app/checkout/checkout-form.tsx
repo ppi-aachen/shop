@@ -16,7 +16,6 @@ import { LoadingOverlay } from "@/components/loading-overlay"
 
 export default function CheckoutForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isSubmitting2, setIsSubmitting2] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [country, setCountry] = useState("")
@@ -59,10 +58,6 @@ export default function CheckoutForm() {
   const handleContactInstagram = () => {
     window.open("https://instagram.com/aachen.studio", "_blank")
   }
-
-  const submitClick = useCallback(()=>{
-    setIsSubmitting2(true)
-  }, [])
 
   const handleSubmit = async (formData: FormData) => {
     if (isSubmitting) {
@@ -277,13 +272,13 @@ export default function CheckoutForm() {
           <Button
             type="submit"
             className="w-full"
-            disabled={isSubmitting2 || !selectedFile || validationErrors.length > 0}
-            onClick={submitClick}
+            disabled={isSubmitting || !selectedFile || validationErrors.length > 0}
           >
             {isSubmitting ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
           </Button>
         </form>
       </CardContent>
+      {isLoading && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
     </Card>
   )
 }
