@@ -116,6 +116,7 @@ export default function CheckoutForm() {
           )
         }
         router.push(`/success?orderId=${result.orderId}`)
+        setIsSubmitting(false)
       } else {
         const errorMessage = result.error || "Unknown error occurred"
         if (errorMessage.includes("Email") || errorMessage.includes("API key")) {
@@ -124,8 +125,10 @@ export default function CheckoutForm() {
           )
           dispatch({ type: "CLEAR_CART" })
           router.push(`/success?orderId=${result.orderId}`)
+          setIsSubmitting(false)
         } else {
           alert(`Error submitting order: ${errorMessage}. Please try again.`)
+          setIsSubmitting(false)
         }
       }
     } catch (error) {
