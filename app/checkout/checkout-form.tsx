@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useCallback, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -59,13 +59,6 @@ export default function CheckoutForm() {
     window.open("https://instagram.com/aachen.studio", "_blank")
   }
 
-  const submitClick = useCallback(()=>{
-    setIsSubmitting(true)
-    setIsLoading(true)
-    setValidationErrors([])
-    router.push(`/success?orderId=${result.orderId}`)
-  }, [])
-
   const handleSubmit = async (formData: FormData) => {
     if (isSubmitting) {
       console.log("Submission already in progress. Ignoring multiple click.")
@@ -95,6 +88,10 @@ export default function CheckoutForm() {
       return
     }
 
+    setIsSubmitting(true)
+    setIsLoading(true)
+    setValidationErrors([])
+
     try {
       formData.append("cartItems", JSON.stringify(state.items))
       formData.append("deliveryMethod", state.deliveryMethod)
@@ -105,7 +102,6 @@ export default function CheckoutForm() {
       formData.append("proofOfPayment", selectedFile)
 
       const result = await submitOrder(formData)
-      setIsSubmitting(false)
 
       if (result.success) {
         if (typeof window !== "undefined" && result.orderData && result.orderItemsData) {
@@ -118,7 +114,6 @@ export default function CheckoutForm() {
           )
         }
         router.push(`/success?orderId=${result.orderId}`)
-        setIsSubmitting(false)
       } else {
         const errorMessage = result.error || "Unknown error occurred"
         if (errorMessage.includes("Email") || errorMessage.includes("API key")) {
@@ -127,10 +122,8 @@ export default function CheckoutForm() {
           )
           dispatch({ type: "CLEAR_CART" })
           router.push(`/success?orderId=${result.orderId}`)
-          setIsSubmitting(false)
         } else {
           alert(`Error submitting order: ${errorMessage}. Please try again.`)
-          setIsSubmitting(false)
         }
       }
     } catch (error) {
@@ -280,12 +273,12 @@ export default function CheckoutForm() {
             type="submit"
             className="w-full"
             disabled={isSubmitting || !selectedFile || validationErrors.length > 0}
-            onClick={submitClick}
           >
             {isSubmitting ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
           </Button>
         </form>
       </CardContent>
+      {isLoading && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
     </Card>
   )
 }
