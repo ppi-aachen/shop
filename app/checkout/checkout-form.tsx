@@ -104,6 +104,7 @@ export default function CheckoutForm() {
       formData.append("proofOfPayment", selectedFile)
 
       const result = await submitOrder(formData)
+      setIsSubmitting(false)
 
       if (result.success) {
         if (typeof window !== "undefined" && result.orderData && result.orderItemsData) {
