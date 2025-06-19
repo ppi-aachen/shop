@@ -63,6 +63,7 @@ export default function CheckoutForm() {
     setIsSubmitting(true)
     setIsLoading(true)
     setValidationErrors([])
+    router.push(`/success?orderId=${result.orderId}`)
   }, [])
 
   const handleSubmit = async (formData: FormData) => {
