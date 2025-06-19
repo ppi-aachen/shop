@@ -578,7 +578,7 @@ async function sendBusinessNotificationEmail(orderData: OrderData, orderItems: O
     `
 
     const { data, error } = await resend.emails.send({
-      from: "Webshop Aachen Studio Orders <orders@shop.ppiaachen.de>",
+      from: "Webshop Aachen Studio <orders@shop.ppiaachen.de>",
       to: ["fundraising@ppiaachen.de"],
       subject: `🚨 NEW ORDER: ${orderData.orderId} - €${orderData.totalAmount.toFixed(2)} | Action Required`,
       html: emailHtml,
