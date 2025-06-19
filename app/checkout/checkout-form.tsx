@@ -248,7 +248,7 @@ export default function CheckoutForm() {
               <label htmlFor="proofOfPayment" className="cursor-pointer">
                 <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                 <p className="text-lg font-medium text-gray-900 mb-2">Upload Proof of Payment</p>
-                <p className="text-sm text-gray-600 mb-4">PDF, JPG, PNG files up to 1MB</p>
+                <p className="text-sm text-gray-600 mb-4">PDF, JPG, PNG files up to 5MB</p>
               </label>
 
               {selectedFile && (
