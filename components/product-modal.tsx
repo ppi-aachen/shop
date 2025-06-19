@@ -269,6 +269,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             </Button>
           </div>
         </div>
+        <div className="h-4" />
       </DialogContent>
     </Dialog>
   )
