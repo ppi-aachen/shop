@@ -285,7 +285,6 @@ export default function CheckoutForm() {
           </Button>
         </form>
       </CardContent>
-      {isLoading && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
     </Card>
   )
 }
