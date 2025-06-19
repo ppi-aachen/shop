@@ -230,7 +230,7 @@ export default function HomePage() {
                   <img
                     src={getProductImage(product.image) || "/placeholder.svg"}
                     alt={product.name}
-                    className="w-full h-full object-contain transition-transform group-hover:scale-105"
+                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement
                       target.style.display = "none"
