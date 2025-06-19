@@ -29,10 +29,10 @@ interface Product {
 const products: Product[] = [
   {
     id: 1,
-    name: "Wayang Totebag",
+    name: "Jarik Batik",
     price: 8.0,
     image:
-      "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/FB_IMG_1733827949972.jpg-zZZyriFl5aahPt82T5kyqSBvr6phmm.jpeg",
+      "https://drive.google.com/file/d/1fW0-P7dU5mimR0V5rq6K30uAMDquyoMH/view?usp=sharing",
     images: [
       "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/FB_IMG_1733827949972.jpg-zZZyriFl5aahPt82T5kyqSBvr6phmm.jpeg",
       "/placeholder.svg?height=400&width=400&text=Wayang+Front+Design",
@@ -61,11 +61,11 @@ const products: Product[] = [
       "Design Theme": "Traditional Wayang (Shadow Puppet)",
     },
     careInstructions: ["Hand wash in cold water", "Air dry only", "Do not bleach", "Iron on low heat if needed"],
-    colors: ["Natural", "Black"],
+    colors: ["Atjeh", "Bandoeng", "Borneo", "Djogjakarta", "Ambonia"],
   },
   {
     id: 2,
-    name: "Nasi Tumpeng Oversized T-Shirt",
+    name: "Batik Outer",
     price: 12.0,
     image: "https://drive.google.com/thumbnail?id=1FzJrKLbrORg7pE1BYpVR_beHJR0bGhmy&sz=w1000",
     images: [
