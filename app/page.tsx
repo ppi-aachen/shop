@@ -67,7 +67,7 @@ const products: Product[] = [
     id: 2,
     name: "Nasi Tumpeng Oversized T-Shirt",
     price: 12.0,
-    image: "https://drive.google.com/file/d/1FzJrKLbrORg7pE1BYpVR_beHJR0bGhmy/view?usp=sharing",
+    image: "https://drive.google.com/uc?export=view&id=1FzJrKLbrORg7pE1BYpVR_beHJR0bGhmy",
     images: [
       "/placeholder.svg?height=400&width=400&text=Nasi+Tumpeng+Front",
       "/placeholder.svg?height=400&width=400&text=Nasi+Tumpeng+Back",
