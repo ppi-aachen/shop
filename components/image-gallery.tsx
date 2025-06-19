@@ -44,7 +44,7 @@ export function ImageGallery({ images, productName, className }: ImageGalleryPro
           <img
             src={currentImage || "/placeholder.svg"}
             alt={`${productName} - Image ${selectedImageIndex + 1}`}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
             onError={() => handleImageError(selectedImageIndex)}
             onLoad={() => console.log(`Image loaded successfully at index ${selectedImageIndex}:`, currentImage)}
           />
