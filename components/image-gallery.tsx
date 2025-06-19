@@ -17,6 +17,8 @@ export function ImageGallery({ images, productName, className }: ImageGalleryPro
 
   const handleImageError = (index: number) => {
     console.log(`Image failed to load at index ${index}:`, images[index]);
+    console.log(`Image type: ${images[index]?.includes('drive.google.com') ? 'Google Drive' : 'Other'}`);
+    console.log(`Full error details for image ${index}:`, images[index]);
     setImageErrors((prev) => ({ ...prev, [index]: true }))
   }
 
@@ -43,7 +45,6 @@ export function ImageGallery({ images, productName, className }: ImageGalleryPro
             src={currentImage || "/placeholder.svg"}
             alt={`${productName} - Image ${selectedImageIndex + 1}`}
             className="w-full h-full object-cover"
-            crossOrigin={isGoogleDriveImage ? "anonymous" : undefined}
             onError={() => handleImageError(selectedImageIndex)}
             onLoad={() => console.log(`Image loaded successfully at index ${selectedImageIndex}:`, currentImage)}
           />
@@ -93,35 +94,31 @@ export function ImageGallery({ images, productName, className }: ImageGalleryPro
       {/* Thumbnail Navigation - Only show if multiple images */}
       {hasMultipleImages && (
         <div className="flex gap-2 overflow-x-auto pb-2">
-          {images.map((image, index) => {
-            const isThumbnailGoogleDrive = image && image.includes('drive.google.com')
-            return (
-              <button
-                key={index}
-                onClick={() => setSelectedImageIndex(index)}
-                className={cn(
-                  "flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all",
-                  selectedImageIndex === index
-                    ? "border-green-600 ring-2 ring-green-200"
-                    : "border-gray-200 hover:border-gray-300",
-                )}
-              >
-                {!imageErrors[index] ? (
-                  <img
-                    src={image || "/placeholder.svg"}
-                    alt={`${productName} thumbnail ${index + 1}`}
-                    className="w-full h-full object-cover"
-                    crossOrigin={isThumbnailGoogleDrive ? "anonymous" : undefined}
-                    onError={() => handleImageError(index)}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                    <Package className="h-6 w-6 text-gray-400" />
-                  </div>
-                )}
-              </button>
-            )
-          })}
+          {images.map((image, index) => (
+            <button
+              key={index}
+              onClick={() => setSelectedImageIndex(index)}
+              className={cn(
+                "flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all",
+                selectedImageIndex === index
+                  ? "border-green-600 ring-2 ring-green-200"
+                  : "border-gray-200 hover:border-gray-300",
+              )}
+            >
+              {!imageErrors[index] ? (
+                <img
+                  src={image || "/placeholder.svg"}
+                  alt={`${productName} thumbnail ${index + 1}`}
+                  className="w-full h-full object-cover"
+                  onError={() => handleImageError(index)}
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                  <Package className="h-6 w-6 text-gray-400" />
+                </div>
+              )}
+            </button>
+          ))}
         </div>
       )}
     </div>
