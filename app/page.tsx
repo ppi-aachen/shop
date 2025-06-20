@@ -36,11 +36,11 @@ const products: Product[] = [
     images: [
       "https://drive.google.com/file/d/1fW0-P7dU5mimR0V5rq6K30uAMDquyoMH/view?usp=sharing",
       "https://drive.google.com/file/d/10Qr4IuPWWuyu9k0O7btMlrz7ezyTNib9/view?usp=sharing",
+      "https://drive.google.com/file/d/1lLSvTnbfY2p9M-9IhJkRsr3YazZ8HqKv/view?usp=sharing",
+      "https://drive.google.com/file/d/1OMOJ7Eqb1vsXpq5ogEH-lGUbUtpCvhPc/view?usp=sharing",
       "https://drive.google.com/file/d/1YJp6fwnI6x2Q1AM9iMUbqIWzDsWZUtX9/view?usp=sharing",
       "https://drive.google.com/file/d/1uvemzAknWqSwJoQyPOTC8h3pOuVoNp3a/view?usp=sharing",
       "https://drive.google.com/file/d/1835MmxUWaengsiL3sWlrAra3CqbqckzX/view?usp=sharing",
-      "https://drive.google.com/file/d/1OMOJ7Eqb1vsXpq5ogEH-lGUbUtpCvhPc/view?usp=sharing",
-      "https://drive.google.com/file/d/1lLSvTnbfY2p9M-9IhJkRsr3YazZ8HqKv/view?usp=sharing",
     ],
     description: "Stylish canvas totebag featuring traditional Indonesian Wayang (shadow puppet) designs",
     detailedDescription:
