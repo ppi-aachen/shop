@@ -9,11 +9,18 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb'
+    }
+  },
   api: {
     bodyParser: {
-      sizeLimit: '10mb', // Set to your desired maximum file size (e.g., '10mb', '50mb')
+      sizeLimit: '10mb'
     },
+    responseLimit: '10mb'
   },
 }
+
 
 export default nextConfig

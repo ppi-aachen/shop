@@ -16,6 +16,9 @@ export function ImageGallery({ images, productName, className }: ImageGalleryPro
   const [imageErrors, setImageErrors] = useState<{ [key: number]: boolean }>({})
 
   const handleImageError = (index: number) => {
+    console.log(`Image failed to load at index ${index}:`, images[index]);
+    console.log(`Image type: ${images[index]?.includes('drive.google.com') ? 'Google Drive' : 'Other'}`);
+    console.log(`Full error details for image ${index}:`, images[index]);
     setImageErrors((prev) => ({ ...prev, [index]: true }))
   }
 
@@ -30,6 +33,9 @@ export function ImageGallery({ images, productName, className }: ImageGalleryPro
   const currentImage = images[selectedImageIndex]
   const hasMultipleImages = images.length > 1
 
+  // Check if the current image is a Google Drive URL
+  const isGoogleDriveImage = currentImage && currentImage.includes('drive.google.com')
+
   return (
     <div className={cn("space-y-4", className)}>
       {/* Main Image Display */}
@@ -38,8 +44,9 @@ export function ImageGallery({ images, productName, className }: ImageGalleryPro
           <img
             src={currentImage || "/placeholder.svg"}
             alt={`${productName} - Image ${selectedImageIndex + 1}`}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
             onError={() => handleImageError(selectedImageIndex)}
+            onLoad={() => console.log(`Image loaded successfully at index ${selectedImageIndex}:`, currentImage)}
           />
         ) : (
           <div className="flex items-center justify-center h-full">
@@ -47,6 +54,9 @@ export function ImageGallery({ images, productName, className }: ImageGalleryPro
               <Package className="h-24 w-24 text-gray-400 mx-auto mb-4" />
               <p className="text-lg text-gray-500 font-medium">{productName}</p>
               <p className="text-sm text-gray-400 mt-2">Image {selectedImageIndex + 1}</p>
+              {isGoogleDriveImage && (
+                <p className="text-xs text-red-400 mt-1">Google Drive image failed to load</p>
+              )}
             </div>
           </div>
         )}

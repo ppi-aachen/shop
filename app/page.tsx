@@ -29,16 +29,18 @@ interface Product {
 const products: Product[] = [
   {
     id: 1,
-    name: "Wayang Totebag",
-    price: 8.0,
+    name: "Jarik Batik",
+    price: 11.0,
     image:
-      "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/FB_IMG_1733827949972.jpg-zZZyriFl5aahPt82T5kyqSBvr6phmm.jpeg",
+      "https://drive.google.com/file/d/1fW0-P7dU5mimR0V5rq6K30uAMDquyoMH/view?usp=sharing",
     images: [
-      "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/FB_IMG_1733827949972.jpg-zZZyriFl5aahPt82T5kyqSBvr6phmm.jpeg",
-      "/placeholder.svg?height=400&width=400&text=Wayang+Front+Design",
-      "/placeholder.svg?height=400&width=400&text=Wayang+Back+Design",
-      "/placeholder.svg?height=400&width=400&text=Wayang+Detail+View",
-      "/placeholder.svg?height=400&width=400&text=Wayang+Pattern+Close-up",
+      "https://drive.google.com/file/d/1fW0-P7dU5mimR0V5rq6K30uAMDquyoMH/view?usp=sharing",
+      "https://drive.google.com/file/d/10Qr4IuPWWuyu9k0O7btMlrz7ezyTNib9/view?usp=sharing",
+      "https://drive.google.com/file/d/1lLSvTnbfY2p9M-9IhJkRsr3YazZ8HqKv/view?usp=sharing",
+      "https://drive.google.com/file/d/1OMOJ7Eqb1vsXpq5ogEH-lGUbUtpCvhPc/view?usp=sharing",
+      "https://drive.google.com/file/d/1uvemzAknWqSwJoQyPOTC8h3pOuVoNp3a/view?usp=sharing",
+      "https://drive.google.com/file/d/1835MmxUWaengsiL3sWlrAra3CqbqckzX/view?usp=sharing",
+      "https://drive.google.com/file/d/1YJp6fwnI6x2Q1AM9iMUbqIWzDsWZUtX9/view?usp=sharing",
     ],
     description: "Stylish canvas totebag featuring traditional Indonesian Wayang (shadow puppet) designs",
     detailedDescription:
@@ -61,17 +63,20 @@ const products: Product[] = [
       "Design Theme": "Traditional Wayang (Shadow Puppet)",
     },
     careInstructions: ["Hand wash in cold water", "Air dry only", "Do not bleach", "Iron on low heat if needed"],
-    colors: ["Natural", "Black"],
+    colors: ["Ambonia", "Atjeh", "Bandoeng", "Borneo", "Djogjakarta"],
   },
   {
     id: 2,
-    name: "Nasi Tumpeng Oversized T-Shirt",
-    price: 12.0,
-    image: "/placeholder.svg?height=200&width=200&text=Nasi+Tumpeng",
+    name: "Batik Outer",
+    price: 14.0,
+    image: "https://drive.google.com/file/d/1la8WgRt1RruPnMZ2qZEbisXrTIGJ2Cpo/view?usp=drive_link",
     images: [
-      "/placeholder.svg?height=400&width=400&text=Nasi+Tumpeng+Front",
-      "/placeholder.svg?height=400&width=400&text=Nasi+Tumpeng+Back",
-      "/placeholder.svg?height=400&width=400&text=Nasi+Tumpeng+Detail",
+      "https://drive.google.com/file/d/1la8WgRt1RruPnMZ2qZEbisXrTIGJ2Cpo/view?usp=drive_link",
+      "https://drive.google.com/file/d/1soJYVejgJqEuqCmu4RC4gSU-SbEPaAF6/view?usp=drive_link",
+      "https://drive.google.com/file/d/1SLCn73UsltCxj8FyW-Ub-fAdDCU5lc9y/view?usp=drive_link",
+      "https://drive.google.com/file/d/19pS8ZHjdw0-v3kB-zA_jyEg2fyEJHUpg/view?usp=drive_link",
+      "https://drive.google.com/file/d/1mBUiUM1LDXvGLO6Dy-GIgbGkUTbRYC3B/view?usp=drive_link",
+      "https://drive.google.com/file/d/1iI41Yw9_eAyNqqcG2jnMOVltmqXNj5Ie/view?usp=drive_link",
     ],
     description: "Comfortable oversized t-shirt featuring traditional Indonesian Nasi Tumpeng design",
     detailedDescription:
@@ -91,14 +96,13 @@ const products: Product[] = [
       Collar: "Crew Neck",
     },
     careInstructions: ["Machine wash cold", "Tumble dry low", "Do not iron directly on print", "Wash inside out"],
-    sizes: ["S", "M", "L", "XL", "XXL"],
-    colors: ["White", "Cream", "Light Gray"],
+    colors: ["Kembang Legi", "Luruh Praja", "Parang Ayu", "Rahayu", "Sekar Tirta"]
   },
   {
     id: 3,
     name: "Aksara Oversized T-Shirt",
     price: 12.0,
-    image: "/placeholder.svg?height=200&width=200&text=Aksara",
+    image: "https://drive.google.com/file/d/1FzJrKLbrORg7pE1BYpVR_beHJR0bGhmy/view?usp=sharing",
     images: [
       "/placeholder.svg?height=400&width=400&text=Aksara+Front",
       "/placeholder.svg?height=400&width=400&text=Aksara+Back",
