@@ -30,7 +30,7 @@ const products: Product[] = [
   {
     id: 1,
     name: "Jarik Batik",
-    price: 8.0,
+    price: 11.0,
     image:
       "https://drive.google.com/file/d/1fW0-P7dU5mimR0V5rq6K30uAMDquyoMH/view?usp=sharing",
     images: [
