@@ -69,7 +69,7 @@ const products: Product[] = [
     id: 2,
     name: "Batik Outer",
     price: 12.0,
-    image: "https://drive.google.com/thumbnail?id=1FzJrKLbrORg7pE1BYpVR_beHJR0bGhmy&sz=w1000",
+    image: "https://drive.google.com/file/d/1la8WgRt1RruPnMZ2qZEbisXrTIGJ2Cpo/view?usp=drive_link",
     images: [
       "/placeholder.svg?height=400&width=400&text=Nasi+Tumpeng+Front",
       "https://drive.google.com/file/d/1lLSvTnbfY2p9M-9IhJkRsr3YazZ8HqKv/view?usp=sharing",
