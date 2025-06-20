@@ -63,7 +63,7 @@ const products: Product[] = [
       "Design Theme": "Traditional Wayang (Shadow Puppet)",
     },
     careInstructions: ["Hand wash in cold water", "Air dry only", "Do not bleach", "Iron on low heat if needed"],
-    colors: ["Atjeh", "Bandoeng", "Borneo", "Djogjakarta", "Ambonia"],
+    colors: ["Ambonia", "Atjeh", "Bandoeng", "Borneo", "Djogjakarta"],
   },
   {
     id: 2,
