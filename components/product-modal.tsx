@@ -270,6 +270,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
           </div>
         </div>
         <div className="h-4" />
+        <div className="h-4" />
       </DialogContent>
     </Dialog>
   )
