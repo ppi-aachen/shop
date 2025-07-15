@@ -24,7 +24,6 @@ interface Product {
   careInstructions?: string[]
   sizes?: string[]
   colors?: string[]
-  stock: number
 }
 
 interface ProductModalProps {
@@ -65,16 +64,6 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
       return
     }
 
-    // Check if product is in stock
-    if (product.stock <= 0) {
-      toast({
-        variant: "destructive",
-        title: "Out of Stock",
-        description: "This product is currently out of stock.",
-      })
-      return
-    }
-
     dispatch({
       type: "ADD_ITEM",
       payload: {
@@ -103,7 +92,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
   // Check if all required options are selected
   const requiresSize = product.sizes && product.sizes.length > 0
   const requiresColor = product.colors && product.colors.length > 0
-  const canAddToCart = (!requiresSize || selectedSize) && (!requiresColor || selectedColor) && product.stock > 0
+  const canAddToCart = (!requiresSize || selectedSize) && (!requiresColor || selectedColor)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -272,9 +261,11 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             </div>
 
             {/* Add to Cart Button */}
-            <Button onClick={addToCart} className="w-full" size="lg" disabled={!canAddToCart || product.stock === 0}>
+            <Button onClick={addToCart} className="w-full" size="lg" disabled={!canAddToCart}>
               <Plus className="h-4 w-4 mr-2" />
-              {product.stock > 0 ? `Add to Cart - €${product.price.toFixed(2)}` : "Out of Stock"}
+              {canAddToCart
+                ? `Add to Cart - €${product.price.toFixed(2)}`
+                : `Select ${!selectedSize && requiresSize ? "Size" : ""}${!selectedSize && requiresSize && !selectedColor && requiresColor ? " & " : ""}${!selectedColor && requiresColor ? "Color" : ""} to Continue`}
             </Button>
           </div>
         </div>
