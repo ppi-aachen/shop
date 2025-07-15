@@ -2,9 +2,6 @@ console.log("--- Google Drive Setup Guide ---")
 console.log("This script helps you configure Google Drive for proof of payment uploads.")
 console.log("")
 console.log("To resolve the 'storage quota exceeded' error, you MUST use a Google Shared Drive.")
-console.log(
-  "The current 'File not found: ...' error indicates that the GOOGLE_DRIVE_FOLDER_ID you provided is incorrect or inaccessible.",
-)
 console.log("")
 console.log("Steps:")
 console.log("1. Create a Google Shared Drive:")
@@ -25,21 +22,18 @@ console.log(
 console.log("   - Grant the service account 'Content manager' or 'Editor' access.")
 console.log("   - Click 'Share'.")
 console.log("")
-console.log("4. Get the **CORRECT** Folder ID of your 'Proof of Payments' folder:")
+console.log("4. Get the Folder ID of your 'Proof of Payments' folder:")
 console.log("   - Open the 'Proof of Payments' folder in your browser.")
 console.log("   - Look at the URL in your browser's address bar.")
 console.log("   - The folder ID is the string of characters after `/folders/` and before the next `/` or `?`.")
-console.log("     Example URL: `https://drive.google.com/drive/folders/YOUR_CORRECT_FOLDER_ID_HERE`")
-console.log(
-  "   - **Double-check this ID carefully!** A single incorrect character will cause the 'File not found' error.",
-)
+console.log("     Example URL: `https://drive.google.com/drive/folders/YOUR_FOLDER_ID_HERE`")
 console.log("")
 console.log("5. Set the `GOOGLE_DRIVE_FOLDER_ID` environment variable:")
-console.log("   - Copy the **correct** folder ID you obtained in step 4.")
+console.log("   - Copy the folder ID you obtained in step 4.")
 console.log("   - In your Vercel project settings, go to 'Environment Variables'.")
-console.log("   - Update the existing environment variable (or add a new one if it's missing):")
+console.log("   - Add a new environment variable:")
 console.log("     Name: `GOOGLE_DRIVE_FOLDER_ID`")
-console.log("     Value: `YOUR_CORRECT_FOLDER_ID_HERE` (paste the ID you copied)")
+console.log("     Value: `YOUR_FOLDER_ID_HERE` (paste the ID you copied)")
 console.log(
   "   - Ensure this variable is available for the correct environments (e.g., 'Production', 'Preview', 'Development').",
 )

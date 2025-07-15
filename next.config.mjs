@@ -1,26 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   images: {
-    unoptimized: true,
-  },
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '10mb'
-    }
-  },
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb'
-    },
-    responseLimit: '10mb'
-  },
-}
-
-
-export default nextConfig
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'drive.google.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'via.placeholder.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',

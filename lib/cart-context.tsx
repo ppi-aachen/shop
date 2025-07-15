@@ -1,15 +1,13 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useReducer, useEffect } from "react"
+import { createContext, useReducer, useContext, useEffect } from "react"
 
-export interface CartItem {
+interface CartItem {
   id: number
   name: string
   price: number
   image: string
-  images?: string[]
-  description: string
   quantity: number
   selectedSize?: string
   selectedColor?: string
@@ -21,166 +19,143 @@ interface CartState {
   items: CartItem[]
   total: number
   itemCount: number
-  deliveryMethod: "pickup" | "delivery"
   shippingCost: number
   finalTotal: number
+  deliveryMethod: "pickup" | "delivery"
 }
 
 type CartAction =
-  | { type: "ADD_ITEM"; payload: Omit<CartItem, "quantity"> }
+  | { type: "ADD_ITEM"; payload: Omit<CartItem, "image"> & { image: string } }
   | { type: "REMOVE_ITEM"; payload: number }
   | { type: "UPDATE_QUANTITY"; payload: { id: number; quantity: number } }
   | { type: "SET_DELIVERY_METHOD"; payload: "pickup" | "delivery" }
   | { type: "CLEAR_CART" }
-  | { type: "LOAD_CART"; payload: CartItem[] }
+  | { type: "LOAD_CART"; payload: CartState }
+
+const initialCartState: CartState = {
+  items: [],
+  total: 0,
+  itemCount: 0,
+  shippingCost: 0,
+  finalTotal: 0,
+  deliveryMethod: "pickup", // Default delivery method
+}
 
 const CartContext = createContext<{
   state: CartState
   dispatch: React.Dispatch<CartAction>
-} | null>(null)
+  getTotalPrice: () => number
+}>({
+  state: initialCartState,
+  dispatch: () => null,
+  getTotalPrice: () => 0,
+})
 
-function calculateShippingCost(itemCount: number, deliveryMethod: "pickup" | "delivery"): number {
-  if (deliveryMethod === "pickup") return 0
+const cartReducer = (state: CartState, action: CartAction): CartState => {
+  let newItems = [...state.items]
+  let newDeliveryMethod = state.deliveryMethod
 
-  if (itemCount >= 1 && itemCount <= 3) return 6.19
-  if (itemCount >= 4 && itemCount <= 7) return 7.69
-  return 10.49
-}
-
-function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
-    case "ADD_ITEM": {
-      const existingItemIndex = state.items.findIndex(
+    case "ADD_ITEM":
+      const existingItemIndex = newItems.findIndex(
         (item) =>
           item.id === action.payload.id &&
           item.selectedSize === action.payload.selectedSize &&
           item.selectedColor === action.payload.selectedColor,
       )
 
-      let newItems: CartItem[]
-      if (existingItemIndex >= 0) {
-        newItems = state.items.map((item, index) =>
-          index === existingItemIndex ? { ...item, quantity: item.quantity + 1 } : item,
-        )
+      if (existingItemIndex > -1) {
+        newItems[existingItemIndex] = {
+          ...newItems[existingItemIndex],
+          quantity: newItems[existingItemIndex].quantity + action.payload.quantity,
+        }
       } else {
-        // Include sizes and colors arrays in the cart item
-        newItems = [
-          ...state.items,
-          {
-            ...action.payload,
-            quantity: 1,
-            sizes: action.payload.sizes || [],
-            colors: action.payload.colors || [],
-          },
-        ]
+        newItems.push({ ...action.payload })
       }
-
-      const total = newItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      const itemCount = newItems.reduce((sum, item) => sum + item.quantity, 0)
-      const shippingCost = calculateShippingCost(itemCount, state.deliveryMethod)
-      const finalTotal = total + shippingCost
-
-      return { ...state, items: newItems, total, itemCount, shippingCost, finalTotal }
-    }
-
-    case "REMOVE_ITEM": {
-      const newItems = state.items.filter((item, index) => index !== action.payload)
-      const total = newItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      const itemCount = newItems.reduce((sum, item) => sum + item.quantity, 0)
-      const shippingCost = calculateShippingCost(itemCount, state.deliveryMethod)
-      const finalTotal = total + shippingCost
-
-      return { ...state, items: newItems, total, itemCount, shippingCost, finalTotal }
-    }
-
-    case "UPDATE_QUANTITY": {
-      const newItems = state.items
-        .map((item, index) =>
-          index === action.payload.id ? { ...item, quantity: Math.max(0, action.payload.quantity) } : item,
-        )
-        .filter((item) => item.quantity > 0)
-
-      const total = newItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      const itemCount = newItems.reduce((sum, item) => sum + item.quantity, 0)
-      const shippingCost = calculateShippingCost(itemCount, state.deliveryMethod)
-      const finalTotal = total + shippingCost
-
-      return { ...state, items: newItems, total, itemCount, shippingCost, finalTotal }
-    }
-
-    case "SET_DELIVERY_METHOD": {
-      const shippingCost = calculateShippingCost(state.itemCount, action.payload)
-      const finalTotal = state.total + shippingCost
-
-      return { ...state, deliveryMethod: action.payload, shippingCost, finalTotal }
-    }
-
+      break
+    case "REMOVE_ITEM":
+      newItems = newItems.filter((item) => item.id !== action.payload)
+      break
+    case "UPDATE_QUANTITY":
+      newItems = newItems.map((item) =>
+        item.id === action.payload.id ? { ...item, quantity: action.payload.quantity } : item,
+      )
+      break
+    case "SET_DELIVERY_METHOD":
+      newDeliveryMethod = action.payload
+      break
     case "CLEAR_CART":
-      return {
-        items: [],
-        total: 0,
-        itemCount: 0,
-        deliveryMethod: "pickup",
-        shippingCost: 0,
-        finalTotal: 0,
-      }
-
-    case "LOAD_CART": {
-      const total = action.payload.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      const itemCount = action.payload.reduce((sum, item) => sum + item.quantity, 0)
-      const shippingCost = calculateShippingCost(itemCount, state.deliveryMethod)
-      const finalTotal = total + shippingCost
-
-      return { ...state, items: action.payload, total, itemCount, shippingCost, finalTotal }
-    }
-
+      return initialCartState
+    case "LOAD_CART":
+      return action.payload
     default:
       return state
   }
+
+  const newTotal = newItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const newItemCount = newItems.reduce((sum, item) => sum + item.quantity, 0)
+  const newShippingCost = newDeliveryMethod === "pickup" ? 0 : 5 // Recalculate based on new method
+  const newFinalTotal = newTotal + newShippingCost
+
+  return {
+    ...state,
+    items: newItems,
+    total: newTotal,
+    itemCount: newItemCount,
+    shippingCost: newShippingCost,
+    finalTotal: newFinalTotal,
+    deliveryMethod: newDeliveryMethod,
+  }
 }
 
-export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(cartReducer, {
-    items: [],
-    total: 0,
-    itemCount: 0,
-    deliveryMethod: "pickup",
-    shippingCost: 0,
-    finalTotal: 0,
-  })
+export const CartProvider = ({ children }: { children: React.ReactNode }) => {
+  const [state, dispatch] = useReducer(cartReducer, initialCartState)
 
   // Load cart from localStorage on mount
   useEffect(() => {
-    const savedCart = localStorage.getItem("shopping-cart")
-    const savedDeliveryMethod = localStorage.getItem("delivery-method") as "pickup" | "delivery" | null
-
-    if (savedCart) {
+    const storedCart = localStorage.getItem("aachenStudioCart")
+    if (storedCart) {
       try {
-        const cartItems = JSON.parse(savedCart)
-        dispatch({ type: "LOAD_CART", payload: cartItems })
-      } catch (error) {
-        console.error("Error loading cart from localStorage:", error)
-      }
-    }
+        const parsedCart: CartState = JSON.parse(storedCart)
+        // Ensure loaded cart has all necessary fields, provide defaults if missing
+        const validatedCart: CartState = {
+          ...initialCartState,
+          ...parsedCart,
+          items: parsedCart.items || [],
+          deliveryMethod: parsedCart.deliveryMethod || "pickup",
+        }
+        // Recalculate totals to ensure consistency
+        const recalculatedTotal = validatedCart.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+        const recalculatedItemCount = validatedCart.items.reduce((sum, item) => sum + item.quantity, 0)
+        const recalculatedShippingCost = validatedCart.deliveryMethod === "pickup" ? 0 : 5
+        const recalculatedFinalTotal = recalculatedTotal + recalculatedShippingCost
 
-    if (savedDeliveryMethod) {
-      dispatch({ type: "SET_DELIVERY_METHOD", payload: savedDeliveryMethod })
+        dispatch({
+          type: "LOAD_CART",
+          payload: {
+            ...validatedCart,
+            total: recalculatedTotal,
+            itemCount: recalculatedItemCount,
+            shippingCost: recalculatedShippingCost,
+            finalTotal: recalculatedFinalTotal,
+          },
+        })
+      } catch (e) {
+        console.error("Failed to parse cart from localStorage", e)
+        // If parsing fails, clear corrupted data
+        localStorage.removeItem("aachenStudioCart")
+      }
     }
   }, [])
 
   // Save cart to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("shopping-cart", JSON.stringify(state.items))
-    localStorage.setItem("delivery-method", state.deliveryMethod)
-  }, [state.items, state.deliveryMethod])
+    localStorage.setItem("aachenStudioCart", JSON.stringify(state))
+  }, [state])
 
-  return <CartContext.Provider value={{ state, dispatch }}>{children}</CartContext.Provider>
+  const getTotalPrice = () => state.total
+
+  return <CartContext.Provider value={{ state, dispatch, getTotalPrice }}>{children}</CartContext.Provider>
 }
 
-export function useCart() {
-  const context = useContext(CartContext)
-  if (!context) {
-    throw new Error("useCart must be used within a CartProvider")
-  }
-  return context
-}
+export const useCart = () => useContext(CartContext)

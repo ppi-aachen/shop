@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useTransition, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useCart } from "@/lib/cart-context"
@@ -17,30 +16,60 @@ import { useToast } from "@/components/ui/use-toast"
 import { Loader2 } from "lucide-react"
 
 export default function CheckoutForm() {
-  const { cart, getTotalPrice, clearCart } = useCart()
+  const { state: cartState, dispatch: cartDispatch } = useCart()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [proofOfPayment, setProofOfPayment] = useState<File | null>(null)
-  const [deliveryMethod, setDeliveryMethod] = useState("pickup")
+  const [deliveryMethod, setDeliveryMethod] = useState(cartState.deliveryMethod || "pickup") // Initialize with cart context
   const router = useRouter()
   const { toast } = useToast()
 
-  const subtotal = getTotalPrice()
+  const subtotal = cartState.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const shippingCost = deliveryMethod === "pickup" ? 0 : 5 // Example shipping cost
   const totalAmount = subtotal + shippingCost
-  const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0)
+  const itemCount = cartState.items.reduce((sum, item) => sum + item.quantity, 0)
+
+  // Validate cart items for required options
+  const validateCartItems = (): string[] => {
+    const errors: string[] = []
+    cartState.items.forEach((item, index) => {
+      if (item.sizes && item.sizes.length > 0 && !item.selectedSize) {
+        errors.push(`Item ${index + 1} (${item.name}): Size is required`)
+      }
+      if (item.colors && item.colors.length > 0 && !item.selectedColor) {
+        errors.push(`Item ${index + 1} (${item.name}): Color is required`)
+      }
+    })
+    return errors
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError(null)
 
+    const cartErrors = validateCartItems()
+    if (cartErrors.length > 0) {
+      setError("Please select required options for all items: " + cartErrors.join(", "))
+      toast({
+        title: "Validation Error",
+        description: "Please select required options for all items.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (!proofOfPayment) {
       setError("Please upload a proof of payment.")
+      toast({
+        title: "Missing Proof of Payment",
+        description: "Please upload a PDF or image of your payment confirmation.",
+        variant: "destructive",
+      })
       return
     }
 
     const formData = new FormData(event.currentTarget)
-    formData.append("cartItems", JSON.stringify(cart))
+    formData.append("cartItems", JSON.stringify(cartState.items))
     formData.append("subtotal", subtotal.toFixed(2))
     formData.append("shippingCost", shippingCost.toFixed(2))
     formData.append("totalAmount", totalAmount.toFixed(2))
@@ -56,26 +85,33 @@ export default function CheckoutForm() {
           description: `Your order ID is ${result.orderId}. Confirmation email sent.`,
           variant: "default",
         })
-        clearCart()
+        cartDispatch({ type: "CLEAR_CART" }) // Clear cart after successful submission
         router.push(`/success?orderId=${result.orderId}`)
       } else {
-        setError(result.error || "Failed to submit order. Please try again.")
+        const errorMessage = result.error || "Failed to submit order. Please try again."
+        setError(errorMessage)
         toast({
           title: "Order Submission Failed",
-          description: result.error || "There was an issue placing your order. Please try again.",
+          description: errorMessage,
           variant: "destructive",
         })
+        // If email sending failed but order was recorded, still redirect to success
+        if (errorMessage.includes("Email") || errorMessage.includes("API key")) {
+          cartDispatch({ type: "CLEAR_CART" })
+          router.push(`/success?orderId=${result.orderId}`)
+        }
       }
     })
   }
 
   useEffect(() => {
-    if (cart.length === 0 && !isPending) {
-      router.push("/") // Redirect to home if cart is empty and not submitting
+    // Redirect to home if cart is empty and not submitting
+    if (cartState.items.length === 0 && !isPending) {
+      router.push("/")
     }
-  }, [cart, isPending, router])
+  }, [cartState.items, isPending, router])
 
-  if (cart.length === 0 && !isPending) {
+  if (cartState.items.length === 0 && !isPending) {
     return null // Or a loading spinner, or a message
   }
 
@@ -115,7 +151,12 @@ export default function CheckoutForm() {
               <CardTitle>Delivery Method</CardTitle>
             </CardHeader>
             <CardContent>
-              <RadioGroup defaultValue="pickup" onValueChange={setDeliveryMethod} className="grid grid-cols-2 gap-4">
+              <RadioGroup
+                defaultValue="pickup"
+                value={deliveryMethod}
+                onValueChange={setDeliveryMethod}
+                className="grid grid-cols-2 gap-4"
+              >
                 <Label
                   htmlFor="pickup"
                   className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary"
@@ -181,7 +222,7 @@ export default function CheckoutForm() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {cart.map((item) => (
+                {cartState.items.map((item) => (
                   <div key={item.id} className="flex items-center justify-between">
                     <div>
                       {item.name} (x{item.quantity})
@@ -234,7 +275,11 @@ export default function CheckoutForm() {
             </CardContent>
           </Card>
 
-          <Button type="submit" className="w-full" disabled={isPending || cart.length === 0 || !proofOfPayment}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isPending || cartState.items.length === 0 || !proofOfPayment}
+          >
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isPending ? "Placing Order..." : "Place Order"}
           </Button>

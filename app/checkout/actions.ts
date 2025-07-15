@@ -2,6 +2,7 @@
 
 import { Resend } from "resend"
 import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload"
+import { logOrderForManualProcessing, generatePlainTextCustomerEmail } from "@/lib/fallback-notifications"
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -21,23 +22,6 @@ interface CartItem {
   selectedColor?: string
   sizes?: string[]
   colors?: string[]
-}
-
-interface ProductData {
-  id: number
-  name: string
-  price: number
-  image: string
-  images?: string[]
-  description: string
-  detailedDescription?: string
-  features?: string[]
-  specifications?: { [key: string]: string }
-  materials?: string[]
-  careInstructions?: string[]
-  sizes?: string[]
-  colors?: string[]
-  stock: number
 }
 
 interface OrderData {
@@ -157,71 +141,6 @@ function pemToDer(pem: string): ArrayBuffer {
   }
 
   return bytes.buffer
-}
-
-export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
-  try {
-    const accessToken = await getGoogleSheetsAuth()
-    const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products?valueRenderOption=FORMATTED_VALUE`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      },
-    )
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
-    }
-
-    const data = await response.json()
-    const rows = data.values as string[][]
-
-    if (!rows || rows.length < 2) {
-      console.warn("No product data found in Google Sheet or only headers present.")
-      return []
-    }
-
-    // Assuming the first row is the header
-    const headers = rows[0]
-    const products = rows.slice(1).map((row) => {
-      const product: any = {}
-      headers.forEach((header, index) => {
-        const value = row[index]
-        // Convert specific fields to numbers or arrays
-        if (header === "id" || header === "price" || header === "stock") {
-          product[header] = Number(value)
-        } else if (
-          header === "sizes" ||
-          header === "colors" ||
-          header === "features" ||
-          header === "materials" ||
-          header === "careInstructions"
-        ) {
-          product[header] = value ? value.split(",").map((s: string) => s.trim()) : []
-        } else if (header === "images") {
-          product[header] = value ? value.split(",").map((s: string) => s.trim()) : []
-        } else if (header === "specifications") {
-          try {
-            product[header] = value ? JSON.parse(value) : {}
-          } catch (e) {
-            console.error(`Error parsing specifications for product: ${product.name}`, e)
-            product[header] = {}
-          }
-        } else {
-          product[header] = value
-        }
-      })
-      return product as ProductData
-    })
-
-    return products
-  } catch (error) {
-    console.error("Error fetching products from Google Sheet:", error)
-    throw error
-  }
 }
 
 async function addOrderToGoogleSheet(orderData: OrderData) {
@@ -800,9 +719,6 @@ export async function submitOrder(formData: FormData) {
 
     if (emailsFailed) {
       console.log("📧 Email service unavailable - logging order for manual processing")
-      const { logOrderForManualProcessing, generatePlainTextCustomerEmail } = await import(
-        "@/lib/fallback-notifications"
-      )
       logOrderForManualProcessing(orderData, orderItemsData)
       const plainTextEmail = generatePlainTextCustomerEmail(orderData, orderItemsData)
       console.log("📧 CUSTOMER EMAIL TEMPLATE (copy and send manually):")
