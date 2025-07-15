@@ -24,6 +24,7 @@ interface Product {
   careInstructions?: string[]
   sizes?: string[]
   colors?: string[]
+  stock: number
 }
 
 interface ProductModalProps {
@@ -92,7 +93,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
   // Check if all required options are selected
   const requiresSize = product.sizes && product.sizes.length > 0
   const requiresColor = product.colors && product.colors.length > 0
-  const canAddToCart = (!requiresSize || selectedSize) && (!requiresColor || selectedColor)
+  const canAddToCart = (!requiresSize || selectedSize) && (!requiresColor || selectedColor) && product.stock > 0
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -115,6 +116,8 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             <div>
               <p className="text-3xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
               <p className="text-gray-600 mt-2">{product.description}</p>
+              {product.stock <= 0 && <p className="text-red-500 font-semibold">Out of Stock</p>}
+              {product.stock > 0 && <p className="text-gray-600">Stock: {product.stock}</p>}
             </div>
 
             {/* Detailed Description */}
@@ -265,7 +268,9 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
               <Plus className="h-4 w-4 mr-2" />
               {canAddToCart
                 ? `Add to Cart - €${product.price.toFixed(2)}`
-                : `Select ${!selectedSize && requiresSize ? "Size" : ""}${!selectedSize && requiresSize && !selectedColor && requiresColor ? " & " : ""}${!selectedColor && requiresColor ? "Color" : ""} to Continue`}
+                : product.stock <= 0
+                  ? "Out of Stock"
+                  : `Select ${!selectedSize && requiresSize ? "Size" : ""}${!selectedSize && requiresSize && !selectedColor && requiresColor ? " & " : ""}${!selectedColor && requiresColor ? "Color" : ""} to Continue`}
             </Button>
           </div>
         </div>

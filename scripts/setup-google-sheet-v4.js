@@ -1,83 +1,95 @@
-// Updated Google Sheet Setup Instructions - Fixed Formatting
+import { GoogleSpreadsheet } from "google-spreadsheet"
+import { JWT } from "google-auth-library"
 
-console.log("Google Sheet Setup Instructions (Fixed Formatting):")
-console.log("==================================================")
-console.log("")
+const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID
+const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
+const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY
 
-console.log("IMPORTANT: Create TWO separate sheets in your Google Spreadsheet")
-console.log("Do NOT add data to the same sheet - they must be separate tabs!")
-console.log("")
+const setupGoogleSheet = async () => {
+  try {
+    // Authenticate with Google Sheets API
+    const serviceAccountAuth = new JWT({
+      email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      key: GOOGLE_PRIVATE_KEY,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    })
 
-console.log("SHEET 1: Create a sheet named 'Orders'")
-console.log("--------------------------------------")
-console.log("Add these headers in ROW 1 (A1 to S1):")
+    const doc = new GoogleSpreadsheet(SPREADSHEET_ID, serviceAccountAuth)
+    await doc.loadInfo() // loads document properties and worksheets
 
-const orderHeaders = [
-  "Order ID",
-  "Date",
-  "Time",
-  "Customer Name",
-  "Email",
-  "Phone",
-  "Address",
-  "City",
-  "State/Province",
-  "ZIP Code",
-  "Country",
-  "Delivery Method",
-  "Total Items",
-  "Subtotal (€)",
-  "Shipping Cost (€)",
-  "Total Amount (€)",
-  "Notes",
-  "Proof of Payment URL",
-  "Status",
-]
+    // Function to add a sheet if it doesn't exist
+    const addSheetIfNotExist = async (title, headers) => {
+      let sheet = doc.sheetsByTitle[title]
+      if (!sheet) {
+        sheet = await doc.addSheet({ title, headerValues: headers })
+        console.log(`Sheet "${title}" created.`)
+      } else {
+        console.log(`Sheet "${title}" already exists.`)
+      }
+      return sheet
+    }
 
-orderHeaders.forEach((header, index) => {
-  console.log(`${String.fromCharCode(65 + index)}1: ${header}`)
-})
+    // Set up the "Products" sheet
+    const productsSheetHeaders = [
+      "id",
+      "name",
+      "price",
+      "image",
+      "images",
+      "description",
+      "detailedDescription",
+      "features",
+      "specifications",
+      "materials",
+      "careInstructions",
+      "sizes",
+      "colors",
+      "stock",
+    ]
+    await addSheetIfNotExist("Products", productsSheetHeaders)
 
-console.log("")
-console.log("SHEET 2: Create a sheet named 'Order_Items'")
-console.log("-------------------------------------------")
-console.log("Add these headers in ROW 1 (A1 to I1):")
+    // Set up the "Orders" sheet
+    const ordersSheetHeaders = [
+      "orderId",
+      "date",
+      "time",
+      "customerName",
+      "email",
+      "phone",
+      "address",
+      "city",
+      "state",
+      "zipCode",
+      "country",
+      "deliveryMethod",
+      "totalItems",
+      "subtotal",
+      "shippingCost",
+      "totalAmount",
+      "notes",
+      "proofOfPaymentUrl",
+      "status",
+    ]
+    await addSheetIfNotExist("Orders", ordersSheetHeaders)
 
-const itemHeaders = [
-  "Order ID",
-  "Item ID",
-  "Product Name",
-  "Price (€)",
-  "Quantity",
-  "Subtotal (€)",
-  "Description",
-  "Selected Size",
-  "Selected Color",
-]
+    // Set up the "Order_Items" sheet
+    const orderItemsSheetHeaders = [
+      "orderId",
+      "itemId",
+      "productName",
+      "price",
+      "quantity",
+      "subtotal",
+      "description",
+      "selectedSize",
+      "selectedColor",
+    ]
+    await addSheetIfNotExist("Order_Items", orderItemsSheetHeaders)
 
-itemHeaders.forEach((header, index) => {
-  console.log(`${String.fromCharCode(65 + index)}1: ${header}`)
-})
+    console.log("Google Sheet setup complete.")
+  } catch (error) {
+    console.error("Error setting up Google Sheet:", error)
+  }
+}
 
-console.log("")
-console.log("CRITICAL STEPS:")
-console.log("1. Right-click on 'Sheet1' tab at bottom → Rename to 'Orders'")
-console.log("2. Click '+' to add new sheet → Name it 'Order_Items'")
-console.log("3. Make sure both sheets have the headers in ROW 1")
-console.log("4. Leave ROW 2 and below empty - data will be added automatically")
-console.log("")
-
-console.log("TROUBLESHOOTING:")
-console.log("- If data goes to wrong location: Check sheet names exactly match 'Orders' and 'Order_Items'")
-console.log("- If data appears in wrong columns: Verify headers are in correct order")
-console.log("- If getting errors: Make sure service account has Editor permissions")
-console.log("")
-
-console.log("Environment Variables needed:")
-console.log("GOOGLE_SHEET_ID=your_sheet_id_here")
-console.log("GOOGLE_SERVICE_ACCOUNT_EMAIL=your_service_account_email")
-console.log("GOOGLE_PRIVATE_KEY=your_private_key_here")
-console.log("RESEND_API_KEY=re_your_resend_key_here")
-console.log("")
-
-console.log("✅ Setup complete! Test with a sample order to verify everything works.")
+setupGoogleSheet()
