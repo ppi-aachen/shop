@@ -10,7 +10,9 @@ async function getGoogleDriveAuth(): Promise<string> {
   const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
 
   if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
-    throw new Error("Google Drive credentials not configured")
+    throw new Error(
+      "Google Drive credentials not configured. Please ensure GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY are set.",
+    )
   }
 
   try {
@@ -111,65 +113,19 @@ async function convertPemToDer(pem: string): Promise<ArrayBuffer> {
   }
 }
 
-async function getProofOfPaymentFolderId(accessToken: string): Promise<string> {
-  try {
-    // First check if folder ID is provided in environment variables
-    const envFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID
+async function getProofOfPaymentFolderId(): Promise<string> {
+  const envFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID
 
-    if (envFolderId) {
-      console.log("Using folder ID from environment variables:", envFolderId)
-      return envFolderId
-    }
-
-    // Fallback: Create or find the default folder
-    const folderName = "Aachen Studio - Proof of Payments"
-    console.log("No folder ID provided, searching for or creating folder:", folderName)
-
-    // Check if folder already exists
-    const searchResponse = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      },
+  if (!envFolderId) {
+    throw new Error(
+      "GOOGLE_DRIVE_FOLDER_ID environment variable is not set. " +
+        "Please create a folder in a Google Shared Drive, share it with your service account, " +
+        "and set its ID as GOOGLE_DRIVE_FOLDER_ID.",
     )
-
-    if (!searchResponse.ok) {
-      throw new Error(`Failed to search for folder: ${searchResponse.statusText}`)
-    }
-
-    const searchData = await searchResponse.json()
-
-    if (searchData.files && searchData.files.length > 0) {
-      console.log("Found existing folder:", searchData.files[0].id)
-      return searchData.files[0].id
-    }
-
-    // Create folder if it doesn't exist
-    console.log("Creating new folder:", folderName)
-    const createResponse = await fetch("https://www.googleapis.com/drive/v3/files", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: folderName,
-        mimeType: "application/vnd.google-apps.folder",
-      }),
-    })
-
-    if (!createResponse.ok) {
-      throw new Error(`Failed to create folder: ${createResponse.statusText}`)
-    }
-
-    const createData = await createResponse.json()
-    console.log("Created new folder with ID:", createData.id)
-    return createData.id
-  } catch (error) {
-    throw new Error(`Failed to get folder ID: ${error instanceof Error ? error.message : "Unknown error"}`)
   }
+
+  console.log("Using Google Drive folder ID from environment variables:", envFolderId)
+  return envFolderId
 }
 
 export async function uploadProofOfPaymentToDrive(
@@ -184,8 +140,8 @@ export async function uploadProofOfPaymentToDrive(
     const accessToken = await getGoogleDriveAuth()
     console.log("Successfully authenticated with Google Drive")
 
-    // Get folder ID
-    const folderId = await getProofOfPaymentFolderId(accessToken)
+    // Get folder ID (now strictly from env)
+    const folderId = await getProofOfPaymentFolderId()
     console.log("Using folder ID:", folderId)
 
     // Create a descriptive filename
@@ -211,6 +167,9 @@ export async function uploadProofOfPaymentToDrive(
       name: fileName,
       parents: [folderId],
       description: `Proof of payment for order ${orderId} from ${customerName}`,
+      // Specify supportsAllDrives for Shared Drive uploads
+      // This is crucial for uploading to Shared Drives
+      supportsAllDrives: true,
     }
 
     const multipartRequestBody =
@@ -241,7 +200,7 @@ export async function uploadProofOfPaymentToDrive(
     const uploadData = await uploadResponse.json()
     console.log("File uploaded successfully:", uploadData.id)
 
-    // Make file publicly readable
+    // Make file publicly readable (optional, but good for sharing links)
     try {
       const shareResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${uploadData.id}/permissions`, {
         method: "POST",
