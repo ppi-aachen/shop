@@ -15,6 +15,7 @@ export interface CartItem {
   selectedColor?: string
   sizes?: string[]
   colors?: string[]
+  stock: number // Added stock to CartItem interface
 }
 
 interface CartState {
@@ -27,7 +28,7 @@ interface CartState {
 }
 
 type CartAction =
-  | { type: "ADD_ITEM"; payload: Omit<CartItem, "quantity"> }
+  | { type: "ADD_ITEM"; payload: Omit<CartItem, "quantity"> & { quantity?: number } } // Allow quantity to be optional for single add
   | { type: "REMOVE_ITEM"; payload: number }
   | { type: "UPDATE_QUANTITY"; payload: { id: number; quantity: number } }
   | { type: "SET_DELIVERY_METHOD"; payload: "pickup" | "delivery" }
@@ -50,27 +51,41 @@ function calculateShippingCost(itemCount: number, deliveryMethod: "pickup" | "de
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case "ADD_ITEM": {
+      const { id, selectedSize, selectedColor, stock, quantity: addQuantity = 1 } = action.payload
       const existingItemIndex = state.items.findIndex(
-        (item) =>
-          item.id === action.payload.id &&
-          item.selectedSize === action.payload.selectedSize &&
-          item.selectedColor === action.payload.selectedColor,
+        (item) => item.id === id && item.selectedSize === selectedSize && item.selectedColor === selectedColor,
       )
 
       let newItems: CartItem[]
       if (existingItemIndex >= 0) {
+        const existingItem = state.items[existingItemIndex]
+        const newQuantity = existingItem.quantity + addQuantity
+        if (newQuantity > stock) {
+          // Prevent adding if it exceeds stock
+          console.warn(
+            `Cannot add ${addQuantity} of ${action.payload.name}. Total quantity (${newQuantity}) exceeds stock (${stock}).`,
+          )
+          return state // Return current state without modification
+        }
         newItems = state.items.map((item, index) =>
-          index === existingItemIndex ? { ...item, quantity: item.quantity + 1 } : item,
+          index === existingItemIndex ? { ...item, quantity: newQuantity } : item,
         )
       } else {
-        // Include sizes and colors arrays in the cart item
+        if (addQuantity > stock) {
+          // Prevent adding if initial quantity exceeds stock
+          console.warn(
+            `Cannot add ${addQuantity} of ${action.payload.name}. Initial quantity exceeds stock (${stock}).`,
+          )
+          return state // Return current state without modification
+        }
         newItems = [
           ...state.items,
           {
             ...action.payload,
-            quantity: 1,
+            quantity: addQuantity,
             sizes: action.payload.sizes || [],
             colors: action.payload.colors || [],
+            stock: stock, // Store the stock at the time of adding
           },
         ]
       }
@@ -94,10 +109,21 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     }
 
     case "UPDATE_QUANTITY": {
-      const newItems = state.items
-        .map((item, index) =>
-          index === action.payload.id ? { ...item, quantity: Math.max(0, action.payload.quantity) } : item,
+      const { id: itemIndex, quantity: newQuantity } = action.payload
+      const itemToUpdate = state.items[itemIndex]
+
+      if (!itemToUpdate) return state // Item not found
+
+      if (newQuantity > itemToUpdate.stock) {
+        // Prevent updating quantity if it exceeds stock
+        console.warn(
+          `Cannot update quantity for ${itemToUpdate.name}. New quantity (${newQuantity}) exceeds stock (${itemToUpdate.stock}).`,
         )
+        return state // Return current state without modification
+      }
+
+      const newItems = state.items
+        .map((item, index) => (index === itemIndex ? { ...item, quantity: Math.max(0, newQuantity) } : item))
         .filter((item) => item.quantity > 0)
 
       const total = newItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
