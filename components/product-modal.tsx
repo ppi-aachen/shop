@@ -1,14 +1,25 @@
 "use client"
 
+import { Input } from "@/components/ui/input"
+
 import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Plus, X, Truck, Shield, RotateCcw, AlertTriangle } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import { useCart } from "@/lib/cart-context"
-import { ImageGallery } from "@/components/image-gallery"
-import { getProductImages } from "@/lib/image-utils"
-import { useToast } from "@/hooks/use-toast"
+import { MinusIcon, PlusIcon } from "lucide-react"
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 
 interface Product {
   id: number
@@ -24,253 +35,214 @@ interface Product {
   careInstructions?: string[]
   sizes?: string[]
   colors?: string[]
+  stock: number
 }
 
 interface ProductModalProps {
-  product: Product | null
-  isOpen: boolean
-  onClose: () => void
+  product: Product
 }
 
-export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
-  const [selectedSize, setSelectedSize] = useState<string>("")
-  const [selectedColor, setSelectedColor] = useState<string>("")
-  const { dispatch } = useCart()
-  const { toast } = useToast()
+export default function ProductModal({ product }: ProductModalProps) {
+  const { addToCart } = useCart()
+  const [quantity, setQuantity] = useState(1)
+  const [selectedSize, setSelectedSize] = useState<string | undefined>(
+    product.sizes && product.sizes.length > 0 ? product.sizes[0] : undefined,
+  )
+  const [selectedColor, setSelectedColor] = useState<string | undefined>(
+    product.colors && product.colors.length > 0 ? product.colors[0] : undefined,
+  )
+  const [isOpen, setIsOpen] = useState(false)
 
-  if (!product) return null
-
-  const addToCart = () => {
-    // Check for required options
-    const requiresSize = product.sizes && product.sizes.length > 0
-    const requiresColor = product.colors && product.colors.length > 0
-
-    // Validate required selections
-    if (requiresSize && !selectedSize) {
-      toast({
-        variant: "warning",
-        title: "Size Required",
-        description: "Please select a size before adding to cart.",
-      })
-      return
-    }
-
-    if (requiresColor && !selectedColor) {
-      toast({
-        variant: "warning",
-        title: "Color Required",
-        description: "Please select a color before adding to cart.",
-      })
-      return
-    }
-
-    dispatch({
-      type: "ADD_ITEM",
-      payload: {
-        ...product,
-        selectedSize,
-        selectedColor,
-      },
+  const handleAddToCart = () => {
+    addToCart({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      quantity,
+      description: product.description,
+      selectedSize,
+      selectedColor,
+      sizes: product.sizes,
+      colors: product.colors,
+      stock: product.stock, // Pass stock to cart item for potential future validation
     })
-
-    toast({
-      variant: "success",
-      title: "Added to Cart!",
-      description: `${product.name}${selectedSize ? ` (Size: ${selectedSize})` : ""}${selectedColor ? ` (Color: ${selectedColor})` : ""} has been added to your cart.`,
-    })
-
-    // Reset selections and close modal
-    setSelectedSize("")
-    setSelectedColor("")
-    onClose()
+    setIsOpen(false) // Close modal after adding to cart
   }
 
-  // Use multiple images if available, otherwise fall back to single image
-  const productImages =
-    product.images && product.images.length > 0 ? getProductImages(product.images) : getProductImages([product.image])
-
-  // Check if all required options are selected
-  const requiresSize = product.sizes && product.sizes.length > 0
-  const requiresColor = product.colors && product.colors.length > 0
-  const canAddToCart = (!requiresSize || selectedSize) && (!requiresColor || selectedColor)
+  const isOutOfStock = product.stock === 0
+  const isAddButtonDisabled = isOutOfStock || quantity > product.stock
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">{product.name}</DialogTitle>
-          <Button variant="ghost" size="sm" className="absolute right-4 top-4" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </DialogHeader>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Product Image Gallery */}
-          <div className="space-y-4">
-            <ImageGallery images={productImages} productName={product.name} className="lg:sticky lg:top-4" />
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="w-full bg-transparent" disabled={isOutOfStock}>
+          {isOutOfStock ? "Out of Stock" : "View Details"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[800px] p-0">
+        <div className="grid md:grid-cols-2 gap-6 p-6">
+          <div className="flex flex-col items-center justify-center">
+            {product.images && product.images.length > 0 ? (
+              <Carousel className="w-full max-w-md">
+                <CarouselContent>
+                  {product.images.map((img, index) => (
+                    <CarouselItem key={index}>
+                      <Image
+                        alt={`${product.name} image ${index + 1}`}
+                        className="aspect-square object-cover border border-gray-200 w-full rounded-lg overflow-hidden dark:border-gray-800"
+                        height={400}
+                        src={img || "/placeholder.svg"}
+                        width={400}
+                      />
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <CarouselPrevious />
+                <CarouselNext />
+              </Carousel>
+            ) : (
+              <Image
+                alt={product.name}
+                className="aspect-square object-cover border border-gray-200 w-full rounded-lg overflow-hidden dark:border-gray-800"
+                height={400}
+                src={product.image || "/placeholder.svg"}
+                width={400}
+              />
+            )}
           </div>
+          <div className="space-y-4">
+            <DialogHeader>
+              <DialogTitle className="text-3xl font-bold">{product.name}</DialogTitle>
+              <DialogDescription className="text-lg text-gray-700">€{product.price.toFixed(2)}</DialogDescription>
+            </DialogHeader>
+            <p className="text-gray-600">{product.description}</p>
 
-          {/* Product Details */}
-          <div className="space-y-6">
-            <div>
-              <p className="text-3xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
-              <p className="text-gray-600 mt-2">{product.description}</p>
-            </div>
-
-            {/* Detailed Description */}
             {product.detailedDescription && (
-              <div>
-                <h3 className="font-semibold text-lg mb-2">About This Product</h3>
-                <p className="text-gray-700 leading-relaxed">{product.detailedDescription}</p>
-              </div>
+              <>
+                <Separator />
+                <h4 className="font-semibold">Details:</h4>
+                <p className="text-gray-600 text-sm">{product.detailedDescription}</p>
+              </>
             )}
 
-            {/* Features */}
             {product.features && product.features.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Features</h3>
-                <ul className="space-y-1">
+              <>
+                <Separator />
+                <h4 className="font-semibold">Features:</h4>
+                <ul className="list-disc list-inside text-gray-600 text-sm">
                   {product.features.map((feature, index) => (
-                    <li key={index} className="flex items-center gap-2 text-gray-700">
-                      <div className="w-1.5 h-1.5 bg-green-600 rounded-full" />
-                      {feature}
-                    </li>
+                    <li key={index}>{feature}</li>
                   ))}
                 </ul>
-              </div>
+              </>
             )}
 
-            {/* Size Selection */}
-            {requiresSize && (
-              <div>
-                <h3 className="font-semibold text-lg mb-2">
-                  Size <span className="text-red-500">*</span>
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {product.sizes!.map((size) => (
-                    <Button
-                      key={size}
-                      variant={selectedSize === size ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedSize(size)}
-                      className={selectedSize === size ? "bg-green-600 hover:bg-green-700" : ""}
-                    >
-                      {size}
-                    </Button>
-                  ))}
-                </div>
-                {!selectedSize && (
-                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-red-600" />
-                      <p className="text-sm text-red-700 font-medium">Please select a size to continue</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Color Selection */}
-            {requiresColor && (
-              <div>
-                <h3 className="font-semibold text-lg mb-2">
-                  Color <span className="text-red-500">*</span>
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {product.colors!.map((color) => (
-                    <Button
-                      key={color}
-                      variant={selectedColor === color ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedColor(color)}
-                      className={selectedColor === color ? "bg-green-600 hover:bg-green-700" : ""}
-                    >
-                      {color}
-                    </Button>
-                  ))}
-                </div>
-                {!selectedColor && (
-                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-red-600" />
-                      <p className="text-sm text-red-700 font-medium">Please select a color to continue</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Materials */}
-            {product.materials && product.materials.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Materials</h3>
-                <div className="flex flex-wrap gap-2">
-                  {product.materials.map((material, index) => (
-                    <Badge key={index} variant="secondary">
-                      {material}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Specifications */}
             {product.specifications && Object.keys(product.specifications).length > 0 && (
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Specifications</h3>
-                <div className="space-y-2">
-                  {Object.entries(product.specifications).map(([key, value]) => (
-                    <div key={key} className="flex justify-between">
-                      <span className="text-gray-600">{key}:</span>
-                      <span className="font-medium">{value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Care Instructions */}
-            {product.careInstructions && product.careInstructions.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Care Instructions</h3>
-                <ul className="space-y-1">
-                  {product.careInstructions.map((instruction, index) => (
-                    <li key={index} className="flex items-center gap-2 text-gray-700 text-sm">
-                      <div className="w-1 h-1 bg-gray-400 rounded-full" />
-                      {instruction}
+              <>
+                <Separator />
+                <h4 className="font-semibold">Specifications:</h4>
+                <ul className="list-disc list-inside text-gray-600 text-sm">
+                  {Object.entries(product.specifications).map(([key, value], index) => (
+                    <li key={index}>
+                      <strong>{key}:</strong> {value}
                     </li>
                   ))}
                 </ul>
+              </>
+            )}
+
+            {product.materials && product.materials.length > 0 && (
+              <>
+                <Separator />
+                <h4 className="font-semibold">Materials:</h4>
+                <p className="text-gray-600 text-sm">{product.materials.join(", ")}</p>
+              </>
+            )}
+
+            {product.careInstructions && product.careInstructions.length > 0 && (
+              <>
+                <Separator />
+                <h4 className="font-semibold">Care Instructions:</h4>
+                <ul className="list-disc list-inside text-gray-600 text-sm">
+                  {product.careInstructions.map((instruction, index) => (
+                    <li key={index}>{instruction}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {product.sizes && product.sizes.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="size">Size</Label>
+                <Select value={selectedSize} onValueChange={setSelectedSize}>
+                  <SelectTrigger id="size">
+                    <SelectValue placeholder="Select a size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {product.sizes.map((size) => (
+                      <SelectItem key={size} value={size}>
+                        {size}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
-            {/* Product Benefits */}
-            <div className="grid grid-cols-1 gap-3 pt-4 border-t">
-              <div className="flex items-center gap-3 text-sm text-gray-600">
-                <Truck className="h-4 w-4 text-green-600" />
-                <span>Free pickup in Aachen or delivery available</span>
+            {product.colors && product.colors.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="color">Color</Label>
+                <Select value={selectedColor} onValueChange={setSelectedColor}>
+                  <SelectTrigger id="color">
+                    <SelectValue placeholder="Select a color" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {product.colors.map((color) => (
+                      <SelectItem key={color} value={color}>
+                        {color}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="flex items-center gap-3 text-sm text-gray-600">
-                <Shield className="h-4 w-4 text-green-600" />
-                <span>Quality guarantee</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-gray-600">
-                <RotateCcw className="h-4 w-4 text-green-600" />
-                <span>30-day return policy</span>
-              </div>
-            </div>
+            )}
 
-            {/* Add to Cart Button */}
-            <Button onClick={addToCart} className="w-full" size="lg" disabled={!canAddToCart}>
-              <Plus className="h-4 w-4 mr-2" />
-              {canAddToCart
-                ? `Add to Cart - €${product.price.toFixed(2)}`
-                : `Select ${!selectedSize && requiresSize ? "Size" : ""}${!selectedSize && requiresSize && !selectedColor && requiresColor ? " & " : ""}${!selectedColor && requiresColor ? "Color" : ""} to Continue`}
-            </Button>
+            <div className="space-y-2">
+              <Label htmlFor="quantity">Quantity</Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  disabled={quantity <= 1}
+                >
+                  <MinusIcon className="h-4 w-4" />
+                </Button>
+                <Input id="quantity" type="number" value={quantity} className="w-16 text-center" readOnly />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setQuantity(quantity + 1)}
+                  disabled={quantity >= product.stock} // Disable if quantity reaches stock limit
+                >
+                  <PlusIcon className="h-4 w-4" />
+                </Button>
+              </div>
+              {product.stock <= 5 && product.stock > 0 && (
+                <p className="text-sm text-orange-500">Only {product.stock} left in stock!</p>
+              )}
+              {product.stock === 0 && <p className="text-sm text-red-500 font-semibold">Out of Stock</p>}
+              {quantity > product.stock && product.stock > 0 && (
+                <p className="text-sm text-red-500">Cannot add more than available stock ({product.stock}).</p>
+              )}
+            </div>
           </div>
         </div>
-        <div className="h-4" />
-        <div className="h-4" />
+        <DialogFooter className="p-6 pt-0">
+          <Button onClick={handleAddToCart} className="w-full" disabled={isAddButtonDisabled}>
+            {isAddButtonDisabled ? "Out of Stock" : "Add to Cart"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

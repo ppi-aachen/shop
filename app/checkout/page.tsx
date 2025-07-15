@@ -6,6 +6,8 @@ import { Header } from "@/components/header"
 import { useCart } from "@/lib/cart-context"
 import { Package, MapPin, Truck } from "lucide-react"
 import CheckoutForm from "./checkout-form"
+import { Suspense } from "react"
+import LoadingOverlay from "@/components/loading-overlay"
 
 export default function CheckoutPage() {
   const { state } = useCart()
@@ -118,7 +120,9 @@ export default function CheckoutPage() {
           </div>
 
           {/* Checkout Form */}
-          <CheckoutForm />
+          <Suspense fallback={<LoadingOverlay />}>
+            <CheckoutForm />
+          </Suspense>
         </div>
       </main>
     </div>
