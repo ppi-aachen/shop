@@ -68,12 +68,15 @@ const products: Product[] = [
   {
     id: 2,
     name: "Batik Outer",
-    price: 12.0,
+    price: 14.0,
     image: "https://drive.google.com/file/d/1la8WgRt1RruPnMZ2qZEbisXrTIGJ2Cpo/view?usp=drive_link",
     images: [
-      "/placeholder.svg?height=400&width=400&text=Nasi+Tumpeng+Front",
-      "https://drive.google.com/file/d/1lLSvTnbfY2p9M-9IhJkRsr3YazZ8HqKv/view?usp=sharing",
-      "/placeholder.svg?height=400&width=400&text=Nasi+Tumpeng+Detail",
+      "https://drive.google.com/file/d/1la8WgRt1RruPnMZ2qZEbisXrTIGJ2Cpo/view?usp=drive_link",
+      "https://drive.google.com/file/d/1soJYVejgJqEuqCmu4RC4gSU-SbEPaAF6/view?usp=drive_link",
+      "https://drive.google.com/file/d/1SLCn73UsltCxj8FyW-Ub-fAdDCU5lc9y/view?usp=drive_link",
+      "https://drive.google.com/file/d/19pS8ZHjdw0-v3kB-zA_jyEg2fyEJHUpg/view?usp=drive_link",
+      "https://drive.google.com/file/d/1mBUiUM1LDXvGLO6Dy-GIgbGkUTbRYC3B/view?usp=drive_link",
+      "https://drive.google.com/file/d/1iI41Yw9_eAyNqqcG2jnMOVltmqXNj5Ie/view?usp=drive_link",
     ],
     description: "Comfortable oversized t-shirt featuring traditional Indonesian Nasi Tumpeng design",
     detailedDescription:
@@ -93,8 +96,7 @@ const products: Product[] = [
       Collar: "Crew Neck",
     },
     careInstructions: ["Machine wash cold", "Tumble dry low", "Do not iron directly on print", "Wash inside out"],
-    sizes: ["S", "M", "L", "XL", "XXL"],
-    colors: ["White", "Cream", "Light Gray"],
+    colors: ["Kembang Legi", "Luruh Praja", "Parang Ayu", "Rahayu", "Sekar Tirta"]
   },
   {
     id: 3,

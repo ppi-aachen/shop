@@ -1,83 +1,210 @@
-// Google Drive Integration Troubleshooting Guide
+// Google Drive Troubleshooting Script
 
-console.log("🔧 GOOGLE DRIVE TROUBLESHOOTING")
-console.log("=".repeat(35))
+console.log("🔍 GOOGLE DRIVE TROUBLESHOOTING")
+console.log("=".repeat(50))
 console.log("")
 
-console.log("❌ COMMON ERRORS AND SOLUTIONS:")
-console.log("")
+async function runTroubleshooting() {
+  const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
+  const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
+  const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID
 
-console.log("1. 'Google Drive API has not been used'")
-console.log("   SOLUTION:")
-console.log("   a) Go to https://console.cloud.google.com")
-console.log("   b) Select your project")
-console.log("   c) APIs & Services → Library")
-console.log("   d) Search 'Google Drive API'")
-console.log("   e) Click 'Enable'")
-console.log("")
+  console.log("Checking environment variables...")
+  let hasAllEnvVars = true
+  if (!GOOGLE_SERVICE_ACCOUNT_EMAIL) {
+    console.error("❌ GOOGLE_SERVICE_ACCOUNT_EMAIL is not set.")
+    hasAllEnvVars = false
+  } else {
+    console.log(`✅ GOOGLE_SERVICE_ACCOUNT_EMAIL: ${GOOGLE_SERVICE_ACCOUNT_EMAIL}`)
+  }
+  if (!GOOGLE_PRIVATE_KEY) {
+    console.error("❌ GOOGLE_PRIVATE_KEY is not set.")
+    hasAllEnvVars = false
+  } else {
+    console.log("✅ GOOGLE_PRIVATE_KEY is set.")
+  }
+  if (!GOOGLE_DRIVE_FOLDER_ID) {
+    console.warn("⚠️ GOOGLE_DRIVE_FOLDER_ID is not set. The system will attempt to create a default folder.")
+  } else {
+    console.log(`✅ GOOGLE_DRIVE_FOLDER_ID: ${GOOGLE_DRIVE_FOLDER_ID}`)
+  }
 
-console.log("2. 'Insufficient permissions'")
-console.log("   SOLUTION:")
-console.log("   a) Your service account needs Drive access")
-console.log("   b) The same account used for Sheets should work")
-console.log("   c) Verify GOOGLE_SERVICE_ACCOUNT_EMAIL is correct")
-console.log("")
+  if (!hasAllEnvVars) {
+    console.log("\n🚫 Cannot proceed with Google Drive checks. Please set the missing environment variables.")
+    console.log("Refer to scripts/setup-google-drive.js for setup instructions.")
+    return
+  }
 
-console.log("3. 'Upload failed' or 'Auth error'")
-console.log("   SOLUTION:")
-console.log("   a) Check GOOGLE_PRIVATE_KEY format")
-console.log("   b) Ensure \\n line breaks are preserved")
-console.log("   c) Verify service account JSON is valid")
-console.log("")
+  console.log("\nAttempting Google Drive authentication...")
+  let accessToken = null
+  try {
+    // Re-using the authentication logic from lib/google-drive-upload.ts
+    const now = Math.floor(Date.now() / 1000)
 
-console.log("4. 'Folder creation failed'")
-console.log("   SOLUTION:")
-console.log("   a) Service account needs Drive file creation permission")
-console.log("   b) Check if folder already exists manually")
-console.log("   c) Try creating folder manually first")
-console.log("")
+    const header = { alg: "RS256", typ: "JWT" }
+    const payload = {
+      iss: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      scope: "https://www.googleapis.com/auth/drive.file",
+      aud: "https://oauth2.googleapis.com/token",
+      exp: now + 3600,
+      iat: now,
+    }
 
-console.log("🔍 DEBUGGING STEPS:")
-console.log("=".repeat(18))
-console.log("1. Check browser console for detailed error messages")
-console.log("2. Verify Google Drive API is enabled")
-console.log("3. Test with a small image file first")
-console.log("4. Check Google Drive for folder creation")
-console.log("5. Verify service account permissions")
-console.log("")
+    const base64UrlEncode = (obj) => {
+      const str = typeof obj === "string" ? obj : JSON.stringify(obj)
+      return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+    }
 
-console.log("📂 MANUAL FOLDER SETUP (if needed):")
-console.log("=".repeat(35))
-console.log("1. Go to https://drive.google.com")
-console.log("2. Create folder: 'Aachen Studio - Proof of Payments'")
-console.log("3. Share folder with your service account email")
-console.log("4. Give 'Editor' permissions")
-console.log("")
+    const encodedHeader = base64UrlEncode(header)
+    const encodedPayload = base64UrlEncode(payload)
+    const unsignedToken = `${encodedHeader}.${encodedPayload}`
 
-console.log("✅ VERIFICATION CHECKLIST:")
-console.log("=".repeat(25))
-console.log("□ Google Drive API enabled in Cloud Console")
-console.log("□ Same service account as Google Sheets")
-console.log("□ GOOGLE_PRIVATE_KEY has proper \\n formatting")
-console.log("□ Service account email is correct")
-console.log("□ Test order completes successfully")
-console.log("□ File appears in Google Drive folder")
-console.log("□ Link works in Google Sheets")
-console.log("")
+    // Helper to convert PEM to DER (simplified for script context)
+    const convertPemToDer = (pem) => {
+      const pemContents = pem
+        .replace(/-----BEGIN PRIVATE KEY-----/, "")
+        .replace(/-----END PRIVATE KEY-----/, "")
+        .replace(/\s/g, "")
+      const binaryString = atob(pemContents)
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+      return bytes.buffer
+    }
 
-console.log("🆘 FALLBACK OPTION:")
-console.log("=".repeat(17))
-console.log("If Google Drive upload fails:")
-console.log("• Order will still be saved to Google Sheets")
-console.log("• Email notifications will still work")
-console.log("• Proof of payment URL will show error message")
-console.log("• You can manually handle the payment proof")
-console.log("")
+    const privateKeyDer = await convertPemToDer(GOOGLE_PRIVATE_KEY)
 
-console.log("📞 SUPPORT:")
-console.log("=".repeat(10))
-console.log("If issues persist:")
-console.log("1. Check Google Cloud Console logs")
-console.log("2. Verify all APIs are enabled")
-console.log("3. Test service account permissions")
-console.log("4. Contact support with specific error messages")
+    const cryptoKey = await crypto.subtle.importKey(
+      "pkcs8",
+      privateKeyDer,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["sign"],
+    )
+
+    const encoder = new TextEncoder()
+    const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", cryptoKey, encoder.encode(unsignedToken))
+    const encodedSignature = base64UrlEncode(String.fromCharCode(...new Uint8Array(signature)))
+    const jwt = `${unsignedToken}.${encodedSignature}`
+
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }),
+    })
+
+    const authData = await response.json()
+    if (!response.ok) {
+      throw new Error(`Auth error: ${authData.error_description || authData.error}`)
+    }
+    accessToken = authData.access_token
+    console.log("✅ Successfully authenticated with Google Drive API.")
+  } catch (error) {
+    console.error("❌ Google Drive authentication failed:")
+    console.error(`   Error: ${error.message}`)
+    console.error("   Please check GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY.")
+    console.error("   Ensure Google Drive API is enabled in your Google Cloud project.")
+    return
+  }
+
+  console.log("\nChecking Google Drive folder access...")
+  if (GOOGLE_DRIVE_FOLDER_ID) {
+    try {
+      const folderResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${GOOGLE_DRIVE_FOLDER_ID}?fields=id,name,mimeType,capabilities/canAddChildren`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      )
+
+      if (!folderResponse.ok) {
+        const errorData = await folderResponse.json()
+        console.error(`❌ Failed to access folder ID '${GOOGLE_DRIVE_FOLDER_ID}':`)
+        console.error(`   Status: ${folderResponse.status}`)
+        console.error(`   Error: ${errorData.error?.message || JSON.stringify(errorData)}`)
+        if (folderResponse.status === 404) {
+          console.error("   This usually means the folder ID is incorrect or the service account does not have access.")
+          console.error(
+            "   Ensure the folder exists and is a Shared Drive, and the service account is added as a 'Content manager' or 'Editor'.",
+          )
+        } else if (folderResponse.status === 403) {
+          console.error("   Forbidden. The service account likely does not have sufficient permissions on this folder.")
+          console.error(
+            "   Ensure the service account is added as a 'Content manager' or 'Editor' to the Shared Drive folder.",
+          )
+        }
+        return
+      }
+
+      const folderData = await folderResponse.json()
+      console.log(`✅ Successfully accessed folder: '${folderData.name}' (ID: ${folderData.id})`)
+      console.log(`   Mime Type: ${folderData.mimeType}`)
+      if (folderData.mimeType !== "application/vnd.google-apps.folder") {
+        console.warn("⚠️ Warning: The provided ID points to a file, not a folder. Please provide a folder ID.")
+      }
+      if (folderData.capabilities && folderData.capabilities.canAddChildren) {
+        console.log("✅ Service account has permission to add files to this folder.")
+      } else {
+        console.error("❌ Service account DOES NOT have permission to add files to this folder.")
+        console.error(
+          "   Ensure the service account is added as a 'Content manager' or 'Editor' to the Shared Drive folder.",
+        )
+      }
+
+      // Check if it's a Shared Drive
+      const aboutResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/about?fields=user,storageQuota,driveThemes,kind,maxImportSizes,maxUploadSizes,appInstalled,canCreateTeamDrives,canCreateDrives`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      )
+      const aboutData = await aboutResponse.json()
+      if (aboutData.canCreateDrives) {
+        // This capability indicates Shared Drive support for the user/service account
+        console.log("✅ Service account has capabilities consistent with Shared Drive access.")
+      } else {
+        console.warn(
+          "⚠️ Warning: Service account may not have full Shared Drive capabilities. Ensure it's a Shared Drive.",
+        )
+      }
+
+      // Attempt to list files in the folder to confirm read access
+      console("\nAttempting to list files in the folder (read access check)...")
+      const listResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q='${GOOGLE_DRIVE_FOLDER_ID}' in parents and trashed=false&fields=files(id,name)`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      )
+      if (!listResponse.ok) {
+        const errorData = await listResponse.json()
+        console.error(`❌ Failed to list files in folder: ${errorData.error?.message || JSON.stringify(errorData)}`)
+        console.error("   This indicates the service account might not have read access to the folder.")
+      } else {
+        const listData = await listResponse.json()
+        console.log(`✅ Successfully listed ${listData.files.length} files in the folder. Read access confirmed.`)
+      }
+    } catch (error) {
+      console.error("❌ An unexpected error occurred during folder access check:")
+      console.error(`   Error: ${error.message}`)
+    }
+  } else {
+    console.log(
+      "Skipping folder access check as GOOGLE_DRIVE_FOLDER_ID is not set. The system will attempt to create a default folder on first upload.",
+    )
+  }
+
+  console.log("\nTroubleshooting complete. Please review the output above.")
+  console.log(
+    "If issues persist, double-check your Google Cloud project setup, API enablement, and service account permissions on the Shared Drive folder.",
+  )
+}
+
+runTroubleshooting()

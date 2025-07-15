@@ -127,7 +127,7 @@ async function getProofOfPaymentFolderId(accessToken: string): Promise<string> {
 
     // Check if folder already exists
     const searchResponse = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      `https://www.googleapis.com/drive/v3/files?q=name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false&supportsAllDrives=true&includeItemsFromAllDrives=true`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -224,7 +224,7 @@ export async function uploadProofOfPaymentToDrive(
       close_delim
 
     // Upload file to Google Drive
-    const uploadResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+    const uploadResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -275,7 +275,7 @@ export async function uploadProofOfPaymentToDrive(
     )
 
     const fileData = await fileResponse.json()
-    const webViewLink = fileData.webViewLink || `https://drive.google.com/file/d/${uploadData.id}/view`
+    const webViewLink = fileData.webViewLink || `https://www.googleapis.com/drive/v3/files/${uploadData.id}?fields=id,name,webViewLink,webContentLink&supportsAllDrives=true`
 
     console.log("Upload completed successfully. File link:", webViewLink)
 
