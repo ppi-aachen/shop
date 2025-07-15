@@ -1,6 +1,3 @@
-import { appendFileSync, existsSync, mkdirSync } from "fs"
-import path from "path"
-
 interface OrderData {
   orderId: string
   date: string
@@ -35,90 +32,106 @@ interface OrderItemData {
   selectedColor: string
 }
 
-const LOG_DIR = path.join(process.cwd(), "logs")
-const FALLBACK_LOG_FILE = path.join(LOG_DIR, "fallback_orders.log")
-
-// Ensure log directory exists
-if (!existsSync(LOG_DIR)) {
-  mkdirSync(LOG_DIR, { recursive: true })
-}
-
 export function logOrderForManualProcessing(orderData: OrderData, orderItems: OrderItemData[]) {
-  const logEntry = `
---- MANUAL PROCESSING REQUIRED ---
-Timestamp: ${new Date().toISOString()}
-Order ID: ${orderData.orderId}
-Customer Name: ${orderData.customerName}
-Customer Email: ${orderData.email}
-Customer Phone: ${orderData.phone}
-Delivery Method: ${orderData.deliveryMethod}
-Delivery Address: ${orderData.deliveryMethod === "delivery" ? `${orderData.address}, ${orderData.city}, ${orderData.state} ${orderData.zipCode}, ${orderData.country}` : "Pickup in Aachen"}
-Total Amount: €${orderData.totalAmount.toFixed(2)}
-Proof of Payment URL: ${orderData.proofOfPaymentUrl}
-Notes: ${orderData.notes || "N/A"}
+  console.log("=".repeat(60))
+  console.log("📧 EMAIL SERVICE UNAVAILABLE - MANUAL PROCESSING REQUIRED")
+  console.log("=".repeat(60))
+  console.log("")
+  console.log("🚨 NEW ORDER RECEIVED:")
+  console.log(`Order ID: ${orderData.orderId}`)
+  console.log(`Date: ${orderData.date} ${orderData.time}`)
+  console.log(`Total: €${orderData.totalAmount.toFixed(2)}`)
+  console.log("")
+  console.log("👤 CUSTOMER INFORMATION:")
+  console.log(`Name: ${orderData.customerName}`)
+  console.log(`Email: ${orderData.email}`)
+  console.log(`Phone: ${orderData.phone}`)
+  console.log(`Delivery: ${orderData.deliveryMethod}`)
 
-Items:
-${orderItems.map((item) => `  - ${item.productName} (Qty: ${item.quantity}, Price: €${item.price.toFixed(2)}, Subtotal: €${item.subtotal.toFixed(2)}) ${item.selectedSize ? `Size: ${item.selectedSize}` : ""}${item.selectedColor ? ` Color: ${item.selectedColor}` : ""}`).join("\n")}
-----------------------------------
-`
-  try {
-    appendFileSync(FALLBACK_LOG_FILE, logEntry + "\n")
-    console.log(`Order ${orderData.orderId} logged for manual processing in ${FALLBACK_LOG_FILE}`)
-  } catch (error) {
-    console.error(`Failed to write fallback log for order ${orderData.orderId}:`, error)
+  if (orderData.deliveryMethod === "delivery") {
+    console.log("")
+    console.log("📍 DELIVERY ADDRESS:")
+    console.log(`${orderData.address}`)
+    console.log(`${orderData.city}, ${orderData.state} ${orderData.zipCode}`)
+    console.log(`${orderData.country}`)
   }
+
+  console.log("")
+  console.log("📦 ORDER ITEMS:")
+  orderItems.forEach((item, index) => {
+    console.log(`${index + 1}. ${item.productName}`)
+    console.log(`   Price: €${item.price.toFixed(2)} x ${item.quantity} = €${item.subtotal.toFixed(2)}`)
+    if (item.selectedSize) console.log(`   Size: ${item.selectedSize}`)
+    if (item.selectedColor) console.log(`   Color: ${item.selectedColor}`)
+  })
+
+  console.log("")
+  console.log("💰 PAYMENT:")
+  console.log(`Subtotal: €${orderData.subtotal.toFixed(2)}`)
+  console.log(`Shipping: €${orderData.shippingCost.toFixed(2)}`)
+  console.log(`Total: €${orderData.totalAmount.toFixed(2)}`)
+  console.log(`Proof: ${orderData.proofOfPaymentUrl}`)
+
+  if (orderData.notes) {
+    console.log("")
+    console.log("📝 CUSTOMER NOTES:")
+    console.log(`"${orderData.notes}"`)
+  }
+
+  console.log("")
+  console.log("⚡ ACTION REQUIRED:")
+  console.log("1. Manually send confirmation email to customer")
+  console.log("2. Review proof of payment")
+  console.log("3. Process order within 24 hours")
+  console.log("4. Contact customer for pickup/delivery arrangement")
+  console.log("")
+  console.log("=".repeat(60))
 }
 
 export function generatePlainTextCustomerEmail(orderData: OrderData, orderItems: OrderItemData[]): string {
   const itemsList = orderItems
     .map(
-      (item) =>
-        `- ${item.productName} (Qty: ${item.quantity}) - EUR${item.subtotal.toFixed(2)}` +
-        (item.selectedSize ? `, Size: ${item.selectedSize}` : "") +
-        (item.selectedColor ? `, Color: ${item.selectedColor}` : ""),
+      (item, index) =>
+        `${index + 1}. ${item.productName}${item.selectedSize ? ` (Size: ${item.selectedSize})` : ""}${item.selectedColor ? ` (Color: ${item.selectedColor})` : ""}\n   €${item.price.toFixed(2)} x ${item.quantity} = €${item.subtotal.toFixed(2)}`,
     )
     .join("\n")
 
-  const deliveryInfo =
-    orderData.deliveryMethod === "pickup"
-      ? `Pickup Information:
-We will contact you within 24 hours to arrange the pickup location and time in Aachen. Please keep your phone available for our call.`
-      : `Delivery Information:
-Your order will be shipped to:
-${orderData.address}
-${orderData.city}, ${orderData.state} ${orderData.zipCode}
-${orderData.country}
-You will receive tracking information once your order has been shipped.`
-
-  return `Subject: Order Confirmation - ${orderData.orderId} | Aachen Studio
+  return `
+Subject: Order Confirmation - ${orderData.orderId} | Aachen Studio
 
 Dear ${orderData.customerName},
 
-Thank you for your order! We have received your order and proof of payment.
-We will process your order within 24 hours and keep you updated on the progress.
+Thank you for your order! We have received your order and proof of payment. We will process your order within 24 hours and keep you updated on the progress.
 
---- Order Details ---
+ORDER DETAILS:
 Order ID: ${orderData.orderId}
 Date: ${orderData.date} at ${orderData.time}
 Delivery Method: ${orderData.deliveryMethod === "pickup" ? "Pickup in Aachen" : "Delivery"}
 
---- Items Ordered ---
+ITEMS ORDERED:
 ${itemsList}
 
---- Payment Summary ---
-Subtotal: EUR${orderData.subtotal.toFixed(2)}
-${orderData.deliveryMethod === "pickup" ? "Pickup" : "Delivery"} Cost: EUR${orderData.shippingCost.toFixed(2)}
-Total Amount: EUR${orderData.totalAmount.toFixed(2)}
+TOTAL:
+Subtotal: €${orderData.subtotal.toFixed(2)}
+${orderData.deliveryMethod === "pickup" ? "Pickup" : "Delivery"}: €${orderData.shippingCost.toFixed(2)}
+Total: €${orderData.totalAmount.toFixed(2)}
 
---- ${deliveryInfo} ---
+${
+  orderData.deliveryMethod === "pickup"
+    ? "PICKUP INFORMATION:\nWe will contact you within 24 hours to arrange the pickup location and time in Aachen. Please keep your phone available for our call."
+    : `DELIVERY INFORMATION:\nYour order will be shipped to:\n${orderData.address}\n${orderData.city}, ${orderData.state} ${orderData.zipCode}\n${orderData.country}\n\nYou will receive tracking information once your order has been shipped.`
+}
 
-Proof of Payment Link: ${orderData.proofOfPaymentUrl}
+WHAT HAPPENS NEXT:
+1. We verify your proof of payment
+2. Your order enters production/preparation
+3. We ${orderData.deliveryMethod === "pickup" ? "contact you for pickup" : "ship your order"}
+4. You receive your authentic Indonesian-inspired items!
 
 Questions about your order?
 Email: funding@ppiaachen.de
-Instagram: @aachen.studio
 
 Thank you for supporting Indonesian culture through Aachen Studio!
 PPI Aachen - Connecting Indonesian heritage with modern style
-`
+  `.trim()
 }

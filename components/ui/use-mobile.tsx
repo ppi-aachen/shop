@@ -1,24 +1,26 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import * as React from "react"
+import { useMediaQuery } from "@/hooks/use-mobile"
 
 const MOBILE_BREAKPOINT = 768
 
-export function useMobile() {
-  const [isMobile, setIsMobile] = useState(false)
+export function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
 
-  useEffect(() => {
-    const checkMobile = () => {
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+    const onChange = () => {
       setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
     }
-
-    checkMobile() // Check on mount
-    window.addEventListener("resize", checkMobile) // Add event listener for resize
-
-    return () => {
-      window.removeEventListener("resize", checkMobile) // Clean up on unmount
-    }
+    mql.addEventListener("change", onChange)
+    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    return () => mql.removeEventListener("change", onChange)
   }, [])
 
-  return isMobile
+  return !!isMobile
+}
+
+export function useMobile() {
+  return useMediaQuery("(max-width: 768px)")
 }

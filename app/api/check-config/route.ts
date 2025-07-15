@@ -10,18 +10,19 @@ export async function GET() {
   }
 
   const missingConfigs: string[] = []
-  for (const [key, value] of Object.entries(configStatus)) {
-    if (!value) {
-      missingConfigs.push(key)
-    }
-  }
+  if (!configStatus.GOOGLE_SHEET_ID) missingConfigs.push("GOOGLE_SHEET_ID")
+  if (!configStatus.GOOGLE_SERVICE_ACCOUNT_EMAIL) missingConfigs.push("GOOGLE_SERVICE_ACCOUNT_EMAIL")
+  if (!configStatus.GOOGLE_PRIVATE_KEY) missingConfigs.push("GOOGLE_PRIVATE_KEY")
+  if (!configStatus.RESEND_API_KEY) missingConfigs.push("RESEND_API_KEY")
+  if (!configStatus.GOOGLE_DRIVE_FOLDER_ID) missingConfigs.push("GOOGLE_DRIVE_FOLDER_ID")
 
   if (missingConfigs.length > 0) {
     return NextResponse.json(
       {
-        message: "Missing or improperly configured environment variables.",
-        missing: missingConfigs,
         status: "error",
+        message: "Missing required environment variables.",
+        missing: missingConfigs,
+        details: configStatus,
       },
       { status: 500 },
     )
@@ -29,8 +30,9 @@ export async function GET() {
 
   return NextResponse.json(
     {
-      message: "All required environment variables are configured.",
       status: "success",
+      message: "All required environment variables are configured.",
+      details: configStatus,
     },
     { status: 200 },
   )

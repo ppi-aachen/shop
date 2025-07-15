@@ -1,198 +1,209 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import Link from "next/link"
+import { useEffect, useState, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import Link from "next/link"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { CheckCircle, Download, Instagram, FileText, Package, Clock } from "lucide-react"
+import { generateOrderPDF, downloadPDF } from "@/lib/pdf-generator"
+import { useCart } from "@/lib/cart-context"
 
-interface OrderData {
-  orderId: string
-  date: string
-  time: string
-  customerName: string
-  email: string
-  phone: string
-  address: string
-  city: string
-  state: string
-  zipCode: string
-  country: string
-  deliveryMethod: string
-  totalItems: number
-  subtotal: number
-  shippingCost: number
-  totalAmount: number
-  notes: string
-  proofOfPaymentUrl: string
-  status: string
-}
-
-interface OrderItemData {
-  orderId: string
-  itemId: number
-  productName: string
-  price: number
-  quantity: number
-  subtotal: number
-  description: string
-  selectedSize: string
-  selectedColor: string
-}
-
-export default function SuccessPage() {
+function SuccessContent() {
   const searchParams = useSearchParams()
   const orderId = searchParams.get("orderId")
-  const [orderInfo, setOrderInfo] = useState<{ order: OrderData; items: OrderItemData[] } | null>(null)
+  const [orderData, setOrderData] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const { dispatch } = useCart()
 
   useEffect(() => {
+    dispatch({ type: "CLEAR_CART" })
+    // Try to get order data from localStorage (if available)
     if (orderId) {
-      const storedOrder = localStorage.getItem(`order-${orderId}`)
-      if (storedOrder) {
-        setOrderInfo(JSON.parse(storedOrder))
-        localStorage.removeItem(`order-${orderId}`) // Clear from local storage after display
+      const savedOrderData = localStorage.getItem(`order-${orderId}`)
+      if (savedOrderData) {
+        try {
+          const parsedData = JSON.parse(savedOrderData)
+          setOrderData(parsedData)
+        } catch (error) {
+          console.error("Error parsing order data:", error)
+        }
       }
     }
+    setIsLoading(false)
   }, [orderId])
 
-  if (!orderId) {
+  const handleDownloadPDF = () => {
+    if (orderData && orderId) {
+      const htmlContent = generateOrderPDF(orderData.order, orderData.items)
+      downloadPDF(htmlContent, `Order-Receipt-${orderId}.pdf`)
+    } else {
+      // Fallback if no order data available
+      alert("Order receipt data not available. Please contact support for a copy of your receipt.")
+    }
+  }
+
+  const handleContactInstagram = () => {
+    window.open("https://instagram.com/aachen.studio", "_blank")
+  }
+
+  // Decode order ID for display info
+  const getOrderInfo = (orderIdStr: string) => {
+    if (!orderIdStr) return null
+
+    const isPickup = orderIdStr.startsWith("PU")
+    const isDelivery = orderIdStr.startsWith("DL")
+
+    return {
+      method: isPickup ? "Pickup" : isDelivery ? "Delivery" : "Unknown",
+      icon: isPickup ? Package : isDelivery ? "🚚" : "📦",
+    }
+  }
+
+  const orderInfo = orderId ? getOrderInfo(orderId) : null
+
+  if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <h1 className="text-3xl font-bold mb-4">Order Not Found</h1>
-        <p className="text-gray-600 mb-6">
-          We could not find details for this order. Please check your order ID or contact support.
-        </p>
-        <Link href="/">
-          <Button>Go to Homepage</Button>
-        </Link>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Processing your order...</p>
+          </CardContent>
+        </Card>
       </div>
     )
   }
-
-  if (!orderInfo) {
-    return (
-      <div className="container mx-auto px-4 py-8 text-center">
-        <h1 className="text-3xl font-bold mb-4">Loading Order Details...</h1>
-        <p className="text-gray-600">Please wait while we retrieve your order information.</p>
-      </div>
-    )
-  }
-
-  const { order, items } = orderInfo
 
   return (
-    <div className="container mx-auto px-4 py-8 md:px-6 lg:py-12">
-      <Card className="max-w-3xl mx-auto">
-        <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold text-green-600">Order Placed Successfully!</CardTitle>
-          <CardDescription className="text-lg mt-2">Thank you for your purchase from Aachen Studio.</CardDescription>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <Card className="w-full max-w-lg">
+        <CardHeader className="text-center pb-4">
+          <div className="mx-auto mb-4">
+            <CheckCircle className="h-20 w-20 text-green-500" />
+          </div>
+          <CardTitle className="text-2xl text-green-700 mb-2">Order Submitted Successfully!</CardTitle>
+
+          {orderId && (
+            <div className="space-y-2">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-sm text-green-700 font-medium">Order ID</p>
+                <p className="text-lg font-mono font-bold text-green-800">{orderId}</p>
+                {orderInfo && (
+                  <div className="flex items-center justify-center gap-2 mt-2">
+                    {typeof orderInfo.icon === "string" ? (
+                      <span className="text-lg">{orderInfo.icon}</span>
+                    ) : (
+                      <Package className="h-4 w-4 text-green-600" />
+                    )}
+                    <span className="text-sm text-green-700">{orderInfo.method} Order</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </CardHeader>
+
         <CardContent className="space-y-6">
-          <div className="text-center">
-            <p className="text-xl font-semibold">Your Order ID: {order.orderId}</p>
-            <p className="text-gray-600">A confirmation email has been sent to **{order.email}**.</p>
+          {/* Order Status */}
+          <div className="text-center space-y-3">
+            <div className="flex items-center justify-center gap-2 text-green-700">
+              <Clock className="h-5 w-5" />
+              <span className="font-medium">Processing within 24 hours</span>
+            </div>
             <p className="text-gray-600">
-              We will review your proof of payment and process your order within 24 hours.
+              Thank you for your order! We have received your proof of payment and will process your order within 24
+              hours.
+            </p>
+            <p className="text-sm text-gray-500">
+              You will receive a confirmation email shortly with your order details and tracking information.
             </p>
           </div>
 
-          <Separator />
+          {/* Action Buttons */}
+          <div className="space-y-3">
+            {/* PDF Download Button */}
+            <Button onClick={handleDownloadPDF} className="w-full" size="lg" disabled={!orderData}>
+              <Download className="h-5 w-5 mr-2" />
+              Download Order Receipt (PDF)
+            </Button>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-xl font-semibold mb-3">Order Details</h3>
-              <p>
-                <strong>Date:</strong> {order.date} at {order.time}
-              </p>
-              <p>
-                <strong>Delivery Method:</strong> {order.deliveryMethod === "pickup" ? "Pickup in Aachen" : "Delivery"}
-              </p>
-              <p>
-                <strong>Total Items:</strong> {order.totalItems}
-              </p>
-              <p>
-                <strong>Total Amount:</strong> €{order.totalAmount.toFixed(2)}
-              </p>
-              {order.proofOfPaymentUrl && (
-                <p className="mt-2">
-                  <strong>Proof of Payment:</strong>{" "}
-                  <a
-                    href={order.proofOfPaymentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    View Uploaded File
-                  </a>
-                </p>
-              )}
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-3">Customer Information</h3>
-              <p>
-                <strong>Name:</strong> {order.customerName}
-              </p>
-              <p>
-                <strong>Email:</strong> {order.email}
-              </p>
-              <p>
-                <strong>Phone:</strong> {order.phone}
-              </p>
-              {order.deliveryMethod === "delivery" && (
-                <>
-                  <p>
-                    <strong>Address:</strong> {order.address}, {order.city}, {order.state} {order.zipCode},{" "}
-                    {order.country}
-                  </p>
-                </>
-              )}
-              {order.notes && (
-                <p>
-                  <strong>Notes:</strong> {order.notes}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <Separator />
-
-          <div>
-            <h3 className="text-xl font-semibold mb-3">Items Ordered</h3>
-            <div className="space-y-2">
-              {items.map((item) => (
-                <div
-                  key={item.itemId}
-                  className="flex justify-between items-center border-b pb-2 last:border-b-0 last:pb-0"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {item.productName} (x{item.quantity})
-                    </p>
-                    {(item.selectedSize || item.selectedColor) && (
-                      <p className="text-sm text-gray-500">
-                        {item.selectedSize && `Size: ${item.selectedSize}`}
-                        {item.selectedSize && item.selectedColor && ", "}
-                        {item.selectedColor && `Color: ${item.selectedColor}`}
-                      </p>
-                    )}
-                  </div>
-                  <p>€{(item.price * item.quantity).toFixed(2)}</p>
+            {!orderData && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-2 text-yellow-800">
+                  <FileText className="h-4 w-4" />
+                  <span className="text-sm">Receipt will be sent via email</span>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {/* Instagram Button */}
+            <Button onClick={handleContactInstagram} variant="outline" className="w-full bg-transparent" size="lg">
+              <Instagram className="h-5 w-5 mr-2" />
+              Follow @aachen.studio
+            </Button>
+
+            {/* Continue Shopping */}
+            <Link href="/" className="block">
+              <Button variant="outline" className="w-full bg-transparent" size="lg">
+                Continue Shopping
+              </Button>
+            </Link>
           </div>
 
-          <div className="flex justify-center gap-4 mt-8">
-            <Link href="/">
-              <Button variant="outline">Continue Shopping</Button>
-            </Link>
-            <Link href="https://instagram.com/aachen.studio" target="_blank" rel="noopener noreferrer">
-              <Button>Contact Us on Instagram</Button>
-            </Link>
+          {/* What's Next */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="font-medium text-blue-900 mb-2">What happens next?</h4>
+            <ol className="text-sm text-blue-800 space-y-1">
+              <li>1. We verify your proof of payment</li>
+              <li>2. Your order enters production/preparation</li>
+              <li>
+                3. We{" "}
+                {orderInfo?.method === "Pickup"
+                  ? "contact you for pickup arrangement"
+                  : "ship your order with tracking"}
+              </li>
+              <li>4. You receive your authentic Indonesian-inspired items!</li>
+            </ol>
+          </div>
+
+          {/* Contact Information */}
+          <div className="pt-4 border-t text-center">
+            <p className="text-xs text-gray-500">
+              Questions about your order?
+              <br />
+              Email:{" "}
+              <a href="mailto:funding@ppiaachen.de" className="text-green-600 hover:underline">
+                funding@ppiaachen.de
+              </a>
+              {" • "}
+              Instagram:{" "}
+              <button onClick={handleContactInstagram} className="text-green-600 hover:underline">
+                @aachen.studio
+              </button>
+            </p>
           </div>
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <Card className="w-full max-w-md">
+            <CardContent className="p-8 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading...</p>
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <SuccessContent />
+    </Suspense>
   )
 }

@@ -2,8 +2,6 @@
 
 import { Resend } from "resend"
 import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload"
-import { logOrderForManualProcessing, generatePlainTextCustomerEmail } from "@/lib/fallback-notifications"
-import { google } from "googleapis"
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -57,23 +55,6 @@ interface OrderItemData {
   description: string
   selectedSize: string
   selectedColor: string
-}
-
-interface Product {
-  id: number
-  name: string
-  price: number
-  image: string
-  images?: string[]
-  description: string
-  detailedDescription?: string
-  features?: string[]
-  specifications?: { [key: string]: string }
-  materials?: string[]
-  careInstructions?: string[]
-  sizes?: string[]
-  colors?: string[]
-  stock: number
 }
 
 async function getGoogleSheetsAuth() {
@@ -616,95 +597,6 @@ async function sendBusinessNotificationEmail(orderData: OrderData, orderItems: O
   }
 }
 
-export async function getProductsFromGoogleSheet(): Promise<Product[]> {
-  try {
-    const accessToken = await getGoogleSheetsAuth()
-    const sheets = google.sheets({
-      version: "v4",
-      auth: new google.auth.OAuth2(GOOGLE_SERVICE_ACCOUNT_EMAIL, undefined, undefined, {
-        credentials: { private_key: GOOGLE_PRIVATE_KEY, client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL },
-      }),
-    })
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: GOOGLE_SHEET_ID,
-      range: "Products!A:N", // Adjust range if more columns are added
-    })
-
-    const rows = response.data.values
-    if (!rows || rows.length === 0) {
-      console.log("No products found in Google Sheet.")
-      return []
-    }
-
-    const headers = rows[0]
-    const products: Product[] = rows.slice(1).map((row) => {
-      const product: Partial<Product> = {}
-      headers.forEach((header, index) => {
-        const value = row[index]
-        switch (header) {
-          case "id":
-            product.id = Number.parseInt(value)
-            break
-          case "name":
-            product.name = value
-            break
-          case "price":
-            product.price = Number.parseFloat(value)
-            break
-          case "image":
-            product.image = value
-            break
-          case "images":
-            product.images = value ? value.split(",") : []
-            break
-          case "description":
-            product.description = value
-            break
-          case "detailedDescription":
-            product.detailedDescription = value
-            break
-          case "features":
-            product.features = value ? value.split(",") : []
-            break
-          case "specifications":
-            try {
-              product.specifications = value ? JSON.parse(value) : {}
-            } catch (e) {
-              console.error("Failed to parse specifications:", value, e)
-              product.specifications = {}
-            }
-            break
-          case "materials":
-            product.materials = value ? value.split(",") : []
-            break
-          case "careInstructions":
-            product.careInstructions = value ? value.split(",") : []
-            break
-          case "sizes":
-            product.sizes = value ? value.split(",") : []
-            break
-          case "colors":
-            product.colors = value ? value.split(",") : []
-            break
-          case "stock":
-            product.stock = Number.parseInt(value)
-            break
-          default:
-            // Handle any other columns if necessary
-            break
-        }
-      })
-      return product as Product
-    })
-
-    return products
-  } catch (error) {
-    console.error("Error fetching products from Google Sheet:", error)
-    return []
-  }
-}
-
 export async function submitOrder(formData: FormData) {
   try {
     const cartItems = JSON.parse(formData.get("cartItems") as string) as CartItem[]
@@ -826,6 +718,9 @@ export async function submitOrder(formData: FormData) {
 
     if (emailsFailed) {
       console.log("📧 Email service unavailable - logging order for manual processing")
+      const { logOrderForManualProcessing, generatePlainTextCustomerEmail } = await import(
+        "@/lib/fallback-notifications"
+      )
       logOrderForManualProcessing(orderData, orderItemsData)
       const plainTextEmail = generatePlainTextCustomerEmail(orderData, orderItemsData)
       console.log("📧 CUSTOMER EMAIL TEMPLATE (copy and send manually):")

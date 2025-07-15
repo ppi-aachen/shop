@@ -2,23 +2,18 @@
 
 import { useState, useEffect } from "react"
 
-const MOBILE_BREAKPOINT = 768
-
-export function useMobile() {
-  const [isMobile, setIsMobile] = useState(false)
+export function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false)
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    }
+    const mediaQuery = window.matchMedia(query)
+    setMatches(mediaQuery.matches)
 
-    checkMobile() // Check on mount
-    window.addEventListener("resize", checkMobile) // Add event listener for resize
+    const handler = (event: MediaQueryListEvent) => setMatches(event.matches)
+    mediaQuery.addEventListener("change", handler)
 
-    return () => {
-      window.removeEventListener("resize", checkMobile) // Clean up on unmount
-    }
-  }, [])
+    return () => mediaQuery.removeEventListener("change", handler)
+  }, [query])
 
-  return isMobile
+  return matches
 }

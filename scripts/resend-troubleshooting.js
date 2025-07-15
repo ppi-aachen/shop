@@ -1,46 +1,64 @@
-console.log(`
-========================================
-  Resend Email Troubleshooting
-========================================
+console.log("🔧 Resend Email Service Troubleshooting Guide")
+console.log("=".repeat(50))
+console.log("")
 
-If you are not receiving emails from your shop, please follow these steps:
+console.log("❌ COMMON ERROR: 'API key is invalid'")
+console.log("=".repeat(30))
+console.log("")
 
-1.  **Verify RESEND_API_KEY:**
-    -   Your current RESEND_API_KEY (first 5 chars): ${process.env.RESEND_API_KEY ? process.env.RESEND_API_KEY.substring(0, 5) + "..." : "NOT_SET"}
-    -   Ensure this key is valid and active in your Resend dashboard: https://resend.com/api-keys
-    -   It should start with 're_'.
+console.log("✅ SOLUTIONS:")
+console.log("")
 
-2.  **Check Domain Verification in Resend:**
-    -   Log in to your Resend account.
-    -   Go to the "Domains" section.
-    -   Ensure the domain you are sending emails from (e.g., "shop.ppiaachen.de" or "ppiaachen.de" if you're using a subdomain) is added and **VERIFIED**.
-    -   You will need to add DNS records (TXT, CNAME) provided by Resend to your domain's DNS settings. This is a common reason for emails not being sent.
+console.log("1. CHECK API KEY FORMAT:")
+console.log("   - Must start with 're_'")
+console.log("   - Example: re_123abc456def789...")
+console.log("   - NOT: your_api_key_here")
+console.log("")
 
-3.  **Check Sender Email Address:**
-    -   In \`app/checkout/actions.ts\`, the sender email is set:
-        -   Customer email: \`from: "No Reply Aachen Studio <no-reply@shop.ppiaachen.de>"\`
-        -   Business email: \`from: "Webshop Aachen Studio <orders@shop.ppiaachen.de>"\`
-    -   **Ensure these sender email addresses (e.g., no-reply@shop.ppiaachen.de, orders@shop.ppiaachen.de) are either:**
-        -   Verified as individual email addresses in Resend (under "Senders").
-        -   Part of a verified domain in Resend.
-    -   If you're using a custom domain, make sure the 'from' address matches a verified sender or domain.
+console.log("2. GET VALID API KEY:")
+console.log("   a) Go to https://resend.com")
+console.log("   b) Sign up for free account")
+console.log("   c) Go to API Keys section")
+console.log("   d) Click 'Create API Key'")
+console.log("   e) Copy the key (starts with 're_')")
+console.log("")
 
-4.  **Check Recipient Email Addresses:**
-    -   Ensure the recipient email addresses (e.g., the customer's email, and "fundraising@ppiaachen.de" for business notifications) are valid and not causing bounces.
-    -   Check spam folders for the recipient emails.
+console.log("3. SET ENVIRONMENT VARIABLE:")
+console.log("   RESEND_API_KEY=re_your_actual_key_here")
+console.log("")
 
-5.  **Review Resend Logs:**
-    -   In your Resend dashboard, go to the "Emails" section.
-    -   Check the logs for any failed email attempts. Resend provides detailed error messages that can help pinpoint the exact issue (e.g., "unverified domain", "invalid recipient").
+console.log("4. VERIFY SETUP:")
+console.log("   - Check environment variables are set")
+console.log("   - Restart your application")
+console.log("   - Test with a small order")
+console.log("")
 
-6.  **Update Environment Variables in Vercel:**
-    -   Go to your Vercel project settings.
-    -   Navigate to "Environment Variables".
-    -   Double-check that \`RESEND_API_KEY\` is correctly set.
-    -   If you made any changes, save them.
+console.log("🔄 FALLBACK SYSTEM:")
+console.log("=".repeat(20))
+console.log("If emails fail, the system will:")
+console.log("✓ Still save order to Google Sheets")
+console.log("✓ Log order details in console")
+console.log("✓ Provide email template for manual sending")
+console.log("✓ Allow order to complete successfully")
+console.log("")
 
-7.  **Redeploy Your Project:**
-    -   After verifying and updating environment variables, redeploy your Vercel project.
+console.log("📧 TEMPORARY WORKAROUND:")
+console.log("=".repeat(25))
+console.log("Until Resend is configured:")
+console.log("1. Orders will still be saved")
+console.log("2. Check console logs for order details")
+console.log("3. Manually email customers using logged templates")
+console.log("4. Set up Resend when ready")
+console.log("")
 
-If emails are still not sending, consider using Resend's debugging tools or contacting their support for more specific assistance.
-`)
+console.log("🚀 QUICK SETUP:")
+console.log("=".repeat(15))
+console.log("1. Visit: https://resend.com")
+console.log("2. Sign up (free)")
+console.log("3. Create API key")
+console.log("4. Add to environment: RESEND_API_KEY=re_...")
+console.log("5. Test order")
+console.log("")
+
+console.log("✅ The shop will work without emails!")
+console.log("Orders are saved to Google Sheets regardless of email status.")

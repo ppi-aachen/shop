@@ -1,8 +1,8 @@
 "use client"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Instagram } from "lucide-react"
 
 interface CountryRestrictionProps {
   selectedCountry: string
@@ -12,20 +12,24 @@ interface CountryRestrictionProps {
 export function CountryRestriction({ selectedCountry, onContactInstagram }: CountryRestrictionProps) {
   const isGermany = selectedCountry.toLowerCase() === "germany" || selectedCountry.toLowerCase() === "deutschland"
 
-  if (selectedCountry && !isGermany) {
-    return (
-      <Alert variant="destructive">
-        <Info className="h-4 w-4" />
-        <AlertTitle>Delivery Restriction</AlertTitle>
-        <AlertDescription>
-          We currently only deliver within Germany. For international orders, please contact us directly.
-          <Button variant="link" className="p-0 h-auto ml-1 text-red-700" onClick={onContactInstagram}>
-            Contact us on Instagram
-          </Button>
-        </AlertDescription>
-      </Alert>
-    )
+  if (isGermany || selectedCountry === "") {
+    return null
   }
 
-  return null
+  return (
+    <Alert variant="destructive">
+      <AlertTitle className="flex items-center gap-2">
+        <Instagram className="h-5 w-5" />
+        International Delivery
+      </AlertTitle>
+      <AlertDescription className="mt-2">
+        We currently only deliver within Germany. For international orders, please contact us directly on Instagram to
+        arrange shipping.
+        <Button onClick={onContactInstagram} className="mt-4 w-full bg-transparent" variant="outline">
+          <Instagram className="h-4 w-4 mr-2" />
+          Contact us on Instagram
+        </Button>
+      </AlertDescription>
+    </Alert>
+  )
 }

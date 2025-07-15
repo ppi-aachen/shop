@@ -1,15 +1,42 @@
-# Next.js
-.next/
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
 /out/
-.vercel/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# local env files
 .env*.local
 .env
-.DS_Store
-node_modules/
 
-# Google Drive Uploads
-proofs_of_payment/ # If you were storing locally, but we're uploading to Drive now
+# vercel
+.vercel
+.env.development.local
+.env.production.local
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Google Service Account Key (if stored locally, though not recommended for Vercel)
+# service-account-key.json

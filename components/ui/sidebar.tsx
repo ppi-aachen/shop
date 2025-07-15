@@ -4,6 +4,8 @@ import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { type VariantProps, cva } from "class-variance-authority"
 import { PanelLeft } from "lucide-react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -136,9 +138,15 @@ const SidebarComponent = React.forwardRef<
     side?: "left" | "right"
     variant?: "sidebar" | "floating" | "inset"
     collapsible?: "offcanvas" | "icon" | "none"
+    items: {
+      href: string
+      title: string
+      icon?: React.ElementType
+    }[]
   }
->(({ side = "left", variant = "sidebar", collapsible = "offcanvas", className, children, ...props }, ref) => {
+>(({ side = "left", variant = "sidebar", collapsible = "offcanvas", className, items, children, ...props }, ref) => {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const pathname = usePathname()
 
   if (collapsible === "none") {
     return (
@@ -166,7 +174,22 @@ const SidebarComponent = React.forwardRef<
           }
           side={side}
         >
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <div className="flex h-full w-full flex-col">
+            {items.map((item) => (
+              <Link key={item.href} href={item.href}>
+                <button
+                  className={cn(
+                    "group flex w-full items-center rounded-md p-2 text-left text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                    pathname === item.href ? "bg-accent" : "transparent",
+                    item.icon && "pl-3",
+                  )}
+                >
+                  {item.icon && <item.icon className="mr-2 h-4 w-4 group-hover:scale-110" />}
+                  {item.title}
+                </button>
+              </Link>
+            ))}
+          </div>
         </SheetContent>
       </Sheet>
     )
@@ -210,13 +233,34 @@ const SidebarComponent = React.forwardRef<
           data-sidebar="sidebar"
           className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
         >
+          <div className="space-y-4 py-4">
+            <div className="px-3 py-2">
+              <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">Discover</h2>
+              <div className="space-y-1">
+                {items.map((item) => (
+                  <Link key={item.href} href={item.href}>
+                    <button
+                      className={cn(
+                        "group flex w-full items-center rounded-md p-2 text-left text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                        pathname === item.href ? "bg-accent" : "transparent",
+                        item.icon && "pl-3",
+                      )}
+                    >
+                      {item.icon && <item.icon className="mr-2 h-4 w-4 group-hover:scale-110" />}
+                      {item.title}
+                    </button>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
           {children}
         </div>
       </div>
     </div>
   )
 })
-SidebarComponent.displayName = "SidebarComponent"
+SidebarComponent.displayName = "Sidebar"
 
 const SidebarTrigger = React.forwardRef<React.ElementRef<typeof Button>, React.ComponentProps<typeof Button>>(
   ({ className, onClick, ...props }, ref) => {
@@ -598,7 +642,7 @@ const SidebarMenuSubButton = React.forwardRef<
       data-size={size}
       data-active={isActive}
       className={cn(
-        "flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
+        "flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
         "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
         size === "sm" && "text-xs",
         size === "md" && "text-sm",

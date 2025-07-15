@@ -10,28 +10,21 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
 import { useCart } from "@/lib/cart-context"
-import { ImageGallery } from "@/components/image-gallery"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
-import { cn } from "@/lib/utils"
+import { ImageGallery } from "./image-gallery"
+import { useToast } from "@/components/ui/use-toast"
 
 interface Product {
   id: number
   name: string
   price: number
   image: string
-  images?: string[]
   description: string
-  detailedDescription?: string
-  features?: string[]
-  specifications?: { [key: string]: string }
-  materials?: string[]
-  careInstructions?: string[]
   sizes?: string[]
   colors?: string[]
-  stock: number
 }
 
 interface ProductModalProps {
@@ -40,14 +33,32 @@ interface ProductModalProps {
 
 export default function ProductModal({ product }: ProductModalProps) {
   const { dispatch } = useCart()
-  const [quantity, setQuantity] = useState(1)
+  const { toast } = useToast()
   const [selectedSize, setSelectedSize] = useState<string | undefined>(product.sizes?.[0])
   const [selectedColor, setSelectedColor] = useState<string | undefined>(product.colors?.[0])
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [quantity, setQuantity] = useState(1)
+  const [isOpen, setIsOpen] = useState(false)
 
   const handleAddToCart = () => {
+    if (product.sizes && !selectedSize) {
+      toast({
+        title: "Missing Option",
+        description: "Please select a size.",
+        variant: "destructive",
+      })
+      return
+    }
+    if (product.colors && !selectedColor) {
+      toast({
+        title: "Missing Option",
+        description: "Please select a color.",
+        variant: "destructive",
+      })
+      return
+    }
+
     dispatch({
-      type: "ADD_ITEM",
+      type: "ADD_TO_CART",
       payload: {
         id: product.id,
         name: product.name,
@@ -56,55 +67,44 @@ export default function ProductModal({ product }: ProductModalProps) {
         quantity,
         selectedSize,
         selectedColor,
-        sizes: product.sizes, // Pass available sizes
-        colors: product.colors, // Pass available colors
+        sizes: product.sizes, // Pass available sizes for validation in checkout
+        colors: product.colors, // Pass available colors for validation in checkout
       },
     })
-    setIsModalOpen(false) // Close modal after adding to cart
+    toast({
+      title: "Added to cart!",
+      description: `${quantity} x ${product.name} added to your cart.`,
+    })
+    setIsOpen(false) // Close modal on add to cart
+    setQuantity(1) // Reset quantity
   }
 
-  const isAddToCartDisabled =
-    product.stock === 0 ||
-    (product.sizes && product.sizes.length > 0 && !selectedSize) ||
-    (product.colors && product.colors.length > 0 && !selectedColor)
+  const images = product.image ? [product.image, "/placeholder.jpg", "/placeholder.jpg"] : ["/placeholder.svg"]
 
   return (
-    <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-full bg-transparent" disabled={product.stock === 0}>
-          {product.stock === 0 ? "Out of Stock" : "View Details"}
-        </Button>
+        <Button className="w-full">View Details</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl p-6">
         <DialogHeader>
-          <DialogTitle>{product.name}</DialogTitle>
-          <DialogDescription>€{product.price.toFixed(2)}</DialogDescription>
+          <DialogTitle className="text-2xl font-bold">{product.name}</DialogTitle>
+          <DialogDescription className="text-gray-500">{product.description}</DialogDescription>
         </DialogHeader>
-        <div className="grid md:grid-cols-2 gap-6 py-4">
-          <ImageGallery images={product.images && product.images.length > 0 ? product.images : [product.image]} />
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold">Description</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{product.description}</p>
-              {product.detailedDescription && (
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{product.detailedDescription}</p>
-              )}
-            </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <ImageGallery images={images} />
+          <div className="space-y-6">
+            <p className="text-3xl font-bold">€{product.price.toFixed(2)}</p>
 
             {product.sizes && product.sizes.length > 0 && (
               <div className="space-y-2">
                 <Label htmlFor="size">Size</Label>
-                <RadioGroup value={selectedSize} onValueChange={setSelectedSize} className="flex flex-wrap gap-2">
+                <RadioGroup id="size" value={selectedSize} onValueChange={setSelectedSize} className="flex gap-2">
                   {product.sizes.map((size) => (
                     <Label
                       key={size}
                       htmlFor={`size-${size}`}
-                      className={cn(
-                        "flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium cursor-pointer",
-                        selectedSize === size
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-background hover:bg-accent hover:text-accent-foreground",
-                      )}
+                      className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 px-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary"
                     >
                       <RadioGroupItem id={`size-${size}`} value={size} className="sr-only" />
                       {size}
@@ -117,17 +117,12 @@ export default function ProductModal({ product }: ProductModalProps) {
             {product.colors && product.colors.length > 0 && (
               <div className="space-y-2">
                 <Label htmlFor="color">Color</Label>
-                <RadioGroup value={selectedColor} onValueChange={setSelectedColor} className="flex flex-wrap gap-2">
+                <RadioGroup id="color" value={selectedColor} onValueChange={setSelectedColor} className="flex gap-2">
                   {product.colors.map((color) => (
                     <Label
                       key={color}
                       htmlFor={`color-${color}`}
-                      className={cn(
-                        "flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium cursor-pointer",
-                        selectedColor === color
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-background hover:bg-accent hover:text-accent-foreground",
-                      )}
+                      className="flex items-center justify-center rounded-md border-2 border-muted bg-popover p-2 px-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary"
                     >
                       <RadioGroupItem id={`color-${color}`} value={color} className="sr-only" />
                       {color}
@@ -137,73 +132,24 @@ export default function ProductModal({ product }: ProductModalProps) {
               </div>
             )}
 
-            {product.features && product.features.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold">Features</h3>
-                <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400">
-                  {product.features.map((feature, index) => (
-                    <li key={index}>{feature}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {product.specifications && Object.keys(product.specifications).length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold">Specifications</h3>
-                <ul className="text-sm text-gray-600 dark:text-gray-400">
-                  {Object.entries(product.specifications).map(([key, value]) => (
-                    <li key={key}>
-                      <strong>{key}:</strong> {value}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {product.materials && product.materials.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold">Materials</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{product.materials.join(", ")}</p>
-              </div>
-            )}
-
-            {product.careInstructions && product.careInstructions.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold">Care Instructions</h3>
-                <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400">
-                  {product.careInstructions.map((instruction, index) => (
-                    <li key={index}>{instruction}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <Separator />
-
-            <div className="flex items-center gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="quantity">Quantity</Label>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" onClick={() => setQuantity(Math.max(1, quantity - 1))}>
+                <Button variant="outline" size="icon" onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}>
                   -
                 </Button>
                 <span className="w-8 text-center">{quantity}</span>
-                <Button variant="outline" size="icon" onClick={() => setQuantity(quantity + 1)}>
+                <Button variant="outline" size="icon" onClick={() => setQuantity((prev) => prev + 1)}>
                   +
                 </Button>
               </div>
-              <Button className="flex-1" onClick={handleAddToCart} disabled={isAddToCartDisabled}>
-                {product.stock === 0 ? "Out of Stock" : "Add to Cart"}
-              </Button>
             </div>
-            {product.stock <= 5 && product.stock > 0 && (
-              <p className="text-sm text-orange-500 text-center">Only {product.stock} left in stock!</p>
-            )}
-            {product.stock === 0 && (
-              <p className="text-sm text-red-500 text-center">This item is currently out of stock.</p>
-            )}
-            {isAddToCartDisabled && product.stock > 0 && (product.sizes?.length || product.colors?.length) && (
-              <p className="text-sm text-red-500 text-center">Please select all required options.</p>
-            )}
+
+            <Separator />
+
+            <Button onClick={handleAddToCart} className="w-full">
+              Add to Cart
+            </Button>
           </div>
         </div>
       </DialogContent>
