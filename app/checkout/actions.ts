@@ -503,7 +503,7 @@ async function sendBusinessNotificationEmail(orderData: OrderData, orderItems: O
                  📞 Call Customer
                </a>
                <a href="${orderData.proofOfPaymentUrl}" target="_blank"
-                  style="background: #dc2626; color: white; padding: 10px 15px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
+                   style="background: #dc2626; color: white; padding: 10px 15px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
                  💰 View Payment
                </a>
              </div>

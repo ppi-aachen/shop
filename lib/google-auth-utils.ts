@@ -1,6 +1,5 @@
 import { GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY } from "@/app/checkout/actions"
 
-// Helper function to convert PEM to DER format for crypto.subtle
 function pemToDer(pem: string): ArrayBuffer {
   const pemContents = pem
     .replace(/-----BEGIN PRIVATE KEY-----/, "")
@@ -17,11 +16,11 @@ function pemToDer(pem: string): ArrayBuffer {
   return bytes.buffer
 }
 
-// Function to get Google Sheets access token
 export async function getGoogleSheetsAuth(): Promise<string> {
-  // Ensure environment variables are defined
   if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
-    throw new Error("Google Sheets credentials (GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_PRIVATE_KEY) not configured.")
+    throw new Error(
+      "Google Sheets credentials not configured. Please set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY environment variables.",
+    )
   }
 
   const now = Math.floor(Date.now() / 1000)
@@ -35,7 +34,7 @@ export async function getGoogleSheetsAuth(): Promise<string> {
     iss: GOOGLE_SERVICE_ACCOUNT_EMAIL,
     scope: "https://www.googleapis.com/auth/spreadsheets",
     aud: "https://oauth2.googleapis.com/token",
-    exp: now + 3600, // Token expires in 1 hour
+    exp: now + 3600,
     iat: now,
   }
 
@@ -47,7 +46,8 @@ export async function getGoogleSheetsAuth(): Promise<string> {
   const encodedPayload = base64UrlEncode(JSON.stringify(payload))
   const unsignedToken = `${encodedHeader}.${encodedPayload}`
 
-  const privateKeyDer = pemToDer(GOOGLE_PRIVATE_KEY)
+  const privateKeyPem = GOOGLE_PRIVATE_KEY
+  const privateKeyDer = pemToDer(privateKeyPem)
 
   const cryptoKey = await crypto.subtle.importKey(
     "pkcs8",
@@ -81,7 +81,7 @@ export async function getGoogleSheetsAuth(): Promise<string> {
   const authData = await response.json()
 
   if (!response.ok) {
-    throw new Error(`Google Sheets Auth Error: ${authData.error_description || authData.error}`)
+    throw new Error(`Auth error: ${authData.error_description || authData.error}`)
   }
 
   return authData.access_token
