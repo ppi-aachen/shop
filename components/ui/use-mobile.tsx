@@ -1,7 +1,4 @@
-"use client"
-
 import * as React from "react"
-import { useMediaQuery } from "@/hooks/use-mobile"
 
 const MOBILE_BREAKPOINT = 768
 
@@ -19,8 +16,4 @@ export function useIsMobile() {
   }, [])
 
   return !!isMobile
-}
-
-export function useMobile() {
-  return useMediaQuery("(max-width: 768px)")
 }

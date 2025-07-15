@@ -138,14 +138,14 @@ function SuccessContent() {
             )}
 
             {/* Instagram Button */}
-            <Button onClick={handleContactInstagram} variant="outline" className="w-full bg-transparent" size="lg">
+            <Button onClick={handleContactInstagram} variant="outline" className="w-full" size="lg">
               <Instagram className="h-5 w-5 mr-2" />
               Follow @aachen.studio
             </Button>
 
             {/* Continue Shopping */}
             <Link href="/" className="block">
-              <Button variant="outline" className="w-full bg-transparent" size="lg">
+              <Button variant="outline" className="w-full" size="lg">
                 Continue Shopping
               </Button>
             </Link>

@@ -2,34 +2,29 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
 import { CartProvider } from "@/lib/cart-context"
-import Header from "@/components/header"
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from "@/components/toaster"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Aachen Studio Shop",
-  description: "Shop for Indonesian-inspired products by PPI Aachen",
+  title: "Simple Shop - Proof of Payment",
+  description: "Shop with proof of payment system",
     generator: 'v0.dev'
 }
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <CartProvider>
-            <Header />
-            <main>{children}</main>
-            <Toaster />
-          </CartProvider>
-        </ThemeProvider>
+        <CartProvider>
+          {children}
+          <Toaster />
+        </CartProvider>
       </body>
     </html>
   )

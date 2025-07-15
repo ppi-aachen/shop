@@ -700,6 +700,8 @@ export async function submitOrder(formData: FormData) {
 
     await Promise.all([addOrderToGoogleSheet(orderData), addOrderItemsToGoogleSheet(orderItemsData)])
 
+    
+
     const emailResults = await Promise.allSettled([
       sendCustomerConfirmationEmail(orderData, orderItemsData),
       sendBusinessNotificationEmail(orderData, orderItemsData),
