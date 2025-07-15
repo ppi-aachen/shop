@@ -75,3 +75,30 @@ console.log("")
 
 console.log("🚀 READY TO GO!")
 console.log("Add GOOGLE_DRIVE_FOLDER_ID to your environment variables and you're all set!")
+
+const readline = require("readline")
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+})
+
+rl.question("Please paste the Google Drive folder URL: ", (url) => {
+  const regex = /\/folders\/([a-zA-Z0-9_-]+)/
+  const match = url.match(regex)
+
+  if (match && match[1]) {
+    console.log(`\nExtracted Folder ID: ${match[1]}`)
+    console.log(
+      "\nMake sure this folder is within a Google Shared Drive and your service account has 'Content manager' or 'Editor' access to it.",
+    )
+    console.log("Set this ID as GOOGLE_DRIVE_FOLDER_ID in your .env.local file or Vercel environment variables.")
+  } else {
+    console.log("\nCould not extract a folder ID from the provided URL.")
+    console.log(
+      "Please ensure the URL is a valid Google Drive folder link (e.g., https://drive.google.com/drive/folders/YOUR_FOLDER_ID_HERE).",
+    )
+  }
+
+  rl.close()
+})

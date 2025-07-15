@@ -1,22 +1,23 @@
-console.log("📊 HOW TO GET YOUR GOOGLE SHEET ID")
-console.log("=".repeat(40))
-console.log("")
+const readline = require("readline")
 
-console.log("1. Open your Google Sheet in browser")
-console.log("2. Look at the URL:")
-console.log("")
-console.log("Example URL:")
-console.log("https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit#gid=0")
-console.log("")
-console.log("3. The SHEET ID is the long string between '/d/' and '/edit':")
-console.log("   1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms")
-console.log("")
-console.log("4. Copy this ID and use it as GOOGLE_SHEET_ID")
-console.log("")
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+})
 
-console.log("📝 SHEET STRUCTURE REMINDER:")
-console.log("Make sure your sheet has TWO tabs:")
-console.log("• 'Orders' - for main order data")
-console.log("• 'Order_Items' - for individual items")
-console.log("")
-console.log("Run scripts/setup-google-sheet-v4.js for complete setup instructions")
+rl.question("Please paste the Google Sheet URL: ", (url) => {
+  const regex = /\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/
+  const match = url.match(regex)
+
+  if (match && match[1]) {
+    console.log(`\nExtracted Sheet ID: ${match[1]}`)
+    console.log("\nSet this ID as GOOGLE_SHEET_ID in your .env.local file or Vercel environment variables.")
+  } else {
+    console.log("\nCould not extract a Sheet ID from the provided URL.")
+    console.log(
+      "Please ensure the URL is a valid Google Sheet link (e.g., https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_HERE/edit).",
+    )
+  }
+
+  rl.close()
+})

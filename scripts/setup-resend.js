@@ -1,64 +1,65 @@
-// Resend Email Service Setup Instructions
+const { Resend } = require("resend")
+const readline = require("readline")
 
-console.log("Resend Email Service Setup Instructions:")
-console.log("=======================================")
-console.log("")
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+})
 
-console.log("1. Create a Resend Account:")
-console.log("   - Go to https://resend.com")
-console.log("   - Sign up for a free account")
-console.log("   - Free tier includes 3,000 emails/month")
-console.log("")
+async function setupResend() {
+  console.log(`
+========================================
+  Resend API Key Setup Guide
+========================================
+This script will help you verify your Resend API Key.
 
-console.log("2. Get your API Key:")
-console.log("   - Go to https://resend.com/api-keys")
-console.log("   - Click 'Create API Key'")
-console.log("   - Name it 'Aachen Studio Shop'")
-console.log("   - Copy the API key (starts with 're_')")
-console.log("")
+Before running this script, ensure you have:
+1. Signed up for a Resend account at https://resend.com/
+2. Created an API Key in your Resend dashboard.
 
-console.log("3. Add Domain (Optional but Recommended):")
-console.log("   - Go to https://resend.com/domains")
-console.log("   - Add your domain (e.g., ppiaachen.de)")
-console.log("   - Follow DNS setup instructions")
-console.log("   - This allows sending from orders@ppiaachen.de")
-console.log("")
+You need to have the following environment variable set in your .env.local file:
+- RESEND_API_KEY
+`)
 
-console.log("4. Environment Variables to Add:")
-console.log("   RESEND_API_KEY=re_your_api_key_here")
-console.log("")
+  const RESEND_API_KEY = process.env.RESEND_API_KEY
 
-console.log("5. Email Configuration:")
-console.log("   - Customer emails sent from: orders@ppiaachen.de")
-console.log("   - Business notifications sent to: funding@ppiaachen.de")
-console.log("   - If domain not verified, emails will be sent from onboarding@resend.dev")
-console.log("")
+  if (!RESEND_API_KEY || !RESEND_API_KEY.startsWith("re_")) {
+    console.error("❌ Error: RESEND_API_KEY is missing or invalid.")
+    console.error("Please ensure RESEND_API_KEY is set in your .env.local file and starts with 're_'.")
+    rl.close()
+    return
+  }
 
-console.log("6. Email Features Included:")
-console.log("   ✅ Professional HTML email templates")
-console.log("   ✅ Order confirmation emails to customers")
-console.log("   ✅ Business notification emails")
-console.log("   ✅ Responsive design for mobile/desktop")
-console.log("   ✅ Order details with product options")
-console.log("   ✅ Payment information and proof links")
-console.log("   ✅ Delivery/pickup instructions")
-console.log("   ✅ Quick action buttons for business emails")
-console.log("")
+  const resend = new Resend(RESEND_API_KEY)
 
-console.log("7. Testing:")
-console.log("   - Place a test order to verify emails work")
-console.log("   - Check spam folders initially")
-console.log("   - Monitor Resend dashboard for delivery status")
-console.log("")
+  try {
+    console.log("\nAttempting to list domains to verify API key...")
+    const { data, error } = await resend.domains.list()
 
-console.log("8. Production Considerations:")
-console.log("   - Set up domain authentication for better deliverability")
-console.log("   - Monitor email analytics in Resend dashboard")
-console.log("   - Consider upgrading plan if you exceed 3,000 emails/month")
-console.log("")
+    if (error) {
+      console.error("❌ Error verifying Resend API Key:", error.message)
+      console.error("Please check if your RESEND_API_KEY is correct and has the necessary permissions.")
+      console.error("You might also need to verify your sending domain in Resend.")
+    } else {
+      console.log("🎉 Resend API Key verified successfully!")
+      console.log("Currently configured domains in Resend:")
+      if (data && data.data.length > 0) {
+        data.data.forEach((domain) => {
+          console.log(`- ${domain.id}: ${domain.name} (Status: ${domain.status})`)
+        })
+        console.log(
+          "\nEnsure your sending domain (e.g., shop.ppiaachen.de) is listed above and its status is 'verified'.",
+        )
+        console.log("If not, add and verify your domain in the Resend dashboard: https://resend.com/domains")
+      } else {
+        console.log("No domains configured yet. Please add and verify your sending domain in the Resend dashboard.")
+      }
+    }
+  } catch (e) {
+    console.error("❌ An unexpected error occurred during Resend setup:", e)
+  } finally {
+    rl.close()
+  }
+}
 
-console.log("Package Installation:")
-console.log("npm install resend")
-console.log("")
-
-console.log("The email service is now integrated and ready to use!")
+setupResend()
