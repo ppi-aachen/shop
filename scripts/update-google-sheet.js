@@ -28,12 +28,42 @@ async function updateStockInGoogleSheet(orderItems) {
 
     for (const item of orderItems) {
       // Get the current stock value
-      const getResponse = await sheets.spreadsheets.values.get({
+      // Assuming 'id' is in column A and 'stock' is in column H
+      // We need to find the row index based on the product ID
+      const productsResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: GOOGLE_SHEET_ID,
-        range: `${sheetTitle}!H${item.itemId + 1}`, // Assuming item IDs start at 1 and the stock is in column H
+        range: `${sheetTitle}!A:H`, // Fetch columns A to H to find the product ID and stock
       })
 
-      const currentStock = Number.parseInt(getResponse.data.values[0][0], 10)
+      const productRows = productsResponse.data.values
+      if (!productRows || productRows.length < 2) {
+        console.warn("No product data found in Google Sheet.")
+        continue
+      }
+
+      const headerRow = productRows[0]
+      const idColumnIndex = headerRow.indexOf("id")
+      const stockColumnIndex = headerRow.indexOf("stock")
+
+      if (idColumnIndex === -1 || stockColumnIndex === -1) {
+        console.error("Missing 'id' or 'stock' column in Products sheet header.")
+        continue
+      }
+
+      let rowIndex = -1
+      for (let i = 1; i < productRows.length; i++) {
+        if (Number(productRows[i][idColumnIndex]) === item.itemId) {
+          rowIndex = i + 1 // Google Sheets rows are 1-indexed
+          break
+        }
+      }
+
+      if (rowIndex === -1) {
+        console.warn(`Product with ID ${item.itemId} not found in Google Sheet. Skipping stock update.`)
+        continue
+      }
+
+      const currentStock = Number.parseInt(productRows[rowIndex - 1][stockColumnIndex], 10)
 
       if (isNaN(currentStock)) {
         console.warn(`Invalid stock value found for item ID ${item.itemId}. Skipping update.`)
@@ -47,10 +77,11 @@ async function updateStockInGoogleSheet(orderItems) {
         continue
       }
 
-      // Update the stock value
+      // Update the stock value in the correct cell
+      const stockCell = String.fromCharCode(65 + stockColumnIndex) + rowIndex // Convert column index to letter (e.g., 0 -> A, 1 -> B)
       await sheets.spreadsheets.values.update({
         spreadsheetId: GOOGLE_SHEET_ID,
-        range: `${sheetTitle}!H${item.itemId + 1}`,
+        range: `${sheetTitle}!${stockCell}`,
         valueInputOption: "USER_ENTERED",
         requestBody: {
           values: [[newStock.toString()]],
