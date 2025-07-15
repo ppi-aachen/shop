@@ -1,29 +1,20 @@
 "use client"
 
 import type React from "react"
-import { createContext, useReducer, useContext, useEffect } from "react"
+import { createContext, useContext, useReducer, useEffect } from "react"
 
-interface ProductBase {
+export interface CartItem {
   id: number
   name: string
   price: number
   image: string
   images?: string[]
   description: string
-  detailedDescription?: string
-  features?: string[]
-  specifications?: { [key: string]: string }
-  materials?: string[]
-  careInstructions?: string[]
-  sizes?: string[]
-  colors?: string[]
-  stock: number // Added stock to ProductBase interface
-}
-
-export interface CartItem extends ProductBase {
   quantity: number
   selectedSize?: string
   selectedColor?: string
+  sizes?: string[]
+  colors?: string[]
 }
 
 interface CartState {
@@ -36,12 +27,9 @@ interface CartState {
 }
 
 type CartAction =
-  | { type: "ADD_ITEM"; payload: ProductBase & { quantity?: number; selectedSize?: string; selectedColor?: string } }
-  | { type: "REMOVE_ITEM"; payload: { id: number; selectedSize?: string; selectedColor?: string } }
-  | {
-      type: "UPDATE_QUANTITY"
-      payload: { id: number; quantity: number; selectedSize?: string; selectedColor?: string }
-    }
+  | { type: "ADD_ITEM"; payload: Omit<CartItem, "quantity"> }
+  | { type: "REMOVE_ITEM"; payload: number }
+  | { type: "UPDATE_QUANTITY"; payload: { id: number; quantity: number } }
   | { type: "SET_DELIVERY_METHOD"; payload: "pickup" | "delivery" }
   | { type: "CLEAR_CART" }
   | { type: "LOAD_CART"; payload: CartItem[] }
@@ -62,40 +50,27 @@ function calculateShippingCost(itemCount: number, deliveryMethod: "pickup" | "de
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case "ADD_ITEM": {
-      const { id, selectedSize, selectedColor, stock, quantity = 1, ...restPayload } = action.payload
       const existingItemIndex = state.items.findIndex(
-        (item) => item.id === id && item.selectedSize === selectedSize && item.selectedColor === selectedColor,
+        (item) =>
+          item.id === action.payload.id &&
+          item.selectedSize === action.payload.selectedSize &&
+          item.selectedColor === action.payload.selectedColor,
       )
 
       let newItems: CartItem[]
       if (existingItemIndex >= 0) {
-        const existingItem = state.items[existingItemIndex]
-        const newQuantity = existingItem.quantity + quantity
-        if (newQuantity > stock) {
-          console.warn(
-            `Cannot add ${quantity} of ${restPayload.name}. Total quantity (${newQuantity}) exceeds stock (${stock}).`,
-          )
-          return state // Prevent adding if it exceeds stock
-        }
         newItems = state.items.map((item, index) =>
-          index === existingItemIndex ? { ...item, quantity: newQuantity } : item,
+          index === existingItemIndex ? { ...item, quantity: item.quantity + 1 } : item,
         )
       } else {
-        if (quantity > stock) {
-          console.warn(`Cannot add ${quantity} of ${restPayload.name}. Initial quantity exceeds stock (${stock}).`)
-          return state // Prevent adding if initial quantity exceeds stock
-        }
+        // Include sizes and colors arrays in the cart item
         newItems = [
           ...state.items,
           {
-            ...restPayload,
-            id,
-            selectedSize,
-            selectedColor,
-            quantity,
-            stock, // Store the stock at the time of adding
-            sizes: restPayload.sizes || [],
-            colors: restPayload.colors || [],
+            ...action.payload,
+            quantity: 1,
+            sizes: action.payload.sizes || [],
+            colors: action.payload.colors || [],
           },
         ]
       }
@@ -109,10 +84,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     }
 
     case "REMOVE_ITEM": {
-      const { id, selectedSize, selectedColor } = action.payload
-      const newItems = state.items.filter(
-        (item) => !(item.id === id && item.selectedSize === selectedSize && item.selectedColor === selectedColor),
-      )
+      const newItems = state.items.filter((item, index) => index !== action.payload)
       const total = newItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
       const itemCount = newItems.reduce((sum, item) => sum + item.quantity, 0)
       const shippingCost = calculateShippingCost(itemCount, state.deliveryMethod)
@@ -122,24 +94,10 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     }
 
     case "UPDATE_QUANTITY": {
-      const { id, quantity: newQuantity, selectedSize, selectedColor } = action.payload
-      const itemIndex = state.items.findIndex(
-        (item) => item.id === id && item.selectedSize === selectedSize && item.selectedColor === selectedColor,
-      )
-
-      if (itemIndex === -1) return state // Item not found
-
-      const itemToUpdate = state.items[itemIndex]
-
-      if (newQuantity > itemToUpdate.stock) {
-        console.warn(
-          `Cannot update quantity for ${itemToUpdate.name}. New quantity (${newQuantity}) exceeds stock (${itemToUpdate.stock}).`,
-        )
-        return state // Prevent updating quantity if it exceeds stock
-      }
-
       const newItems = state.items
-        .map((item, index) => (index === itemIndex ? { ...item, quantity: Math.max(0, newQuantity) } : item))
+        .map((item, index) =>
+          index === action.payload.id ? { ...item, quantity: Math.max(0, action.payload.quantity) } : item,
+        )
         .filter((item) => item.quantity > 0)
 
       const total = newItems.reduce((sum, item) => sum + item.price * item.quantity, 0)

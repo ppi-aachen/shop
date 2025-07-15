@@ -9,6 +9,7 @@ import { Plus, Eye } from "lucide-react"
 import { ProductModal } from "@/components/product-modal"
 import { getProductImage } from "@/lib/image-utils"
 import { useToast } from "@/hooks/use-toast"
+import { getProductsFromGoogleSheet } from "@/app/checkout/actions" // Import the function
 
 interface Product {
   id: number
@@ -41,19 +42,15 @@ export default function HomePage() {
       setLoadingProducts(true)
       setErrorLoadingProducts(false)
       try {
-        const response = await fetch("/api/products")
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        const fetchedProducts: Product[] = await response.json()
+        const fetchedProducts = await getProductsFromGoogleSheet()
         setProducts(fetchedProducts)
       } catch (error) {
-        console.error("Could not fetch products from API:", error)
+        console.error("Could not fetch products from Google Sheet:", error)
         setErrorLoadingProducts(true)
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to load products. Please check your Google Sheet configuration and API route.",
+          description: "Failed to load products from Google Sheet. Please check your configuration.",
         })
       } finally {
         setLoadingProducts(false)
@@ -94,7 +91,7 @@ export default function HomePage() {
       return
     }
 
-    dispatch({ type: "ADD_ITEM", payload: { ...product, quantity: 1 } }) // Add quantity: 1 for direct add
+    dispatch({ type: "ADD_ITEM", payload: product })
 
     toast({
       variant: "success",

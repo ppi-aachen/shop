@@ -1,12 +1,14 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { useState } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Plus, Minus, X } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Plus, X, Truck, Shield, RotateCcw, AlertTriangle } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
-import { useToast } from "@/hooks/use-toast"
 import { ImageGallery } from "@/components/image-gallery"
+import { getProductImages } from "@/lib/image-utils"
+import { useToast } from "@/hooks/use-toast"
 
 interface Product {
   id: number
@@ -22,7 +24,7 @@ interface Product {
   careInstructions?: string[]
   sizes?: string[]
   colors?: string[]
-  stock: number // Added stock property
+  stock: number
 }
 
 interface ProductModalProps {
@@ -34,59 +36,41 @@ interface ProductModalProps {
 export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
   const [selectedSize, setSelectedSize] = useState<string>("")
   const [selectedColor, setSelectedColor] = useState<string>("")
-  const { dispatch, state: cartState } = useCart() // Access cartState to check current quantity in cart
+  const { dispatch } = useCart()
   const { toast } = useToast()
-  const [quantity, setQuantity] = useState(1)
-
-  useEffect(() => {
-    if (isOpen && product) {
-      setQuantity(1) // Reset quantity when modal opens
-      setSelectedSize(product.sizes && product.sizes.length > 0 ? product.sizes[0] : "")
-      setSelectedColor(product.colors && product.colors.length > 0 ? product.colors[0] : "")
-    }
-  }, [isOpen, product])
 
   if (!product) return null
 
-  // Find the item in the cart that matches the current product and selected options
-  const currentCartItem = cartState.items.find(
-    (item) => item.id === product.id && item.selectedSize === selectedSize && item.selectedColor === selectedColor,
-  )
-  const quantityInCart = currentCartItem ? currentCartItem.quantity : 0
-  const availableStock = product.stock - quantityInCart
+  const addToCart = () => {
+    // Check for required options
+    const requiresSize = product.sizes && product.sizes.length > 0
+    const requiresColor = product.colors && product.colors.length > 0
 
-  const handleAddToCart = () => {
+    // Validate required selections
+    if (requiresSize && !selectedSize) {
+      toast({
+        variant: "warning",
+        title: "Size Required",
+        description: "Please select a size before adding to cart.",
+      })
+      return
+    }
+
+    if (requiresColor && !selectedColor) {
+      toast({
+        variant: "warning",
+        title: "Color Required",
+        description: "Please select a color before adding to cart.",
+      })
+      return
+    }
+
+    // Check if product is in stock
     if (product.stock <= 0) {
       toast({
         variant: "destructive",
         title: "Out of Stock",
-        description: `${product.name} is currently out of stock.`,
-      })
-      return
-    }
-
-    if (quantity > availableStock) {
-      toast({
-        variant: "destructive",
-        title: "Insufficient Stock",
-        description: `You can only add ${availableStock} more of ${product.name} to your cart.`,
-      })
-      return
-    }
-
-    if (product.sizes && product.sizes.length > 0 && !selectedSize) {
-      toast({
-        variant: "warning",
-        title: "Size Required",
-        description: "Please select a size for this product.",
-      })
-      return
-    }
-    if (product.colors && product.colors.length > 0 && !selectedColor) {
-      toast({
-        variant: "warning",
-        title: "Color Required",
-        description: "Please select a color for this product.",
+        description: "This product is currently out of stock.",
       })
       return
     }
@@ -95,168 +79,207 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
       type: "ADD_ITEM",
       payload: {
         ...product,
-        quantity, // Pass the selected quantity
         selectedSize,
         selectedColor,
       },
     })
+
     toast({
       variant: "success",
       title: "Added to Cart!",
-      description: `${quantity}x ${product.name} added to your cart.`,
+      description: `${product.name}${selectedSize ? ` (Size: ${selectedSize})` : ""}${selectedColor ? ` (Color: ${selectedColor})` : ""} has been added to your cart.`,
     })
+
+    // Reset selections and close modal
+    setSelectedSize("")
+    setSelectedColor("")
     onClose()
   }
 
+  // Use multiple images if available, otherwise fall back to single image
+  const productImages =
+    product.images && product.images.length > 0 ? getProductImages(product.images) : getProductImages([product.image])
+
+  // Check if all required options are selected
+  const requiresSize = product.sizes && product.sizes.length > 0
+  const requiresColor = product.colors && product.colors.length > 0
+  const canAddToCart = (!requiresSize || selectedSize) && (!requiresColor || selectedColor) && product.stock > 0
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl p-6">
-        <DialogHeader className="relative">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
           <DialogTitle className="text-2xl font-bold">{product.name}</DialogTitle>
-          <DialogDescription className="text-gray-600">{product.description}</DialogDescription>
-          <Button variant="ghost" size="icon" className="absolute top-0 right-0" onClick={onClose}>
-            <X className="h-5 w-5" />
-            <span className="sr-only">Close</span>
+          <Button variant="ghost" size="sm" className="absolute right-4 top-4" onClick={onClose}>
+            <X className="h-4 w-4" />
           </Button>
         </DialogHeader>
 
-        <div className="grid md:grid-cols-2 gap-6 mt-4">
-          <div className="relative">
-            <ImageGallery images={product.images || [product.image]} productName={product.name} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Product Image Gallery */}
+          <div className="space-y-4">
+            <ImageGallery images={productImages} productName={product.name} className="lg:sticky lg:top-4" />
           </div>
 
-          <div>
-            <p className="text-3xl font-bold text-green-600 mb-4">€{product.price.toFixed(2)}</p>
+          {/* Product Details */}
+          <div className="space-y-6">
+            <div>
+              <p className="text-3xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
+              <p className="text-gray-600 mt-2">{product.description}</p>
+            </div>
 
-            <p className={`text-sm font-medium mb-4 ${product.stock > 0 ? "text-gray-500" : "text-red-500"}`}>
-              Stock: {product.stock > 0 ? product.stock : "Out of Stock"}
-            </p>
+            {/* Detailed Description */}
+            {product.detailedDescription && (
+              <div>
+                <h3 className="font-semibold text-lg mb-2">About This Product</h3>
+                <p className="text-gray-700 leading-relaxed">{product.detailedDescription}</p>
+              </div>
+            )}
 
-            {product.sizes && product.sizes.length > 0 && (
-              <div className="mb-4">
-                <h4 className="font-semibold mb-2">Size:</h4>
+            {/* Features */}
+            {product.features && product.features.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-lg mb-2">Features</h3>
+                <ul className="space-y-1">
+                  {product.features.map((feature, index) => (
+                    <li key={index} className="flex items-center gap-2 text-gray-700">
+                      <div className="w-1.5 h-1.5 bg-green-600 rounded-full" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Size Selection */}
+            {requiresSize && (
+              <div>
+                <h3 className="font-semibold text-lg mb-2">
+                  Size <span className="text-red-500">*</span>
+                </h3>
                 <div className="flex flex-wrap gap-2">
-                  {product.sizes.map((size) => (
+                  {product.sizes!.map((size) => (
                     <Button
                       key={size}
                       variant={selectedSize === size ? "default" : "outline"}
+                      size="sm"
                       onClick={() => setSelectedSize(size)}
-                      className="min-w-[60px]"
+                      className={selectedSize === size ? "bg-green-600 hover:bg-green-700" : ""}
                     >
                       {size}
                     </Button>
                   ))}
                 </div>
+                {!selectedSize && (
+                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                      <p className="text-sm text-red-700 font-medium">Please select a size to continue</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {product.colors && product.colors.length > 0 && (
-              <div className="mb-4">
-                <h4 className="font-semibold mb-2">Color:</h4>
+            {/* Color Selection */}
+            {requiresColor && (
+              <div>
+                <h3 className="font-semibold text-lg mb-2">
+                  Color <span className="text-red-500">*</span>
+                </h3>
                 <div className="flex flex-wrap gap-2">
-                  {product.colors.map((color) => (
+                  {product.colors!.map((color) => (
                     <Button
                       key={color}
                       variant={selectedColor === color ? "default" : "outline"}
+                      size="sm"
                       onClick={() => setSelectedColor(color)}
-                      className="min-w-[80px]"
+                      className={selectedColor === color ? "bg-green-600 hover:bg-green-700" : ""}
                     >
                       {color}
                     </Button>
                   ))}
                 </div>
+                {!selectedColor && (
+                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                      <p className="text-sm text-red-700 font-medium">Please select a color to continue</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            <div className="mb-4">
-              <h4 className="font-semibold mb-2">Quantity:</h4>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-                  disabled={quantity <= 1 || product.stock <= 0}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <span className="w-10 text-center font-medium">{quantity}</span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setQuantity((prev) => Math.min(prev + 1, availableStock))}
-                  disabled={quantity >= availableStock || product.stock <= 0}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
+            {/* Materials */}
+            {product.materials && product.materials.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-lg mb-2">Materials</h3>
+                <div className="flex flex-wrap gap-2">
+                  {product.materials.map((material, index) => (
+                    <Badge key={index} variant="secondary">
+                      {material}
+                    </Badge>
+                  ))}
+                </div>
               </div>
-              {quantityInCart > 0 && (
-                <p className="text-sm text-gray-500 mt-1">
-                  ({quantityInCart} already in cart, {availableStock} available)
-                </p>
-              )}
+            )}
+
+            {/* Specifications */}
+            {product.specifications && Object.keys(product.specifications).length > 0 && (
+              <div>
+                <h3 className="font-semibold text-lg mb-2">Specifications</h3>
+                <div className="space-y-2">
+                  {Object.entries(product.specifications).map(([key, value]) => (
+                    <div key={key} className="flex justify-between">
+                      <span className="text-gray-600">{key}:</span>
+                      <span className="font-medium">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Care Instructions */}
+            {product.careInstructions && product.careInstructions.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-lg mb-2">Care Instructions</h3>
+                <ul className="space-y-1">
+                  {product.careInstructions.map((instruction, index) => (
+                    <li key={index} className="flex items-center gap-2 text-gray-700 text-sm">
+                      <div className="w-1 h-1 bg-gray-400 rounded-full" />
+                      {instruction}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Product Benefits */}
+            <div className="grid grid-cols-1 gap-3 pt-4 border-t">
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+                <Truck className="h-4 w-4 text-green-600" />
+                <span>Free pickup in Aachen or delivery available</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+                <Shield className="h-4 w-4 text-green-600" />
+                <span>Quality guarantee</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+                <RotateCcw className="h-4 w-4 text-green-600" />
+                <span>30-day return policy</span>
+              </div>
             </div>
 
-            <Button
-              className="w-full py-3 text-lg"
-              onClick={handleAddToCart}
-              disabled={
-                product.stock <= 0 ||
-                quantity > availableStock ||
-                (product.sizes && product.sizes.length > 0 && !selectedSize) ||
-                (product.colors && product.colors.length > 0 && !selectedColor)
-              }
-            >
-              {product.stock <= 0 ? "Out of Stock" : "Add to Cart"}
+            {/* Add to Cart Button */}
+            <Button onClick={addToCart} className="w-full" size="lg" disabled={!canAddToCart || product.stock === 0}>
+              <Plus className="h-4 w-4 mr-2" />
+              {product.stock > 0 ? `Add to Cart - €${product.price.toFixed(2)}` : "Out of Stock"}
             </Button>
-
-            <div className="mt-6">
-              <h3 className="text-xl font-bold mb-2">Product Details</h3>
-              <p className="text-gray-700 mb-4">{product.detailedDescription || product.description}</p>
-
-              {product.features && product.features.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-semibold mb-2">Features:</h4>
-                  <ul className="list-disc list-inside text-gray-700">
-                    {product.features.map((feature, index) => (
-                      <li key={index}>{feature}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {product.specifications && Object.keys(product.specifications).length > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-semibold mb-2">Specifications:</h4>
-                  <ul className="list-disc list-inside text-gray-700">
-                    {Object.entries(product.specifications).map(([key, value]) => (
-                      <li key={key}>
-                        <strong>{key}:</strong> {value}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {product.materials && product.materials.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-semibold mb-2">Materials:</h4>
-                  <p className="text-gray-700">{product.materials.join(", ")}</p>
-                </div>
-              )}
-
-              {product.careInstructions && product.careInstructions.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-semibold mb-2">Care Instructions:</h4>
-                  <ul className="list-disc list-inside text-gray-700">
-                    {product.careInstructions.map((instruction, index) => (
-                      <li key={index}>{instruction}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
           </div>
         </div>
+        <div className="h-4" />
+        <div className="h-4" />
       </DialogContent>
     </Dialog>
   )
