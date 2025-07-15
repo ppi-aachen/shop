@@ -65,6 +65,16 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
       return
     }
 
+    // Check if product is in stock
+    if (product.stock <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Out of Stock",
+        description: "This product is currently out of stock.",
+      })
+      return
+    }
+
     dispatch({
       type: "ADD_ITEM",
       payload: {
@@ -116,8 +126,6 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             <div>
               <p className="text-3xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
               <p className="text-gray-600 mt-2">{product.description}</p>
-              {product.stock <= 0 && <p className="text-red-500 font-semibold">Out of Stock</p>}
-              {product.stock > 0 && <p className="text-gray-600">Stock: {product.stock}</p>}
             </div>
 
             {/* Detailed Description */}
@@ -264,13 +272,9 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             </div>
 
             {/* Add to Cart Button */}
-            <Button onClick={addToCart} className="w-full" size="lg" disabled={!canAddToCart}>
+            <Button onClick={addToCart} className="w-full" size="lg" disabled={!canAddToCart || product.stock === 0}>
               <Plus className="h-4 w-4 mr-2" />
-              {canAddToCart
-                ? `Add to Cart - €${product.price.toFixed(2)}`
-                : product.stock <= 0
-                  ? "Out of Stock"
-                  : `Select ${!selectedSize && requiresSize ? "Size" : ""}${!selectedSize && requiresSize && !selectedColor && requiresColor ? " & " : ""}${!selectedColor && requiresColor ? "Color" : ""} to Continue`}
+              {product.stock > 0 ? `Add to Cart - €${product.price.toFixed(2)}` : "Out of Stock"}
             </Button>
           </div>
         </div>

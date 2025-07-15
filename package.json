@@ -44,7 +44,7 @@
     "date-fns": "4.1.0",
     "embla-carousel-react": "latest",
     "google-auth-library": "latest",
-    "google-spreadsheet": "latest",
+    "googleapis": "latest",
     "input-otp": "latest",
     "lucide-react": "^0.454.0",
     "next": "15.2.4",
