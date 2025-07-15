@@ -1,6 +1,6 @@
 import { GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY } from "@/app/checkout/actions"
 
-// Helper function to convert PEM to DER format
+// Helper function to convert PEM to DER format for crypto.subtle
 function pemToDer(pem: string): ArrayBuffer {
   const pemContents = pem
     .replace(/-----BEGIN PRIVATE KEY-----/, "")
@@ -17,21 +17,11 @@ function pemToDer(pem: string): ArrayBuffer {
   return bytes.buffer
 }
 
-// Helper function for Base64 URL encoding
-function base64UrlEncode(str: string): string {
-  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
-}
-
 // Function to get Google Sheets access token
 export async function getGoogleSheetsAuth(): Promise<string> {
-  // Ensure environment variables are defined and are strings
-  const serviceAccountEmail = GOOGLE_SERVICE_ACCOUNT_EMAIL || ""
-  const privateKey = GOOGLE_PRIVATE_KEY || ""
-
-  if (!serviceAccountEmail || !privateKey) {
-    throw new Error(
-      "Google Sheets credentials not configured. Please set GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY.",
-    )
+  // Ensure environment variables are defined
+  if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
+    throw new Error("Google Sheets credentials (GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_PRIVATE_KEY) not configured.")
   }
 
   const now = Math.floor(Date.now() / 1000)
@@ -42,18 +32,22 @@ export async function getGoogleSheetsAuth(): Promise<string> {
   }
 
   const payload = {
-    iss: serviceAccountEmail,
+    iss: GOOGLE_SERVICE_ACCOUNT_EMAIL,
     scope: "https://www.googleapis.com/auth/spreadsheets",
     aud: "https://oauth2.googleapis.com/token",
-    exp: now + 3600,
+    exp: now + 3600, // Token expires in 1 hour
     iat: now,
+  }
+
+  function base64UrlEncode(str: string): string {
+    return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
   }
 
   const encodedHeader = base64UrlEncode(JSON.stringify(header))
   const encodedPayload = base64UrlEncode(JSON.stringify(payload))
   const unsignedToken = `${encodedHeader}.${encodedPayload}`
 
-  const privateKeyDer = pemToDer(privateKey)
+  const privateKeyDer = pemToDer(GOOGLE_PRIVATE_KEY)
 
   const cryptoKey = await crypto.subtle.importKey(
     "pkcs8",
@@ -87,10 +81,8 @@ export async function getGoogleSheetsAuth(): Promise<string> {
   const authData = await response.json()
 
   if (!response.ok) {
-    throw new Error(`Google Sheets Auth error: ${authData.error_description || authData.error}`)
+    throw new Error(`Google Sheets Auth Error: ${authData.error_description || authData.error}`)
   }
 
   return authData.access_token
 }
-
-export { GOOGLE_SHEET_ID } from "@/app/checkout/actions" // Re-export GOOGLE_SHEET_ID for convenience

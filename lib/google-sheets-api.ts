@@ -1,4 +1,5 @@
-import { getGoogleSheetsAuth, GOOGLE_SHEET_ID } from "@/lib/google-auth-utils"
+import { getGoogleSheetsAuth } from "@/lib/google-auth-utils"
+import { GOOGLE_SHEET_ID } from "@/app/checkout/actions" // Import GOOGLE_SHEET_ID from actions
 
 interface ProductData {
   id: number
@@ -17,6 +18,28 @@ interface ProductData {
   stock: number
 }
 
+interface OrderItemData {
+  itemId: number
+  quantity: number
+}
+
+const PRODUCT_HEADERS = [
+  "ID",
+  "Name",
+  "Price",
+  "Image",
+  "Images (JSON)",
+  "Description",
+  "Detailed Description",
+  "Features (JSON)",
+  "Specifications (JSON)",
+  "Materials (JSON)",
+  "Care Instructions (JSON)",
+  "Sizes (JSON)",
+  "Colors (JSON)",
+  "Stock",
+]
+
 export async function getProductsFromSheet(): Promise<ProductData[]> {
   try {
     const accessToken = await getGoogleSheetsAuth()
@@ -25,6 +48,9 @@ export async function getProductsFromSheet(): Promise<ProductData[]> {
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
+        },
+        next: {
+          revalidate: 0, // Ensure fresh data on every request
         },
       },
     )
@@ -42,64 +68,93 @@ export async function getProductsFromSheet(): Promise<ProductData[]> {
       return []
     }
 
-    // Map headers to a consistent format for parsing
-    const rawHeaders = rows[0].map((h) => h.trim())
-    const headersMap: { [key: string]: string } = {
-      ID: "id",
-      Name: "name",
-      Price: "price",
-      Image: "image",
-      "Images (JSON)": "images",
-      Description: "description",
-      "Detailed Description": "detailedDescription",
-      "Features (JSON)": "features",
-      "Specifications (JSON)": "specifications",
-      "Materials (JSON)": "materials",
-      "Care Instructions (JSON)": "careInstructions",
-      "Sizes (JSON)": "sizes",
-      "Colors (JSON)": "colors",
-      Stock: "stock",
-    }
-
+    const headers = rows[0]
     const products = rows.slice(1).map((row) => {
       const product: any = {}
-      rawHeaders.forEach((rawHeader, index) => {
-        const key = headersMap[rawHeader] || rawHeader // Use mapped key or original if not mapped
+      headers.forEach((header, index) => {
         const value = row[index]
+        const cleanHeader = header.replace(/\s$$JSON$$/, "") // Remove (JSON) for property names
 
-        if (key === "id" || key === "price" || key === "stock") {
-          product[key] = Number(value)
-        } else if (
-          key === "images" ||
-          key === "features" ||
-          key === "materials" ||
-          key === "careInstructions" ||
-          key === "sizes" ||
-          key === "colors"
-        ) {
-          try {
-            // Attempt to parse as JSON array, fallback to comma-separated string array
-            product[key] = value ? JSON.parse(value) : []
-            if (!Array.isArray(product[key])) {
-              // If JSON.parse didn't result in an array, treat as comma-separated
-              product[key] = value.split(",").map((s: string) => s.trim())
+        switch (cleanHeader) {
+          case "ID":
+            product.id = Number(value)
+            break
+          case "Name":
+            product.name = value
+            break
+          case "Price":
+            product.price = Number(value)
+            break
+          case "Image":
+            product.image = value
+            break
+          case "Images":
+            try {
+              product.images = value ? JSON.parse(value) : []
+            } catch (e) {
+              console.warn(`Error parsing Images for product ID ${product.id}: ${value}`, e)
+              product.images = []
             }
-          } catch (e) {
-            // Fallback for non-JSON array strings
-            product[key] = value ? value.split(",").map((s: string) => s.trim()) : []
-          }
-        } else if (key === "specifications") {
-          try {
-            product[key] = value ? JSON.parse(value) : {}
-          } catch (e) {
-            console.error(
-              `Error parsing specifications for product: ${product.name || row[rawHeaders.indexOf("Name")]}`,
-              e,
-            )
-            product[key] = {}
-          }
-        } else {
-          product[key] = value
+            break
+          case "Description":
+            product.description = value
+            break
+          case "Detailed Description":
+            product.detailedDescription = value
+            break
+          case "Features":
+            try {
+              product.features = value ? JSON.parse(value) : []
+            } catch (e) {
+              console.warn(`Error parsing Features for product ID ${product.id}: ${value}`, e)
+              product.features = []
+            }
+            break
+          case "Specifications":
+            try {
+              product.specifications = value ? JSON.parse(value) : {}
+            } catch (e) {
+              console.warn(`Error parsing Specifications for product ID ${product.id}: ${value}`, e)
+              product.specifications = {}
+            }
+            break
+          case "Materials":
+            try {
+              product.materials = value ? JSON.parse(value) : []
+            } catch (e) {
+              console.warn(`Error parsing Materials for product ID ${product.id}: ${value}`, e)
+              product.materials = []
+            }
+            break
+          case "Care Instructions":
+            try {
+              product.careInstructions = value ? JSON.parse(value) : []
+            } catch (e) {
+              console.warn(`Error parsing Care Instructions for product ID ${product.id}: ${value}`, e)
+              product.careInstructions = []
+            }
+            break
+          case "Sizes":
+            try {
+              product.sizes = value ? JSON.parse(value) : []
+            } catch (e) {
+              console.warn(`Error parsing Sizes for product ID ${product.id}: ${value}`, e)
+              product.sizes = []
+            }
+            break
+          case "Colors":
+            try {
+              product.colors = value ? JSON.parse(value) : []
+            } catch (e) {
+              console.warn(`Error parsing Colors for product ID ${product.id}: ${value}`, e)
+              product.colors = []
+            }
+            break
+          case "Stock":
+            product.stock = Number(value)
+            break
+          default:
+            product[cleanHeader.toLowerCase().replace(/\s/g, "")] = value // Fallback for other headers
         }
       })
       return product as ProductData
@@ -116,47 +171,27 @@ export async function updateProductStockInSheet(productId: number, newStock: num
   try {
     const accessToken = await getGoogleSheetsAuth()
 
-    // First, get all products to find the row index of the product to update
-    const products = await getProductsFromSheet()
-    const productIndex = products.findIndex((p) => p.id === productId)
+    // First, get all product data to find the row index of the product
+    const allProducts = await getProductsFromSheet()
+    const productRowIndex = allProducts.findIndex((p) => p.id === productId)
 
-    if (productIndex === -1) {
+    if (productRowIndex === -1) {
       throw new Error(`Product with ID ${productId} not found in Google Sheet.`)
     }
 
-    // Google Sheets API is 1-indexed for rows, and we have a header row
-    // So, if productIndex is 0 (first product after header), it's row 2 in the sheet.
-    const sheetRowIndex = productIndex + 2 // +1 for 1-indexing, +1 for header row
+    // The actual row in the sheet is productRowIndex + 2 (1 for header, 1 for 0-based index)
+    const sheetRow = productRowIndex + 2
 
     // Find the column index for 'Stock'
-    const responseHeaders = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products!1:1`, // Fetch only the header row
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      },
-    )
-
-    if (!responseHeaders.ok) {
-      const errorData = await responseHeaders.json()
-      throw new Error(
-        `Google Sheets API error fetching headers: ${responseHeaders.statusText} - ${JSON.stringify(errorData)}`,
-      )
-    }
-
-    const headerData = await responseHeaders.json()
-    const headers = headerData.values[0]
-    const stockColumnIndex = headers.findIndex((h: string) => h.trim() === "Stock")
+    const stockColumnIndex = PRODUCT_HEADERS.indexOf("Stock")
 
     if (stockColumnIndex === -1) {
-      throw new Error("Stock column not found in 'Products' sheet.")
+      throw new Error("Stock column not found in Google Sheet headers.")
     }
 
     // Convert column index to A1 notation (e.g., 0 -> A, 1 -> B, etc.)
-    const columnLetter = String.fromCharCode(65 + stockColumnIndex) // 65 is ASCII for 'A'
-
-    const range = `Products!${columnLetter}${sheetRowIndex}`
+    const columnLetter = String.fromCharCode("A".charCodeAt(0) + stockColumnIndex)
+    const range = `Products!${columnLetter}${sheetRow}`
 
     const values = [[newStock]]
 
@@ -179,10 +214,9 @@ export async function updateProductStockInSheet(productId: number, newStock: num
       throw new Error(`Google Sheets API error updating stock: ${response.statusText} - ${JSON.stringify(errorData)}`)
     }
 
-    console.log(`Stock for product ID ${productId} updated to ${newStock}.`)
     return await response.json()
   } catch (error) {
-    console.error("Error updating product stock in Google Sheet:", error)
+    console.error(`Error updating stock for product ${productId}:`, error)
     throw error
   }
 }
