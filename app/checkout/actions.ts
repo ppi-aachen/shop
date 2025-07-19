@@ -2,7 +2,6 @@
 
 import { Resend } from "resend"
 import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload"
-import { updateStockInGoogleSheet } from "@/scripts/update-google-sheet"
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -899,7 +898,7 @@ export async function submitOrder(formData: FormData) {
 
     // Update stock in Google Sheet
     try {
-      await updateStockInGoogleSheet(orderItemsData)
+      await updateProductStock(cartItems)
     } catch (stockError) {
       console.error("Error updating stock in Google Sheet:", stockError)
       return { success: false, error: "Failed to update stock" }
