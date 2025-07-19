@@ -76,7 +76,12 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
 
     // Check if the specific variant is in stock
     const variantStock = product.variants 
-      ? product.variants.find((v: ProductVariant) => v.size === selectedSize && v.color === selectedColor)?.stock || 0
+      ? product.variants.find((v: ProductVariant) => {
+          // Handle both cases: when size/color are selected and when they're not
+          const sizeMatch = requiresSize ? v.size === selectedSize : (v.size === undefined || v.size === null || v.size === "")
+          const colorMatch = requiresColor ? v.color === selectedColor : (v.color === undefined || v.color === null || v.color === "")
+          return sizeMatch && colorMatch
+        })?.stock || 0
       : product.stock
 
     if (variantStock <= 0) {
@@ -173,7 +178,16 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                 <div className="flex flex-wrap gap-2">
                   {product.sizes!.map((size) => {
                     const sizeStock = product.variants 
-                      ? product.variants.find((v: ProductVariant) => v.size === size && v.color === selectedColor)?.stock || 0
+                      ? product.variants.find((v: ProductVariant) => {
+                          // Handle both cases: when color is selected and when it's not
+                          if (requiresColor && selectedColor) {
+                            // Color is required and selected - match both size and color
+                            return v.size === size && v.color === selectedColor
+                          } else {
+                            // No color required or not selected - match only size (color should be undefined/null)
+                            return v.size === size && (v.color === undefined || v.color === null || v.color === "")
+                          }
+                        })?.stock || 0
                       : product.stock
                     const isOutOfStock = sizeStock <= 0
                     
@@ -216,7 +230,16 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                 <div className="flex flex-wrap gap-2">
                   {product.colors!.map((color) => {
                     const colorStock = product.variants 
-                      ? product.variants.find((v: ProductVariant) => v.size === selectedSize && v.color === color)?.stock || 0
+                      ? product.variants.find((v: ProductVariant) => {
+                          // Handle both cases: when size is selected and when it's not
+                          if (requiresSize && selectedSize) {
+                            // Size is required and selected - match both size and color
+                            return v.size === selectedSize && v.color === color
+                          } else {
+                            // No size required or not selected - match only color (size should be undefined/null)
+                            return (v.size === undefined || v.size === null || v.size === "") && v.color === color
+                          }
+                        })?.stock || 0
                       : product.stock
                     const isOutOfStock = colorStock <= 0
                     
@@ -251,12 +274,17 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             )}
 
             {/* Stock Information */}
-            {product.variants && selectedSize && selectedColor && (
+            {product.variants && ((requiresSize && selectedSize) || !requiresSize) && ((requiresColor && selectedColor) || !requiresColor) && (
               <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-blue-600 rounded-full" />
                   <p className="text-sm text-blue-700 font-medium">
-                    Stock: {product.variants.find((v: ProductVariant) => v.size === selectedSize && v.color === selectedColor)?.stock || 0} available
+                    Stock: {product.variants.find((v: ProductVariant) => {
+                      // Handle both cases: when size/color are selected and when they're not
+                      const sizeMatch = requiresSize ? v.size === selectedSize : (v.size === undefined || v.size === null || v.size === "")
+                      const colorMatch = requiresColor ? v.color === selectedColor : (v.color === undefined || v.color === null || v.color === "")
+                      return sizeMatch && colorMatch
+                    })?.stock || 0} available
                   </p>
                 </div>
               </div>
