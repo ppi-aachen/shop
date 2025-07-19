@@ -23,6 +23,14 @@ interface CartItem {
   colors?: string[]
 }
 
+interface ProductVariant {
+  productId: number
+  size?: string
+  color?: string
+  stock: number
+  variantId: string
+}
+
 interface ProductData {
   id: number
   name: string
@@ -37,7 +45,8 @@ interface ProductData {
   careInstructions?: string[]
   sizes?: string[]
   colors?: string[]
-  stock: number
+  stock: number // Total stock (sum of all variants)
+  variants?: ProductVariant[] // Individual variant stock levels
 }
 
 interface OrderData {
@@ -162,7 +171,9 @@ function pemToDer(pem: string): ArrayBuffer {
 export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
   try {
     const accessToken = await getGoogleSheetsAuth()
-    const response = await fetch(
+    
+    // Fetch products
+    const productsResponse = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products?valueRenderOption=FORMATTED_VALUE`,
       {
         headers: {
@@ -171,24 +182,63 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
       },
     )
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
+    if (!productsResponse.ok) {
+      const errorData = await productsResponse.json()
+      throw new Error(`Google Sheets API error: ${productsResponse.statusText} - ${JSON.stringify(errorData)}`)
     }
 
-    const data = await response.json()
-    const rows = data.values as string[][]
+    const productsData = await productsResponse.json()
+    const productRows = productsData.values as string[][]
 
-    if (!rows || rows.length < 2) {
+    if (!productRows || productRows.length < 2) {
       console.warn("No product data found in Google Sheet or only headers present.")
       return []
     }
 
-    // Assuming the first row is the header
-    const headers = rows[0]
-    const products = rows.slice(1).map((row) => {
+    // Fetch variants (if Product_Variants sheet exists)
+    let variantsData: ProductVariant[] = []
+    try {
+      const variantsResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Product_Variants?valueRenderOption=FORMATTED_VALUE`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      )
+
+      if (variantsResponse.ok) {
+        const variantsJson = await variantsResponse.json()
+        const variantRows = variantsJson.values as string[][]
+        
+        if (variantRows && variantRows.length > 1) {
+          const variantHeaders = variantRows[0]
+          variantsData = variantRows.slice(1).map((row) => {
+            const variant: any = {}
+            variantHeaders.forEach((header, index) => {
+              const value = row[index]
+              if (header === "product_id" || header === "stock") {
+                variant[header === "product_id" ? "productId" : "stock"] = Number(value)
+              } else if (header === "size" || header === "color") {
+                variant[header] = value === "null" || value === "" ? undefined : value
+              } else {
+                variant[header] = value
+              }
+            })
+            return variant as ProductVariant
+          })
+        }
+      }
+    } catch (error) {
+      console.warn("Product_Variants sheet not found or error fetching variants:", error)
+      // Continue without variants - will use legacy stock system
+    }
+
+    // Process products
+    const productHeaders = productRows[0]
+    const products = productRows.slice(1).map((row) => {
       const product: any = {}
-      headers.forEach((header, index) => {
+      productHeaders.forEach((header, index) => {
         const value = row[index]
         // Convert specific fields to numbers or arrays
         if (header === "id" || header === "price" || header === "stock") {
@@ -214,6 +264,15 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
           product[header] = value
         }
       })
+
+      // Add variants for this product
+      const productVariants = variantsData.filter(v => v.productId === product.id)
+      if (productVariants.length > 0) {
+        product.variants = productVariants
+        // Calculate total stock from variants
+        product.stock = productVariants.reduce((total, variant) => total + variant.stock, 0)
+      }
+
       return product as ProductData
     })
 
@@ -282,170 +341,267 @@ async function validateStockAvailability(cartItems: CartItem[]): Promise<{ valid
   try {
     const accessToken = await getGoogleSheetsAuth()
 
-    // Get current stock from Google Sheets
-    const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
+    // Try to get variant data first (new system)
+    let variantsData: ProductVariant[] = []
+    try {
+      const variantsResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Product_Variants`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
         },
-      },
-    )
+      )
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
-    }
-
-    const productsData = await response.json()
-    const products = productsData.values || []
-
-    if (products.length === 0) {
-      return { valid: false, errors: ["No products found in database"] }
-    }
-
-    // Find the stock and ID column indices
-    const headers = products[0]
-    const stockColumnIndex = headers.findIndex((header: string) => 
-      header.toLowerCase() === "stock"
-    )
-    const idColumnIndex = headers.findIndex((header: string) => 
-      header.toLowerCase() === "id"
-    )
-
-    if (stockColumnIndex === -1 || idColumnIndex === -1) {
-      return { valid: false, errors: ["Stock or ID column not found in database"] }
-    }
-
-    // Create a map of product ID to current stock
-    const productStockMap = new Map<number, { currentStock: number; name: string }>()
-    
-    for (let i = 1; i < products.length; i++) {
-      const row = products[i]
-      const productId = parseInt(row[idColumnIndex])
-      const currentStock = parseInt(row[stockColumnIndex]) || 0
-      const productName = row[headers.findIndex((h: string) => h.toLowerCase() === "name")] || "Unknown Product"
-      
-      if (!isNaN(productId)) {
-        productStockMap.set(productId, { currentStock, name: productName })
+      if (variantsResponse.ok) {
+        const variantsJson = await variantsResponse.json()
+        const variantRows = variantsJson.values || []
+        
+        if (variantRows.length > 1) {
+          const variantHeaders = variantRows[0]
+          variantsData = variantRows.slice(1).map((row: string[]) => {
+            const variant: any = {}
+            variantHeaders.forEach((header: string, index: number) => {
+              const value = row[index]
+              if (header === "product_id" || header === "stock") {
+                variant[header === "product_id" ? "productId" : "stock"] = Number(value)
+              } else if (header === "size" || header === "color") {
+                variant[header] = value === "null" || value === "" ? undefined : value
+              } else {
+                variant[header] = value
+              }
+            })
+            return variant as ProductVariant
+          })
+        }
       }
+    } catch (error) {
+      console.warn("Product_Variants sheet not found, using legacy stock validation")
     }
 
-    // Validate each cart item against current stock
-    const errors: string[] = []
-
-    for (const cartItem of cartItems) {
-      const productStock = productStockMap.get(cartItem.id)
-      
-      if (!productStock) {
-        errors.push(`${cartItem.name}: Product not found in database`)
-        continue
-      }
-
-      if (productStock.currentStock <= 0) {
-        errors.push(`${cartItem.name}: Out of stock`)
-        continue
-      }
-
-      if (cartItem.quantity > productStock.currentStock) {
-        errors.push(`${cartItem.name}: Only ${productStock.currentStock} available, but ${cartItem.quantity} requested`)
-        continue
-      }
+    // If we have variant data, use variant-based validation
+    if (variantsData.length > 0) {
+      return validateVariantStock(cartItems, variantsData)
     }
 
-    return { valid: errors.length === 0, errors }
+    // Fallback to legacy stock validation
+    return validateLegacyStock(cartItems, accessToken)
   } catch (error) {
     console.error("Error validating stock availability:", error)
     return { valid: false, errors: ["Failed to validate stock availability"] }
   }
 }
 
+async function validateVariantStock(cartItems: CartItem[], variantsData: ProductVariant[]): Promise<{ valid: boolean; errors: string[] }> {
+  const errors: string[] = []
+
+  for (const cartItem of cartItems) {
+    // Find the specific variant for this cart item
+    const variant = variantsData.find(v => 
+      v.productId === cartItem.id && 
+      v.size === cartItem.selectedSize && 
+      v.color === cartItem.selectedColor
+    )
+
+    if (!variant) {
+      errors.push(`${cartItem.name} (${cartItem.selectedSize || 'No size'}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ''}): Variant not found`)
+      continue
+    }
+
+    if (variant.stock <= 0) {
+      errors.push(`${cartItem.name} (${cartItem.selectedSize || 'No size'}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ''}): Out of stock`)
+      continue
+    }
+
+    if (cartItem.quantity > variant.stock) {
+      errors.push(`${cartItem.name} (${cartItem.selectedSize || 'No size'}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ''}): Only ${variant.stock} available, but ${cartItem.quantity} requested`)
+      continue
+    }
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
+async function validateLegacyStock(cartItems: CartItem[], accessToken: string): Promise<{ valid: boolean; errors: string[] }> {
+  // Get the current Products sheet data
+  const response = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+  )
+
+  if (!response.ok) {
+    const errorData = await response.json()
+    throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
+  }
+
+  const productsData = await response.json()
+  const products = productsData.values || []
+
+  if (products.length === 0) {
+    return { valid: false, errors: ["No products found in Products sheet"] }
+  }
+
+  // Find the stock column index
+  const headers = products[0]
+  const stockColumnIndex = headers.findIndex((header: string) => 
+    header.toLowerCase() === "stock"
+  )
+  const idColumnIndex = headers.findIndex((header: string) => 
+    header.toLowerCase() === "id"
+  )
+
+  if (stockColumnIndex === -1 || idColumnIndex === -1) {
+    return { valid: false, errors: ["Stock or ID column not found in Products sheet"] }
+  }
+
+  // Create a map of product ID to current stock
+  const productStockMap = new Map<number, { currentStock: number; name: string }>()
+  
+  for (let i = 1; i < products.length; i++) {
+    const row = products[i]
+    const productId = parseInt(row[idColumnIndex])
+    const currentStock = parseInt(row[stockColumnIndex]) || 0
+    const productName = row[headers.findIndex((h: string) => h.toLowerCase() === "name")] || "Unknown Product"
+    
+    if (!isNaN(productId)) {
+      productStockMap.set(productId, { currentStock, name: productName })
+    }
+  }
+
+  // Validate each cart item against current stock
+  const errors: string[] = []
+
+  for (const cartItem of cartItems) {
+    const productStock = productStockMap.get(cartItem.id)
+    
+    if (!productStock) {
+      errors.push(`${cartItem.name}: Product not found in database`)
+      continue
+    }
+
+    if (productStock.currentStock <= 0) {
+      errors.push(`${cartItem.name}: Out of stock`)
+      continue
+    }
+
+    if (cartItem.quantity > productStock.currentStock) {
+      errors.push(`${cartItem.name}: Only ${productStock.currentStock} available, but ${cartItem.quantity} requested`)
+      continue
+    }
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
 async function updateProductStock(cartItems: CartItem[]) {
   try {
     const accessToken = await getGoogleSheetsAuth()
 
-    // First, get the current Products sheet data to find the stock column and product IDs
-    const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
+    // Try to update variant stock first (new system)
+    let variantsUpdated = false
+    try {
+      const variantsResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Product_Variants`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
         },
-      },
-    )
+      )
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
+      if (variantsResponse.ok) {
+        const variantsJson = await variantsResponse.json()
+        const variantRows = variantsJson.values || []
+        
+        if (variantRows.length > 1) {
+          variantsUpdated = await updateVariantStock(cartItems, variantRows, accessToken)
+        }
+      }
+    } catch (error) {
+      console.warn("Product_Variants sheet not found, using legacy stock update")
     }
 
-    const productsData = await response.json()
-    const products = productsData.values || []
-
-    if (products.length === 0) {
-      console.warn("No products found in Products sheet")
-      return
+    // If variant update failed or not available, fall back to legacy update
+    if (!variantsUpdated) {
+      await updateLegacyStock(cartItems, accessToken)
     }
 
-    // Find the stock column index (assuming it's named "stock")
-    const headers = products[0]
-    const stockColumnIndex = headers.findIndex((header: string) => 
-      header.toLowerCase() === "stock"
-    )
-    const idColumnIndex = headers.findIndex((header: string) => 
-      header.toLowerCase() === "id"
-    )
+  } catch (error) {
+    console.error("Error updating product stock:", error)
+    // Don't throw error here to avoid breaking the order process
+    // Just log the error and continue
+  }
+}
 
-    if (stockColumnIndex === -1) {
-      console.warn("Stock column not found in Products sheet")
-      return
+async function updateVariantStock(cartItems: CartItem[], variantRows: string[][], accessToken: string): Promise<boolean> {
+  try {
+    const variantHeaders = variantRows[0]
+    const productIdIndex = variantHeaders.findIndex(h => h === "product_id")
+    const sizeIndex = variantHeaders.findIndex(h => h === "size")
+    const colorIndex = variantHeaders.findIndex(h => h === "color")
+    const stockIndex = variantHeaders.findIndex(h => h === "stock")
+
+    if (productIdIndex === -1 || stockIndex === -1) {
+      console.warn("Required columns not found in Product_Variants sheet")
+      return false
     }
 
-    if (idColumnIndex === -1) {
-      console.warn("ID column not found in Products sheet")
-      return
-    }
-
-    // Create a map of product ID to current stock
-    const productStockMap = new Map<number, { rowIndex: number; currentStock: number }>()
+    // Create a map of variant identifiers to row index and current stock
+    const variantMap = new Map<string, { rowIndex: number; currentStock: number }>()
     
-    for (let i = 1; i < products.length; i++) {
-      const row = products[i]
-      const productId = parseInt(row[idColumnIndex])
-      const currentStock = parseInt(row[stockColumnIndex]) || 0
+    for (let i = 1; i < variantRows.length; i++) {
+      const row = variantRows[i]
+      const productId = parseInt(row[productIdIndex])
+      const size = row[sizeIndex] === "null" || row[sizeIndex] === "" ? undefined : row[sizeIndex]
+      const color = row[colorIndex] === "null" || row[colorIndex] === "" ? undefined : row[colorIndex]
+      const currentStock = parseInt(row[stockIndex]) || 0
       
       if (!isNaN(productId)) {
-        productStockMap.set(productId, { rowIndex: i + 1, currentStock }) // +1 because sheets are 1-indexed
+        // Use the same encoding as the variant ID generation
+        const encodedSize = size ? encodeURIComponent(size) : 'null'
+        const encodedColor = color ? encodeURIComponent(color) : 'null'
+        const variantKey = `${productId}-${encodedSize}-${encodedColor}`
+        variantMap.set(variantKey, { rowIndex: i + 1, currentStock }) // +1 because sheets are 1-indexed
       }
     }
 
-    // Prepare stock updates for each cart item
-    const stockUpdates: { range: string; values: number[][] }[] = []
+    // Prepare variant stock updates
+    const variantUpdates: { range: string; values: number[][] }[] = []
 
     for (const cartItem of cartItems) {
-      const productStock = productStockMap.get(cartItem.id)
+      // Use the same encoding as the variant ID generation
+      const encodedSize = cartItem.selectedSize ? encodeURIComponent(cartItem.selectedSize) : 'null'
+      const encodedColor = cartItem.selectedColor ? encodeURIComponent(cartItem.selectedColor) : 'null'
+      const variantKey = `${cartItem.id}-${encodedSize}-${encodedColor}`
+      const variantData = variantMap.get(variantKey)
       
-      if (productStock) {
-        const newStock = Math.max(0, productStock.currentStock - cartItem.quantity)
-        const range = `Products!${String.fromCharCode(65 + stockColumnIndex)}${productStock.rowIndex}`
+      if (variantData) {
+        const newStock = Math.max(0, variantData.currentStock - cartItem.quantity)
+        const range = `Product_Variants!${String.fromCharCode(65 + stockIndex)}${variantData.rowIndex}`
         
-        stockUpdates.push({
+        variantUpdates.push({
           range,
           values: [[newStock]]
         })
         
-        console.log(`Updating stock for product ${cartItem.id} (${cartItem.name}): ${productStock.currentStock} -> ${newStock}`)
+        console.log(`Updating variant stock for ${cartItem.name} (${cartItem.selectedSize || 'No size'}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ''}): ${variantData.currentStock} -> ${newStock}`)
       } else {
-        console.warn(`Product with ID ${cartItem.id} not found in Products sheet`)
+        console.warn(`Variant not found for product ${cartItem.id} (${cartItem.selectedSize || 'No size'}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ''})`)
       }
     }
 
-    // Update all stock values in batch
-    if (stockUpdates.length > 0) {
+    // Update variant stock values in batch
+    if (variantUpdates.length > 0) {
       const batchUpdateResponse = await fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values:batchUpdate`,
         {
@@ -456,7 +612,7 @@ async function updateProductStock(cartItems: CartItem[]) {
           },
           body: JSON.stringify({
             valueInputOption: "RAW",
-            data: stockUpdates
+            data: variantUpdates
           }),
         },
       )
@@ -466,13 +622,114 @@ async function updateProductStock(cartItems: CartItem[]) {
         throw new Error(`Google Sheets API error: ${batchUpdateResponse.statusText} - ${JSON.stringify(errorData)}`)
       }
 
-      console.log(`Successfully updated stock for ${stockUpdates.length} products`)
+      console.log(`Successfully updated variant stock for ${variantUpdates.length} items`)
+      return true
     }
 
+    return false
   } catch (error) {
-    console.error("Error updating product stock:", error)
-    // Don't throw error here to avoid breaking the order process
-    // Just log the error and continue
+    console.error("Error updating variant stock:", error)
+    return false
+  }
+}
+
+async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
+  // Get the current Products sheet data
+  const response = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+  )
+
+  if (!response.ok) {
+    const errorData = await response.json()
+    throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
+  }
+
+  const productsData = await response.json()
+  const products = productsData.values || []
+
+  if (products.length === 0) {
+    console.warn("No products found in Products sheet")
+    return
+  }
+
+  // Find the stock column index
+  const headers = products[0]
+  const stockColumnIndex = headers.findIndex((header: string) => 
+    header.toLowerCase() === "stock"
+  )
+  const idColumnIndex = headers.findIndex((header: string) => 
+    header.toLowerCase() === "id"
+  )
+
+  if (stockColumnIndex === -1 || idColumnIndex === -1) {
+    console.warn("Stock or ID column not found in Products sheet")
+    return
+  }
+
+  // Create a map of product ID to current stock
+  const productStockMap = new Map<number, { rowIndex: number; currentStock: number }>()
+  
+  for (let i = 1; i < products.length; i++) {
+    const row = products[i]
+    const productId = parseInt(row[idColumnIndex])
+    const currentStock = parseInt(row[stockColumnIndex]) || 0
+    
+    if (!isNaN(productId)) {
+      productStockMap.set(productId, { rowIndex: i + 1, currentStock }) // +1 because sheets are 1-indexed
+    }
+  }
+
+  // Prepare stock updates for each cart item
+  const stockUpdates: { range: string; values: number[][] }[] = []
+
+  for (const cartItem of cartItems) {
+    const productStock = productStockMap.get(cartItem.id)
+    
+    if (productStock) {
+      const newStock = Math.max(0, productStock.currentStock - cartItem.quantity)
+      const range = `Products!${String.fromCharCode(65 + stockColumnIndex)}${productStock.rowIndex}`
+      
+      stockUpdates.push({
+        range,
+        values: [[newStock]]
+      })
+      
+      console.log(`Updating legacy stock for product ${cartItem.id} (${cartItem.name}): ${productStock.currentStock} -> ${newStock}`)
+    } else {
+      console.warn(`Product with ID ${cartItem.id} not found in Products sheet`)
+    }
+  }
+
+  // Update all stock values in batch
+  if (stockUpdates.length > 0) {
+    const batchUpdateResponse = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values:batchUpdate`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          valueInputOption: "RAW",
+          data: stockUpdates
+        }),
+      },
+    )
+
+    if (!batchUpdateResponse.ok) {
+      const errorData = await batchUpdateResponse.json()
+      throw new Error(`Google Sheets API error: ${batchUpdateResponse.statusText} - ${JSON.stringify(errorData)}`)
+    }
+
+    console.log(`Successfully updated legacy stock for ${stockUpdates.length} products`)
   }
 }
 

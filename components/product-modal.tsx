@@ -10,6 +10,14 @@ import { ImageGallery } from "@/components/image-gallery"
 import { getProductImages } from "@/lib/image-utils"
 import { useToast } from "@/hooks/use-toast"
 
+interface ProductVariant {
+  productId: number
+  size?: string
+  color?: string
+  stock: number
+  variantId: string
+}
+
 interface Product {
   id: number
   name: string
@@ -25,6 +33,7 @@ interface Product {
   sizes?: string[]
   colors?: string[]
   stock: number
+  variants?: ProductVariant[]
 }
 
 interface ProductModalProps {
@@ -65,12 +74,16 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
       return
     }
 
-    // Check if product is in stock
-    if (product.stock <= 0) {
+    // Check if the specific variant is in stock
+    const variantStock = product.variants 
+      ? product.variants.find((v: ProductVariant) => v.size === selectedSize && v.color === selectedColor)?.stock || 0
+      : product.stock
+
+    if (variantStock <= 0) {
       toast({
         variant: "destructive",
         title: "Out of Stock",
-        description: "This product is currently out of stock.",
+        description: `This variant (${selectedSize || 'No size'}${selectedColor ? `, ${selectedColor}` : ''}) is currently out of stock.`,
       })
       return
     }
@@ -158,17 +171,30 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                   Size <span className="text-red-500">*</span>
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {product.sizes!.map((size) => (
-                    <Button
-                      key={size}
-                      variant={selectedSize === size ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedSize(size)}
-                      className={selectedSize === size ? "bg-green-600 hover:bg-green-700" : ""}
-                    >
-                      {size}
-                    </Button>
-                  ))}
+                  {product.sizes!.map((size) => {
+                    const sizeStock = product.variants 
+                      ? product.variants.find((v: ProductVariant) => v.size === size && v.color === selectedColor)?.stock || 0
+                      : product.stock
+                    const isOutOfStock = sizeStock <= 0
+                    
+                    return (
+                      <Button
+                        key={size}
+                        variant={selectedSize === size ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSelectedSize(size)}
+                        className={`${selectedSize === size ? "bg-green-600 hover:bg-green-700" : ""} ${isOutOfStock ? "opacity-50 cursor-not-allowed" : ""}`}
+                        disabled={isOutOfStock}
+                      >
+                        {size}
+                        {product.variants && (
+                          <span className="ml-1 text-xs">
+                            ({sizeStock})
+                          </span>
+                        )}
+                      </Button>
+                    )
+                  })}
                 </div>
                 {!selectedSize && (
                   <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -188,17 +214,30 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                   Color <span className="text-red-500">*</span>
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {product.colors!.map((color) => (
-                    <Button
-                      key={color}
-                      variant={selectedColor === color ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedColor(color)}
-                      className={selectedColor === color ? "bg-green-600 hover:bg-green-700" : ""}
-                    >
-                      {color}
-                    </Button>
-                  ))}
+                  {product.colors!.map((color) => {
+                    const colorStock = product.variants 
+                      ? product.variants.find((v: ProductVariant) => v.size === selectedSize && v.color === color)?.stock || 0
+                      : product.stock
+                    const isOutOfStock = colorStock <= 0
+                    
+                    return (
+                      <Button
+                        key={color}
+                        variant={selectedColor === color ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSelectedColor(color)}
+                        className={`${selectedColor === color ? "bg-green-600 hover:bg-green-700" : ""} ${isOutOfStock ? "opacity-50 cursor-not-allowed" : ""}`}
+                        disabled={isOutOfStock}
+                      >
+                        {color}
+                        {product.variants && (
+                          <span className="ml-1 text-xs">
+                            ({colorStock})
+                          </span>
+                        )}
+                      </Button>
+                    )
+                  })}
                 </div>
                 {!selectedColor && (
                   <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -208,6 +247,18 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Stock Information */}
+            {product.variants && selectedSize && selectedColor && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full" />
+                  <p className="text-sm text-blue-700 font-medium">
+                    Stock: {product.variants.find((v: ProductVariant) => v.size === selectedSize && v.color === selectedColor)?.stock || 0} available
+                  </p>
+                </div>
               </div>
             )}
 

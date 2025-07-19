@@ -15,7 +15,9 @@ export interface CartItem {
   selectedColor?: string
   sizes?: string[]
   colors?: string[]
-  stock: number
+  stock: number // Total stock (for backward compatibility)
+  variantStock?: number // Stock for the specific variant
+  variantId?: string // Unique variant identifier
 }
 
 interface CartState {
