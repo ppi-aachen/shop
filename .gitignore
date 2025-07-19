@@ -2,11 +2,6 @@
 
 # dependencies
 /node_modules
-/.pnp
-.pnp.js
-
-# testing
-/coverage
 
 # next.js
 /.next/
@@ -15,36 +10,18 @@
 # production
 /build
 
-# misc
-.DS_Store
-*.pem
-
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# local env files
-.env*.local
-.env
+# env files
+.env*
 
 # vercel
-.vercel/
-.env.development.local
-.env.production.local
+.vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# Google Sheets API credentials
-# It's crucial to keep your private key secure and never commit it to version control.
-# Use environment variables for GOOGLE_PRIVATE_KEY.
-# If you must store it locally for development, ensure it's in a .env.local file
-# and that .env*.local is in your .gitignore.
-# Example:
-# GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-
-# Log file for fallback notifications
-order_log.txt

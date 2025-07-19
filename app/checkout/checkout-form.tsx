@@ -1,339 +1,284 @@
 "use client"
 
-import { useState, useTransition, useEffect } from "react"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
+import type React from "react"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Upload, FileText, ImageIcon, AlertTriangle } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
-import { formatCurrency } from "@/lib/utils"
+import { CountryRestriction } from "@/components/country-restriction"
 import { submitOrder } from "./actions"
-import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
-import { Loader2Icon } from "lucide-react"
+import { LoadingOverlay } from "@/components/loading-overlay"
 
-const formSchema = z.object({
-  firstName: z.string().min(2, { message: "First name is required." }),
-  lastName: z.string().min(2, { message: "Last name is required." }),
-  email: z.string().email({ message: "Invalid email address." }),
-  phone: z.string().min(10, { message: "Phone number is required." }),
-  deliveryMethod: z.enum(["pickup", "delivery"], { message: "Please select a delivery method." }),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zipCode: z.string().optional(),
-  country: z.string().optional(),
-  notes: z.string().optional(),
-  proofOfPayment: z.any().refine((file) => file?.size > 0, "Proof of payment is required."),
-})
-
-export function CheckoutForm() {
-  const { state: cartState, dispatch: cartDispatch } = useCart()
-  const [isPending, startTransition] = useTransition()
+export default function CheckoutForm() {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [country, setCountry] = useState("")
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const { state, dispatch } = useCart()
   const router = useRouter()
-  const { toast } = useToast()
-  const [shippingCost, setShippingCost] = useState(0)
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      firstName: "",
-      lastName: "",
-      email: "",
-      phone: "",
-      deliveryMethod: "pickup",
-      address: "",
-      city: "",
-      state: "",
-      zipCode: "",
-      country: "",
-      notes: "",
-    },
-  })
+  // Validate cart items for required options
+  const validateCartItems = (): string[] => {
+    const errors: string[] = []
 
-  const deliveryMethod = form.watch("deliveryMethod")
+    state.items.forEach((item, index) => {
+      // Check if item has size options but no size selected
+      if (item.sizes && item.sizes.length > 0 && !item.selectedSize) {
+        errors.push(`Item ${index + 1} (${item.name}): Size is required`)
+      }
 
-  useEffect(() => {
-    setShippingCost(deliveryMethod === "delivery" ? 5.0 : 0.0) // Example: flat shipping fee
-    // Clear address fields if switching to pickup
-    if (deliveryMethod === "pickup") {
-      form.setValue("address", "")
-      form.setValue("city", "")
-      form.setValue("state", "")
-      form.setValue("zipCode", "")
-      form.setValue("country", "")
-    }
-  }, [deliveryMethod, form])
-
-  const totalAmount = cartState.totalAmount + shippingCost
-
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    const formData = new FormData()
-    formData.append("firstName", values.firstName)
-    formData.append("lastName", values.lastName)
-    formData.append("email", values.email)
-    formData.append("phone", values.phone)
-    formData.append("deliveryMethod", values.deliveryMethod)
-    formData.append("address", values.address || "")
-    formData.append("city", values.city || "")
-    formData.append("state", values.state || "")
-    formData.append("zipCode", values.zipCode || "")
-    formData.append("country", values.country || "")
-    formData.append("notes", values.notes || "")
-    formData.append("proofOfPayment", values.proofOfPayment)
-    formData.append("cartItems", JSON.stringify(cartState.items))
-    formData.append("subtotal", cartState.totalAmount.toFixed(2))
-    formData.append("shippingCost", shippingCost.toFixed(2))
-    formData.append("totalAmount", totalAmount.toFixed(2))
-    formData.append("itemCount", cartState.itemCount.toString())
-
-    startTransition(async () => {
-      const result = await submitOrder(formData)
-      if (result.success) {
-        toast({
-          title: "Order Placed!",
-          description: `Your order #${result.orderId} has been placed successfully.`,
-          variant: "success",
-        })
-        cartDispatch({ type: "CLEAR_CART" }) // Clear cart after successful order
-        router.push(`/success?orderId=${result.orderId}`)
-      } else {
-        toast({
-          title: "Order Failed",
-          description: result.error || "There was an error placing your order. Please try again.",
-          variant: "destructive",
-        })
+      // Check if item has color options but no color selected
+      if (item.colors && item.colors.length > 0 && !item.selectedColor) {
+        errors.push(`Item ${index + 1} (${item.name}): Color is required`)
       }
     })
+
+    return errors
   }
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/jpg"]
+      if (allowedTypes.includes(file.type)) {
+        setSelectedFile(file)
+      } else {
+        alert("Please upload a PDF or image file (JPG, PNG)")
+        e.target.value = ""
+      }
+    }
+  }
+
+  const handleContactInstagram = () => {
+    window.open("https://instagram.com/aachen.studio", "_blank")
+  }
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (isSubmitting) {
+      console.log("Submission already in progress. Ignoring multiple click.");
+      return; // Exit if already submitting
+    }
+    // Validate cart items first
+    const cartErrors = validateCartItems();
+    if (cartErrors.length > 0) {
+      setValidationErrors(cartErrors);
+      alert("Please select required options for all items:\n\n" + cartErrors.join("\n"));
+      return;
+    }
+
+    if (!selectedFile) {
+      alert("Please upload proof of payment");
+      return;
+    }
+
+    // Check if delivery is to Germany
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const selectedCountry = formData.get("country") as string;
+    if (
+      state.deliveryMethod === "delivery" &&
+      selectedCountry.toLowerCase() !== "germany" &&
+      selectedCountry.toLowerCase() !== "deutschland"
+    ) {
+      alert("We currently only deliver within Germany. Please contact us on Instagram for international orders.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setValidationErrors([]);
+
+    try {
+      formData.append("cartItems", JSON.stringify(state.items));
+      formData.append("deliveryMethod", state.deliveryMethod);
+      formData.append("subtotal", state.total.toString());
+      formData.append("shippingCost", state.shippingCost.toString());
+      formData.append("totalAmount", state.finalTotal.toString());
+      formData.append("itemCount", state.itemCount.toString());
+      formData.append("proofOfPayment", selectedFile);
+
+      const result = await submitOrder(formData);
+
+      if (result.success) {
+        if (typeof window !== "undefined" && result.orderData && result.orderItemsData) {
+          localStorage.setItem(
+            `order-${result.orderId}`,
+            JSON.stringify({
+              order: result.orderData,
+              items: result.orderItemsData,
+            }),
+          );
+        }
+        router.push(`/success?orderId=${result.orderId}`);
+      } else {
+        const errorMessage = result.error || "Unknown error occurred";
+        if (errorMessage.includes("Email") || errorMessage.includes("API key")) {
+          alert(
+            "Order submitted successfully, but email notifications may not have been sent. You will be contacted directly.",
+          );
+          dispatch({ type: "CLEAR_CART" });
+          router.push(`/success?orderId=${result.orderId}`);
+        } else {
+          alert(`Error submitting order: ${errorMessage}. Please try again.`);
+        }
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error submitting order. Please try again or contact support.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Customer Information */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="firstName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>First Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="John" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="lastName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Last Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="Doe" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input placeholder="john.doe@example.com" type="email" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="phone"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Phone Number</FormLabel>
-                <FormControl>
-                  <Input placeholder="+49 123 456789" type="tel" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        {/* Delivery Method */}
-        <FormField
-          control={form.control}
-          name="deliveryMethod"
-          render={({ field }) => (
-            <FormItem className="space-y-3">
-              <FormLabel>Delivery Method</FormLabel>
-              <FormControl>
-                <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="flex space-x-4">
-                  <FormItem className="flex items-center space-x-2 space-y-0">
-                    <FormControl>
-                      <RadioGroupItem value="pickup" />
-                    </FormControl>
-                    <FormLabel className="font-normal">Pickup in Aachen</FormLabel>
-                  </FormItem>
-                  <FormItem className="flex items-center space-x-2 space-y-0">
-                    <FormControl>
-                      <RadioGroupItem value="delivery" />
-                    </FormControl>
-                    <FormLabel className="font-normal">Delivery</FormLabel>
-                  </FormItem>
-                </RadioGroup>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        {/* Delivery Address (Conditional) */}
-        {deliveryMethod === "delivery" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Street Address</FormLabel>
-                  <FormControl>
-                    <Input placeholder="123 Main St" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="city"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>City</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Aachen" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="state"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>State/Province</FormLabel>
-                  <FormControl>
-                    <Input placeholder="NRW" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="zipCode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Zip Code</FormLabel>
-                  <FormControl>
-                    <Input placeholder="52062" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="country"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Country</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Germany" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+    <Card>
+      <CardHeader>
+        <CardTitle>Customer Details & Proof of Payment</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {/* Cart Validation Errors */}
+        {validationErrors.length > 0 && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              <h4 className="font-medium text-red-800">Required Options Missing</h4>
+            </div>
+            <ul className="text-sm text-red-700 space-y-1">
+              {validationErrors.map((error, index) => (
+                <li key={index}>• {error}</li>
+              ))}
+            </ul>
+            <p className="text-sm text-red-600 mt-2">
+              Please go back to your cart and select the required options for all items.
+            </p>
           </div>
         )}
 
-        {/* Additional Notes */}
-        <FormField
-          control={form.control}
-          name="notes"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Additional Notes (Optional)</FormLabel>
-              <FormControl>
-                <Textarea placeholder="e.g., specific delivery instructions" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-4">
+            <h3 className="font-medium text-lg">Customer Information</h3>
 
-        {/* Proof of Payment */}
-        <FormField
-          control={form.control}
-          name="proofOfPayment"
-          render={({ field: { value, onChange, ...fieldProps } }) => (
-            <FormItem>
-              <FormLabel>Proof of Payment (PDF or Image)</FormLabel>
-              <FormControl>
-                <Input
-                  {...fieldProps}
-                  type="file"
-                  accept=".pdf,image/*"
-                  onChange={(event) => onChange(event.target.files && event.target.files[0])}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="firstName">First Name *</Label>
+                <Input id="firstName" name="firstName" required />
+              </div>
+              <div>
+                <Label htmlFor="lastName">Last Name *</Label>
+                <Input id="lastName" name="lastName" required />
+              </div>
+            </div>
 
-        {/* Order Summary */}
-        <div className="border-t pt-6 mt-6">
-          <h3 className="text-2xl font-bold mb-4">Order Summary</h3>
-          <div className="space-y-2 text-gray-700">
-            <div className="flex justify-between">
-              <span>Subtotal ({cartState.itemCount} items)</span>
-              <span>{formatCurrency(cartState.totalAmount)}</span>
+            <div>
+              <Label htmlFor="email">Email *</Label>
+              <Input id="email" name="email" type="email" required />
             </div>
-            <div className="flex justify-between">
-              <span>Shipping</span>
-              <span>{formatCurrency(shippingCost)}</span>
-            </div>
-            <div className="flex justify-between font-bold text-xl text-gray-900 border-t pt-4 mt-4">
-              <span>Total Amount</span>
-              <span>{formatCurrency(totalAmount)}</span>
+
+            <div>
+              <Label htmlFor="phone">Phone Number *</Label>
+              <Input id="phone" name="phone" type="tel" required />
             </div>
           </div>
-        </div>
 
-        <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white" disabled={isPending}>
-          {isPending ? (
-            <>
-              <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-              Placing Order...
-            </>
-          ) : (
-            "Place Order"
+          {state.deliveryMethod === "delivery" && (
+            <div className="space-y-4">
+              <h3 className="font-medium text-lg">Delivery Address</h3>
+
+              <div>
+                <Label htmlFor="address">Street Address *</Label>
+                <Input id="address" name="address" required />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="city">City *</Label>
+                  <Input id="city" name="city" required />
+                </div>
+                <div>
+                  <Label htmlFor="state">State/Province *</Label>
+                  <Input id="state" name="state" required />
+                </div>
+                <div>
+                  <Label htmlFor="zipCode">ZIP/Postal Code *</Label>
+                  <Input id="zipCode" name="zipCode" required />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="country">Country *</Label>
+                <Input
+                  id="country"
+                  name="country"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  placeholder="Germany"
+                  required
+                />
+              </div>
+
+              <CountryRestriction selectedCountry={country} onContactInstagram={handleContactInstagram} />
+            </div>
           )}
-        </Button>
-      </form>
-    </Form>
+
+          {state.deliveryMethod === "pickup" && (
+            <div className="p-4 bg-green-50 rounded-lg">
+              <h3 className="font-medium text-green-900 mb-2">Pickup in Aachen</h3>
+              <p className="text-green-800 text-sm">
+                We will contact you within 24 hours to arrange the pickup location and time in Aachen.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <h3 className="font-medium text-lg">Proof of Payment</h3>
+
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <input
+                type="file"
+                id="proofOfPayment"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <label htmlFor="proofOfPayment" className="cursor-pointer">
+                <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <p className="text-lg font-medium text-gray-900 mb-2">Upload Proof of Payment</p>
+                <p className="text-sm text-gray-600 mb-4">PDF, JPG, PNG files up to 4MB</p>
+              </label>
+
+              {selectedFile && (
+                <div className="mt-4 p-3 bg-green-50 rounded-lg flex items-center justify-center gap-2">
+                  {selectedFile.type === "application/pdf" ? (
+                    <FileText className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <ImageIcon className="h-5 w-5 text-green-600" />
+                  )}
+                  <span className="text-green-800 font-medium">{selectedFile.name}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="notes">Additional Notes (Optional)</Label>
+            <Textarea id="notes" name="notes" placeholder="Any special delivery instructions or comments..." rows={3} />
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isSubmitting || !selectedFile || validationErrors.length > 0}
+          >
+            {isSubmitting ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
+          </Button>
+        </form>
+      </CardContent>
+      {isSubmitting && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
+    </Card>
   )
 }

@@ -1,44 +1,58 @@
-// This script checks for the presence of required environment variables.
-// It's intended to be run locally or as part of a CI/CD pipeline
-// to ensure the application has all necessary configurations.
+// Environment Variables Checker
 
-console.log("🚀 Checking Environment Variables...")
+console.log("🔍 CHECKING ENVIRONMENT VARIABLES")
 console.log("=".repeat(40))
+console.log("")
 
-const requiredEnvVars = [
-  "GOOGLE_SHEET_ID",
-  "GOOGLE_SERVICE_ACCOUNT_EMAIL",
-  "GOOGLE_PRIVATE_KEY",
-  "RESEND_API_KEY",
-  "GOOGLE_DRIVE_FOLDER_ID",
-]
+// Check Google Sheets configuration
+console.log("📊 GOOGLE SHEETS CONFIGURATION:")
+console.log("GOOGLE_SHEET_ID:", process.env.GOOGLE_SHEET_ID ? "✅ Set" : "❌ Missing")
+console.log("GOOGLE_SERVICE_ACCOUNT_EMAIL:", process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ? "✅ Set" : "❌ Missing")
+console.log("GOOGLE_PRIVATE_KEY:", process.env.GOOGLE_PRIVATE_KEY ? "✅ Set" : "❌ Missing")
+console.log("")
 
-let allConfigured = true
-const missingVars = []
+// Check Email configuration
+console.log("📧 EMAIL CONFIGURATION:")
+console.log("RESEND_API_KEY:", process.env.RESEND_API_KEY ? "✅ Set" : "❌ Missing")
+console.log("")
 
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    missingVars.push(envVar)
-    allConfigured = false
-  } else {
-    console.log(`✅ ${envVar} is configured.`)
-  }
-}
-
-console.log("=".repeat(40))
-
-if (allConfigured) {
-  console.log("🎉 All required environment variables are configured!")
-  console.log("You are ready to deploy or run your application.")
-  process.exit(0) // Exit successfully
+// Provide setup instructions
+if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+  console.log("❌ GOOGLE SHEETS NOT CONFIGURED")
+  console.log("=".repeat(30))
+  console.log("")
+  console.log("To fix this, you need to:")
+  console.log("1. Create a Google Sheet")
+  console.log("2. Set up Google Service Account")
+  console.log("3. Add environment variables")
+  console.log("")
+  console.log("Run the setup scripts for detailed instructions:")
+  console.log("- scripts/setup-google-sheet-v4.js")
+  console.log("")
 } else {
-  console.error("❌ Missing required environment variables:")
-  missingVars.forEach((envVar) => {
-    console.error(`   - ${envVar}`)
-  })
-  console.error(
-    "\nPlease configure these variables in your .env.local file (for local development) or your deployment environment (e.g., Vercel).",
-  )
-  console.error("Refer to the setup guides in the 'scripts' folder for more details.")
-  process.exit(1) // Exit with an error code
+  console.log("✅ GOOGLE SHEETS CONFIGURED")
+  console.log("")
 }
+
+if (!process.env.RESEND_API_KEY) {
+  console.log("⚠️  EMAIL NOT CONFIGURED (Optional)")
+  console.log("=".repeat(30))
+  console.log("Orders will still work, but no emails will be sent.")
+  console.log("Run scripts/setup-resend.js for email setup.")
+  console.log("")
+} else {
+  console.log("✅ EMAIL CONFIGURED")
+  console.log("")
+}
+
+console.log("🚀 QUICK SETUP GUIDE:")
+console.log("=".repeat(20))
+console.log("1. Go to https://console.cloud.google.com")
+console.log("2. Create new project or select existing")
+console.log("3. Enable Google Sheets API")
+console.log("4. Create Service Account")
+console.log("5. Download JSON key file")
+console.log("6. Extract values for environment variables")
+console.log("7. Create Google Sheet with proper structure")
+console.log("")
+console.log("For detailed steps, run: scripts/setup-google-sheet-v4.js")

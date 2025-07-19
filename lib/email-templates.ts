@@ -1,5 +1,3 @@
-import type { Resend } from "resend"
-
 interface OrderData {
   orderId: string
   date: string
@@ -34,7 +32,7 @@ interface OrderItemData {
   selectedColor: string
 }
 
-export async function sendCustomerConfirmationEmail(resend: Resend, orderData: OrderData, orderItems: OrderItemData[]) {
+export function generateCustomerConfirmationEmail(orderData: OrderData, orderItems: OrderItemData[]): string {
   const itemsTable = orderItems
     .map(
       (item) => `
@@ -52,7 +50,7 @@ export async function sendCustomerConfirmationEmail(resend: Resend, orderData: O
     )
     .join("")
 
-  const emailHtml = `
+  return `
     <!DOCTYPE html>
     <html>
       <head>
@@ -192,23 +190,9 @@ export async function sendCustomerConfirmationEmail(resend: Resend, orderData: O
       </body>
     </html>
   `
-
-  const { data, error } = await resend.emails.send({
-    from: "Aachen Studio <orders@ppiaachen.de>",
-    to: [orderData.email],
-    subject: `Order Confirmation - ${orderData.orderId} | Aachen Studio`,
-    html: emailHtml,
-  })
-
-  if (error) {
-    console.error("Error sending customer email:", error)
-    throw new Error(error.message)
-  }
-
-  console.log("Customer confirmation email sent successfully:", data)
 }
 
-export async function sendBusinessNotificationEmail(resend: Resend, orderData: OrderData, orderItems: OrderItemData[]) {
+export function generateBusinessNotificationEmail(orderData: OrderData, orderItems: OrderItemData[]): string {
   const itemsTable = orderItems
     .map(
       (item) => `
@@ -226,7 +210,7 @@ export async function sendBusinessNotificationEmail(resend: Resend, orderData: O
     )
     .join("")
 
-  const emailHtml = `
+  return `
     <!DOCTYPE html>
     <html>
       <head>
@@ -349,24 +333,26 @@ export async function sendBusinessNotificationEmail(resend: Resend, orderData: O
           ${
             orderData.notes
               ? `
-              <div style="background: #fffbeb; border: 1px solid #fde047; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
-                <h4 style="margin-top: 0; color: #a16207; font-size: 16px;">📝 Customer Notes</h4>
-                <p style="margin-bottom: 0; color: #a16207; font-style: italic;">
-                  "${orderData.notes}"
-                </p>
-              </div>
-            `
+            <!-- Customer Notes -->
+            <div style="background: #fffbeb; border: 1px solid #fde047; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+              <h4 style="margin-top: 0; color: #a16207; font-size: 16px;">📝 Customer Notes</h4>
+              <p style="margin-bottom: 0; color: #a16207; font-style: italic;">
+                "${orderData.notes}"
+              </p>
+            </div>
+          `
               : ""
           }
           
+          <!-- Quick Actions -->
           <div style="background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; padding: 20px;">
             <h4 style="margin-top: 0; color: #0369a1; font-size: 16px;">🚀 Quick Actions</h4>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-              <a href="mailto:${orderData.email}?subject=Order Update - ${orderData.orderId}"
+              <a href="mailto:${orderData.email}?subject=Order Update - ${orderData.orderId}" 
                  style="background: #16a34a; color: white; padding: 10px 15px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
                 📧 Email Customer
               </a>
-              <a href="tel:${orderData.phone}"
+              <a href="tel:${orderData.phone}" 
                  style="background: #0ea5e9; color: white; padding: 10px 15px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
                 📞 Call Customer
               </a>
@@ -381,18 +367,4 @@ export async function sendBusinessNotificationEmail(resend: Resend, orderData: O
       </body>
     </html>
   `
-
-  const { data, error } = await resend.emails.send({
-    from: "Aachen Studio Orders <orders@ppiaachen.de>",
-    to: ["funding@ppiaachen.de"],
-    subject: `🚨 NEW ORDER: ${orderData.orderId} - €${orderData.totalAmount.toFixed(2)} | Action Required`,
-    html: emailHtml,
-  })
-
-  if (error) {
-    console.error("Error sending business notification:", error)
-    throw new Error(error.message)
-  }
-
-  console.log("Business notification email sent successfully:", data)
 }
