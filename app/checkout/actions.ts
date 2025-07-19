@@ -279,6 +279,120 @@ async function addOrderToGoogleSheet(orderData: OrderData) {
   }
 }
 
+async function updateProductStock(cartItems: CartItem[]) {
+  try {
+    const accessToken = await getGoogleSheetsAuth()
+
+    // First, get the current Products sheet data to find the stock column and product IDs
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      },
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
+    }
+
+    const productsData = await response.json()
+    const products = productsData.values || []
+
+    if (products.length === 0) {
+      console.warn("No products found in Products sheet")
+      return
+    }
+
+    // Find the stock column index (assuming it's named "stock")
+    const headers = products[0]
+    const stockColumnIndex = headers.findIndex((header: string) => 
+      header.toLowerCase() === "stock"
+    )
+    const idColumnIndex = headers.findIndex((header: string) => 
+      header.toLowerCase() === "id"
+    )
+
+    if (stockColumnIndex === -1) {
+      console.warn("Stock column not found in Products sheet")
+      return
+    }
+
+    if (idColumnIndex === -1) {
+      console.warn("ID column not found in Products sheet")
+      return
+    }
+
+    // Create a map of product ID to current stock
+    const productStockMap = new Map<number, { rowIndex: number; currentStock: number }>()
+    
+    for (let i = 1; i < products.length; i++) {
+      const row = products[i]
+      const productId = parseInt(row[idColumnIndex])
+      const currentStock = parseInt(row[stockColumnIndex]) || 0
+      
+      if (!isNaN(productId)) {
+        productStockMap.set(productId, { rowIndex: i + 1, currentStock }) // +1 because sheets are 1-indexed
+      }
+    }
+
+    // Prepare stock updates for each cart item
+    const stockUpdates: { range: string; values: number[][] }[] = []
+
+    for (const cartItem of cartItems) {
+      const productStock = productStockMap.get(cartItem.id)
+      
+      if (productStock) {
+        const newStock = Math.max(0, productStock.currentStock - cartItem.quantity)
+        const range = `Products!${String.fromCharCode(65 + stockColumnIndex)}${productStock.rowIndex}`
+        
+        stockUpdates.push({
+          range,
+          values: [[newStock]]
+        })
+        
+        console.log(`Updating stock for product ${cartItem.id} (${cartItem.name}): ${productStock.currentStock} -> ${newStock}`)
+      } else {
+        console.warn(`Product with ID ${cartItem.id} not found in Products sheet`)
+      }
+    }
+
+    // Update all stock values in batch
+    if (stockUpdates.length > 0) {
+      const batchUpdateResponse = await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values:batchUpdate`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            valueInputOption: "RAW",
+            data: stockUpdates
+          }),
+        },
+      )
+
+      if (!batchUpdateResponse.ok) {
+        const errorData = await batchUpdateResponse.json()
+        throw new Error(`Google Sheets API error: ${batchUpdateResponse.statusText} - ${JSON.stringify(errorData)}`)
+      }
+
+      console.log(`Successfully updated stock for ${stockUpdates.length} products`)
+    }
+
+  } catch (error) {
+    console.error("Error updating product stock:", error)
+    // Don't throw error here to avoid breaking the order process
+    // Just log the error and continue
+  }
+}
+
 async function addOrderItemsToGoogleSheet(orderItems: OrderItemData[]) {
   try {
     const accessToken = await getGoogleSheetsAuth()
