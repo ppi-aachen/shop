@@ -1,3 +1,7 @@
+import { google } from "googleapis"
+import { getGoogleAuthClient } from "./google-auth-utils"
+import type { File } from "formdata-node"
+
 interface GoogleDriveUploadResult {
   success: boolean
   fileId?: string
@@ -224,14 +228,17 @@ export async function uploadProofOfPaymentToDrive(
       close_delim
 
     // Upload file to Google Drive
-    const uploadResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": `multipart/related; boundary="${boundary}"`,
+    const uploadResponse = await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": `multipart/related; boundary="${boundary}"`,
+        },
+        body: multipartRequestBody,
       },
-      body: multipartRequestBody,
-    })
+    )
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text()
@@ -275,7 +282,9 @@ export async function uploadProofOfPaymentToDrive(
     )
 
     const fileData = await fileResponse.json()
-    const webViewLink = fileData.webViewLink || `https://www.googleapis.com/drive/v3/files/${uploadData.id}?fields=id,name,webViewLink,webContentLink&supportsAllDrives=true`
+    const webViewLink =
+      fileData.webViewLink ||
+      `https://www.googleapis.com/drive/v3/files/${uploadData.id}?fields=id,name,webViewLink,webContentLink&supportsAllDrives=true`
 
     console.log("Upload completed successfully. File link:", webViewLink)
 
@@ -290,5 +299,45 @@ export async function uploadProofOfPaymentToDrive(
       success: false,
       error: error instanceof Error ? error.message : "Unknown error occurred",
     }
+  }
+}
+
+const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID
+
+export async function uploadFileToGoogleDrive(file: File, orderId: string): Promise<string> {
+  if (!GOOGLE_DRIVE_FOLDER_ID) {
+    throw new Error("GOOGLE_DRIVE_FOLDER_ID environment variable is not set. Cannot upload to Google Drive.")
+  }
+
+  try {
+    const auth = getGoogleAuthClient()
+    const drive = google.drive({ version: "v3", auth })
+
+    const fileBuffer = Buffer.from(await file.arrayBuffer())
+
+    const fileName = `${orderId}_${file.name}`
+
+    const response = await drive.files.create({
+      requestBody: {
+        name: fileName,
+        parents: [GOOGLE_DRIVE_FOLDER_ID],
+        mimeType: file.type,
+      },
+      media: {
+        mimeType: file.type,
+        body: fileBuffer,
+      },
+      fields: "id, webViewLink",
+    })
+
+    if (!response.data.webViewLink) {
+      throw new Error("Failed to get webViewLink after upload.")
+    }
+
+    console.log(`File uploaded to Google Drive: ${response.data.webViewLink}`)
+    return response.data.webViewLink
+  } catch (error) {
+    console.error("Error uploading file to Google Drive:", error)
+    throw new Error(`Failed to upload file to Google Drive: ${(error as Error).message}`)
   }
 }

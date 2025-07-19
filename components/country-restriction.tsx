@@ -1,46 +1,53 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { MapPin, Instagram, AlertTriangle } from "lucide-react"
+import { GlobeIcon } from "lucide-react"
 
-interface CountryRestrictionProps {
-  selectedCountry: string
-  onContactInstagram: () => void
-}
+export function CountryRestriction() {
+  const [country, setCountry] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-export function CountryRestriction({ selectedCountry, onContactInstagram }: CountryRestrictionProps) {
-  if (selectedCountry.toLowerCase() === "germany" || selectedCountry.toLowerCase() === "deutschland") {
-    return null
+  useEffect(() => {
+    async function fetchCountry() {
+      try {
+        const response = await fetch("https://ipapi.co/json/")
+        const data = await response.json()
+        setCountry(data.country_name)
+      } catch (error) {
+        console.error("Error fetching country:", error)
+        setCountry(null) // Fallback if IP API fails
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchCountry()
+  }, [])
+
+  if (loading) {
+    return null // Or a loading spinner
   }
 
-  return (
-    <Card className="border-orange-200 bg-orange-50 mb-6">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-orange-800">
-          <AlertTriangle className="h-5 w-5" />
-          Delivery Not Available
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-start gap-3">
-          <MapPin className="h-5 w-5 text-orange-600 mt-0.5" />
-          <div>
-            <p className="text-orange-800 font-medium">We currently only deliver within Germany</p>
-            <p className="text-orange-700 text-sm mt-1">
-              For international orders, please contact us on Instagram for special arrangements.
+  if (country && country !== "Germany") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <Card className="w-full max-w-md p-6 text-center shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-center gap-2 text-2xl font-bold text-red-600">
+              <GlobeIcon className="h-8 w-8" />
+              Access Restricted
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="mt-4">
+            <p className="text-lg text-gray-700">
+              We apologize, but our shop is currently only accessible from Germany.
             </p>
-          </div>
-        </div>
+            <p className="mt-2 text-sm text-gray-500">Thank you for your understanding.</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
-        <Button
-          onClick={onContactInstagram}
-          className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
-        >
-          <Instagram className="h-4 w-4 mr-2" />
-          Contact @aachen.studio on Instagram
-        </Button>
-      </CardContent>
-    </Card>
-  )
+  return null
 }

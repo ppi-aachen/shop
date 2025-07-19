@@ -1,185 +1,156 @@
 "use client"
 
-import type React from "react"
-import { createContext, useContext, useReducer, useEffect } from "react"
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react"
+import { useToast } from "@/components/ui/use-toast"
 
-export interface CartItem {
-  id: number
+interface CartItem {
+  id: string
   name: string
   price: number
-  image: string
-  images?: string[]
-  description: string
   quantity: number
+  image?: string
+  description?: string
   selectedSize?: string
   selectedColor?: string
   sizes?: string[]
   colors?: string[]
+  stock: number
 }
 
-interface CartState {
-  items: CartItem[]
-  total: number
-  itemCount: number
-  deliveryMethod: "pickup" | "delivery"
-  shippingCost: number
-  finalTotal: number
+interface CartContextType {
+  cart: CartItem[]
+  addToCart: (item: CartItem) => void
+  removeFromCart: (id: string, size?: string, color?: string) => void
+  updateQuantity: (id: string, quantity: number, size?: string, color?: string) => void
+  clearCart: () => void
+  getCartItemCount: () => number
 }
 
-type CartAction =
-  | { type: "ADD_ITEM"; payload: Omit<CartItem, "quantity"> }
-  | { type: "REMOVE_ITEM"; payload: number }
-  | { type: "UPDATE_QUANTITY"; payload: { id: number; quantity: number } }
-  | { type: "SET_DELIVERY_METHOD"; payload: "pickup" | "delivery" }
-  | { type: "CLEAR_CART" }
-  | { type: "LOAD_CART"; payload: CartItem[] }
-
-const CartContext = createContext<{
-  state: CartState
-  dispatch: React.Dispatch<CartAction>
-} | null>(null)
-
-function calculateShippingCost(itemCount: number, deliveryMethod: "pickup" | "delivery"): number {
-  if (deliveryMethod === "pickup") return 0
-
-  if (itemCount >= 1 && itemCount <= 3) return 6.19
-  if (itemCount >= 4 && itemCount <= 7) return 7.69
-  return 10.49
-}
-
-function cartReducer(state: CartState, action: CartAction): CartState {
-  switch (action.type) {
-    case "ADD_ITEM": {
-      const existingItemIndex = state.items.findIndex(
-        (item) =>
-          item.id === action.payload.id &&
-          item.selectedSize === action.payload.selectedSize &&
-          item.selectedColor === action.payload.selectedColor,
-      )
-
-      let newItems: CartItem[]
-      if (existingItemIndex >= 0) {
-        newItems = state.items.map((item, index) =>
-          index === existingItemIndex ? { ...item, quantity: item.quantity + 1 } : item,
-        )
-      } else {
-        // Include sizes and colors arrays in the cart item
-        newItems = [
-          ...state.items,
-          {
-            ...action.payload,
-            quantity: 1,
-            sizes: action.payload.sizes || [],
-            colors: action.payload.colors || [],
-          },
-        ]
-      }
-
-      const total = newItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      const itemCount = newItems.reduce((sum, item) => sum + item.quantity, 0)
-      const shippingCost = calculateShippingCost(itemCount, state.deliveryMethod)
-      const finalTotal = total + shippingCost
-
-      return { ...state, items: newItems, total, itemCount, shippingCost, finalTotal }
-    }
-
-    case "REMOVE_ITEM": {
-      const newItems = state.items.filter((item, index) => index !== action.payload)
-      const total = newItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      const itemCount = newItems.reduce((sum, item) => sum + item.quantity, 0)
-      const shippingCost = calculateShippingCost(itemCount, state.deliveryMethod)
-      const finalTotal = total + shippingCost
-
-      return { ...state, items: newItems, total, itemCount, shippingCost, finalTotal }
-    }
-
-    case "UPDATE_QUANTITY": {
-      const newItems = state.items
-        .map((item, index) =>
-          index === action.payload.id ? { ...item, quantity: Math.max(0, action.payload.quantity) } : item,
-        )
-        .filter((item) => item.quantity > 0)
-
-      const total = newItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      const itemCount = newItems.reduce((sum, item) => sum + item.quantity, 0)
-      const shippingCost = calculateShippingCost(itemCount, state.deliveryMethod)
-      const finalTotal = total + shippingCost
-
-      return { ...state, items: newItems, total, itemCount, shippingCost, finalTotal }
-    }
-
-    case "SET_DELIVERY_METHOD": {
-      const shippingCost = calculateShippingCost(state.itemCount, action.payload)
-      const finalTotal = state.total + shippingCost
-
-      return { ...state, deliveryMethod: action.payload, shippingCost, finalTotal }
-    }
-
-    case "CLEAR_CART":
-      return {
-        items: [],
-        total: 0,
-        itemCount: 0,
-        deliveryMethod: "pickup",
-        shippingCost: 0,
-        finalTotal: 0,
-      }
-
-    case "LOAD_CART": {
-      const total = action.payload.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      const itemCount = action.payload.reduce((sum, item) => sum + item.quantity, 0)
-      const shippingCost = calculateShippingCost(itemCount, state.deliveryMethod)
-      const finalTotal = total + shippingCost
-
-      return { ...state, items: action.payload, total, itemCount, shippingCost, finalTotal }
-    }
-
-    default:
-      return state
-  }
-}
+const CartContext = createContext<CartContextType | undefined>(undefined)
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(cartReducer, {
-    items: [],
-    total: 0,
-    itemCount: 0,
-    deliveryMethod: "pickup",
-    shippingCost: 0,
-    finalTotal: 0,
-  })
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [isClient, setIsClient] = useState(false)
+  const { toast } = useToast()
 
-  // Load cart from localStorage on mount
   useEffect(() => {
-    const savedCart = localStorage.getItem("shopping-cart")
-    const savedDeliveryMethod = localStorage.getItem("delivery-method") as "pickup" | "delivery" | null
-
-    if (savedCart) {
-      try {
-        const cartItems = JSON.parse(savedCart)
-        dispatch({ type: "LOAD_CART", payload: cartItems })
-      } catch (error) {
-        console.error("Error loading cart from localStorage:", error)
+    setIsClient(true)
+    if (typeof window !== "undefined") {
+      const storedCart = localStorage.getItem("cart")
+      if (storedCart) {
+        setCart(JSON.parse(storedCart))
       }
-    }
-
-    if (savedDeliveryMethod) {
-      dispatch({ type: "SET_DELIVERY_METHOD", payload: savedDeliveryMethod })
     }
   }, [])
 
-  // Save cart to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("shopping-cart", JSON.stringify(state.items))
-    localStorage.setItem("delivery-method", state.deliveryMethod)
-  }, [state.items, state.deliveryMethod])
+    if (isClient) {
+      localStorage.setItem("cart", JSON.stringify(cart))
+    }
+  }, [cart, isClient])
 
-  return <CartContext.Provider value={{ state, dispatch }}>{children}</CartContext.Provider>
+  const addToCart = useCallback(
+    (item: CartItem) => {
+      setCart((prevCart) => {
+        const existingItemIndex = prevCart.findIndex(
+          (cartItem) =>
+            cartItem.id === item.id &&
+            cartItem.selectedSize === item.selectedSize &&
+            cartItem.selectedColor === item.selectedColor,
+        )
+
+        if (existingItemIndex > -1) {
+          const updatedCart = [...prevCart]
+          const existingItem = updatedCart[existingItemIndex]
+          const newQuantity = existingItem.quantity + item.quantity
+
+          if (newQuantity > existingItem.stock) {
+            toast({
+              title: "Insufficient Stock",
+              description: `Cannot add ${item.quantity} more of ${item.name}. Only ${existingItem.stock - existingItem.quantity} available.`,
+              variant: "destructive",
+            })
+            return prevCart // Return original cart if stock is insufficient
+          }
+
+          updatedCart[existingItemIndex] = {
+            ...existingItem,
+            quantity: newQuantity,
+          }
+          return updatedCart
+        } else {
+          if (item.quantity > item.stock) {
+            toast({
+              title: "Insufficient Stock",
+              description: `Cannot add ${item.quantity} of ${item.name}. Only ${item.stock} available.`,
+              variant: "destructive",
+            })
+            return prevCart // Return original cart if initial quantity is more than stock
+          }
+          return [...prevCart, item]
+        }
+      })
+    },
+    [toast],
+  )
+
+  const removeFromCart = useCallback((id: string, size?: string, color?: string) => {
+    setCart((prevCart) =>
+      prevCart.filter((item) => !(item.id === id && item.selectedSize === size && item.selectedColor === color)),
+    )
+  }, [])
+
+  const updateQuantity = useCallback(
+    (id: string, quantity: number, size?: string, color?: string) => {
+      setCart(
+        (prevCart) =>
+          prevCart
+            .map((item) => {
+              if (item.id === id && item.selectedSize === size && item.selectedColor === color) {
+                if (quantity > item.stock) {
+                  toast({
+                    title: "Insufficient Stock",
+                    description: `Cannot set quantity to ${quantity} for ${item.name}. Only ${item.stock} available.`,
+                    variant: "destructive",
+                  })
+                  return item // Return original item if stock is insufficient
+                }
+                return { ...item, quantity: Math.max(1, quantity) }
+              }
+              return item
+            })
+            .filter((item) => item.quantity > 0), // Remove if quantity becomes 0
+      )
+    },
+    [toast],
+  )
+
+  const clearCart = useCallback(() => {
+    setCart([])
+  }, [])
+
+  const getCartItemCount = useCallback(() => {
+    return cart.reduce((total, item) => total + item.quantity, 0)
+  }, [cart])
+
+  const value = React.useMemo(
+    () => ({
+      cart,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      getCartItemCount,
+    }),
+    [cart, addToCart, removeFromCart, updateQuantity, clearCart, getCartItemCount],
+  )
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>
 }
 
 export function useCart() {
   const context = useContext(CartContext)
-  if (!context) {
+  if (context === undefined) {
     throw new Error("useCart must be used within a CartProvider")
   }
   return context

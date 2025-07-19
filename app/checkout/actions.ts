@@ -16,7 +16,7 @@ export const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_E
 export const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n") || "" // Ensure it's a string
 
 interface CartItem {
-  id: number
+  id: string // Changed to string to match sheet ID
   name: string
   price: number
   quantity: number
@@ -29,54 +29,33 @@ interface CartItem {
 }
 
 interface ProductData {
-  id: number
-  name: string
-  price: number
-  image: string
-  images?: string[]
-  description: string
-  detailedDescription?: string
-  features?: string[]
-  specifications?: { [key: string]: string }
-  materials?: string[]
-  careInstructions?: string[]
-  sizes?: string[]
-  colors?: string[]
-  stock: number
+  ID: string // Changed to string to match sheet ID
+  Name: string
+  Price: string
+  Image: string
+  "Images (JSON)": string
+  Description: string
+  "Detailed Description": string
+  "Features (JSON)": string
+  "Specifications (JSON)": string
+  "Materials (JSON)": string
+  "Care Instructions (JSON)": string
+  "Sizes (JSON)": string
+  "Colors (JSON)": string
+  Stock: string
 }
 
 interface OrderData {
   orderId: string
-  date: string
-  time: string
   customerName: string
-  email: string
-  phone: string
-  address: string
-  city: string
-  state: string
-  zipCode: string
-  country: string
-  deliveryMethod: string
-  totalItems: number
-  subtotal: number
-  shippingCost: number
-  totalAmount: number
-  notes: string
+  customerEmail: string
+  customerPhone: string
+  deliveryAddress: string
+  cartItems: string // JSON string of cart items
+  totalAmount: string
   proofOfPaymentUrl: string
-  status: string
-}
-
-interface OrderItemData {
-  orderId: string
-  itemId: number
-  productName: string
-  price: number
-  quantity: number
-  subtotal: number
-  description: string
-  selectedSize: string
-  selectedColor: string
+  pdfReceiptUrl: string
+  orderDate: string
 }
 
 export async function submitOrder(formData: FormData) {
@@ -102,7 +81,7 @@ export async function submitOrder(formData: FormData) {
     return { success: false, message: "Missing required form data." }
   }
 
-  let cartItems: any[]
+  let cartItems: CartItem[]
   try {
     cartItems = JSON.parse(cartItemsString)
   } catch (error) {
@@ -136,7 +115,7 @@ export async function submitOrder(formData: FormData) {
     const pdfDriveUrl = await uploadFileToGoogleDrive(pdfFile, orderId)
 
     // Prepare data for Google Sheet
-    const orderData = {
+    const orderData: OrderData = {
       orderId,
       customerName,
       customerEmail,

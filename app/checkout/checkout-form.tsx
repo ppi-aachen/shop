@@ -1,284 +1,335 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useTransition } from "react"
+import { useFormStatus } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Upload, FileText, ImageIcon, AlertTriangle } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Separator } from "@/components/ui/separator"
 import { useCart } from "@/lib/cart-context"
-import { CountryRestriction } from "@/components/country-restriction"
 import { submitOrder } from "./actions"
-import { LoadingOverlay } from "@/components/loading-overlay"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/components/ui/use-toast"
+import { Loader2Icon, CheckCircle2Icon, XCircleIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
+import Link from "next/link"
+
+interface CartItem {
+  id: string
+  name: string
+  price: number
+  quantity: number
+  selectedSize?: string
+  selectedColor?: string
+}
+
+function SubmitButton({ isPending }: { isPending: boolean }) {
+  const { pending } = useFormStatus()
+  return (
+    <Button type="submit" className="w-full" disabled={pending || isPending}>
+      {pending || isPending ? (
+        <>
+          <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+          Submitting Order...
+        </>
+      ) : (
+        "Place Order"
+      )}
+    </Button>
+  )
+}
+
+function TruckIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
+      <path d="M15 18H9" />
+      <path d="M19 18h2a1 1 0 0 0 1-1v-3.61a1 1 0 0 0-.88-.91l-1.52-.38a2 2 0 0 1-1.27-.73L14 2h-3v7" />
+      <path d="M2 18h6" />
+      <circle cx="7" cy="18" r="2" />
+      <circle cx="17" cy="18" r="2" />
+    </svg>
+  )
+}
+
+function StoreIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 7H4" />
+      <path d="M22 21H2" />
+      <path d="M7 21V7" />
+      <path d="M17 21V7" />
+      <path d="M2 7l7-3 2 4 2-4 7 3" />
+    </svg>
+  )
+}
+
+const buttonVariants = {
+  default: "bg-blue-500 text-white hover:bg-blue-600",
+}
 
 export default function CheckoutForm() {
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [country, setCountry] = useState("")
-  const [validationErrors, setValidationErrors] = useState<string[]>([])
-  const { state, dispatch } = useCart()
+  const { cart, clearCart } = useCart()
+  const [isPending, startTransition] = useTransition()
+  const [deliveryMethod, setDeliveryMethod] = useState("delivery")
+  const [proofOfPayment, setProofOfPayment] = useState<File | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
   const router = useRouter()
+  const { toast } = useToast()
 
-  // Validate cart items for required options
-  const validateCartItems = (): string[] => {
-    const errors: string[] = []
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const shippingCost = deliveryMethod === "delivery" ? 5.0 : 0.0 // Example shipping cost
+  const totalAmount = subtotal + shippingCost
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
 
-    state.items.forEach((item, index) => {
-      // Check if item has size options but no size selected
-      if (item.sizes && item.sizes.length > 0 && !item.selectedSize) {
-        errors.push(`Item ${index + 1} (${item.name}): Size is required`)
-      }
+  const generateOrderId = () => {
+    const now = new Date()
+    const deliveryPrefix = deliveryMethod === "pickup" ? "PU" : "DL"
+    const dateStr = now
+      .toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+      })
+      .replace(/\//g, "")
+    const randomSuffix = Math.random().toString(36).substr(2, 3).toUpperCase()
+    return `${deliveryPrefix}${dateStr}-${randomSuffix}`
+  }
 
-      // Check if item has color options but no color selected
-      if (item.colors && item.colors.length > 0 && !item.selectedColor) {
-        errors.push(`Item ${index + 1} (${item.name}): Color is required`)
+  const orderId = generateOrderId()
+
+  const handleSubmit = async (formData: FormData) => {
+    setFormError(null)
+
+    if (!proofOfPayment) {
+      setFormError("Please upload a proof of payment.")
+      return
+    }
+
+    formData.append("cartItems", JSON.stringify(cart))
+    formData.append("orderId", orderId)
+    formData.append("totalAmount", totalAmount.toFixed(2))
+    formData.append("proofOfPayment", proofOfPayment)
+    formData.append("deliveryMethod", deliveryMethod) // Add delivery method to form data
+
+    startTransition(async () => {
+      const result = await submitOrder(formData)
+      if (result.success) {
+        toast({
+          title: "Order Submitted!",
+          description: `Your order ${result.orderId} has been placed.`,
+          action: (
+            <Link href={`/success?orderId=${result.orderId}`} className={cn(buttonVariants.default)}>
+              View Order
+            </Link>
+          ),
+        })
+        clearCart()
+        router.push(`/success?orderId=${result.orderId}`)
+      } else {
+        setFormError(result.message || "Failed to submit order. Please try again.")
+        toast({
+          title: "Order Failed",
+          description: result.message || "There was an error processing your order.",
+          variant: "destructive",
+        })
       }
     })
-
-    return errors
   }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/jpg"]
-      if (allowedTypes.includes(file.type)) {
-        setSelectedFile(file)
-      } else {
-        alert("Please upload a PDF or image file (JPG, PNG)")
-        e.target.value = ""
-      }
-    }
-  }
-
-  const handleContactInstagram = () => {
-    window.open("https://instagram.com/aachen.studio", "_blank")
-  }
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (isSubmitting) {
-      console.log("Submission already in progress. Ignoring multiple click.");
-      return; // Exit if already submitting
-    }
-    // Validate cart items first
-    const cartErrors = validateCartItems();
-    if (cartErrors.length > 0) {
-      setValidationErrors(cartErrors);
-      alert("Please select required options for all items:\n\n" + cartErrors.join("\n"));
-      return;
-    }
-
-    if (!selectedFile) {
-      alert("Please upload proof of payment");
-      return;
-    }
-
-    // Check if delivery is to Germany
-    const form = e.currentTarget;
-    const formData = new FormData(form);
-    const selectedCountry = formData.get("country") as string;
-    if (
-      state.deliveryMethod === "delivery" &&
-      selectedCountry.toLowerCase() !== "germany" &&
-      selectedCountry.toLowerCase() !== "deutschland"
-    ) {
-      alert("We currently only deliver within Germany. Please contact us on Instagram for international orders.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    setValidationErrors([]);
-
-    try {
-      formData.append("cartItems", JSON.stringify(state.items));
-      formData.append("deliveryMethod", state.deliveryMethod);
-      formData.append("subtotal", state.total.toString());
-      formData.append("shippingCost", state.shippingCost.toString());
-      formData.append("totalAmount", state.finalTotal.toString());
-      formData.append("itemCount", state.itemCount.toString());
-      formData.append("proofOfPayment", selectedFile);
-
-      const result = await submitOrder(formData);
-
-      if (result.success) {
-        if (typeof window !== "undefined" && result.orderData && result.orderItemsData) {
-          localStorage.setItem(
-            `order-${result.orderId}`,
-            JSON.stringify({
-              order: result.orderData,
-              items: result.orderItemsData,
-            }),
-          );
-        }
-        router.push(`/success?orderId=${result.orderId}`);
-      } else {
-        const errorMessage = result.error || "Unknown error occurred";
-        if (errorMessage.includes("Email") || errorMessage.includes("API key")) {
-          alert(
-            "Order submitted successfully, but email notifications may not have been sent. You will be contacted directly.",
-          );
-          dispatch({ type: "CLEAR_CART" });
-          router.push(`/success?orderId=${result.orderId}`);
-        } else {
-          alert(`Error submitting order: ${errorMessage}. Please try again.`);
-        }
-      }
-    } catch (error) {
-      console.error("Error:", error);
-      alert("Error submitting order. Please try again or contact support.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Customer Details & Proof of Payment</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {/* Cart Validation Errors */}
-        {validationErrors.length > 0 && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-              <h4 className="font-medium text-red-800">Required Options Missing</h4>
+    <form action={handleSubmit} className="grid gap-8 lg:grid-cols-3">
+      <div className="lg:col-span-2 grid gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Customer Information</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="customerName">Full Name</Label>
+              <Input id="customerName" name="customerName" placeholder="John Doe" required />
             </div>
-            <ul className="text-sm text-red-700 space-y-1">
-              {validationErrors.map((error, index) => (
-                <li key={index}>• {error}</li>
-              ))}
-            </ul>
-            <p className="text-sm text-red-600 mt-2">
-              Please go back to your cart and select the required options for all items.
-            </p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-4">
-            <h3 className="font-medium text-lg">Customer Information</h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="firstName">First Name *</Label>
-                <Input id="firstName" name="firstName" required />
-              </div>
-              <div>
-                <Label htmlFor="lastName">Last Name *</Label>
-                <Input id="lastName" name="lastName" required />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="customerEmail">Email</Label>
+              <Input id="customerEmail" name="customerEmail" type="email" placeholder="john@example.com" required />
             </div>
-
-            <div>
-              <Label htmlFor="email">Email *</Label>
-              <Input id="email" name="email" type="email" required />
+            <div className="space-y-2">
+              <Label htmlFor="customerPhone">Phone Number</Label>
+              <Input id="customerPhone" name="customerPhone" type="tel" placeholder="+49 123 456789" required />
             </div>
-
-            <div>
-              <Label htmlFor="phone">Phone Number *</Label>
-              <Input id="phone" name="phone" type="tel" required />
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="notes">Order Notes (Optional)</Label>
+              <Textarea id="notes" name="notes" placeholder="Any special instructions or requests?" rows={3} />
             </div>
-          </div>
+          </CardContent>
+        </Card>
 
-          {state.deliveryMethod === "delivery" && (
-            <div className="space-y-4">
-              <h3 className="font-medium text-lg">Delivery Address</h3>
+        <Card>
+          <CardHeader>
+            <CardTitle>Delivery Method</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RadioGroup value={deliveryMethod} onValueChange={setDeliveryMethod} className="grid gap-4 md:grid-cols-2">
+              <Label
+                htmlFor="delivery"
+                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary"
+              >
+                <RadioGroupItem id="delivery" value="delivery" className="sr-only" />
+                <TruckIcon className="mb-3 h-6 w-6" />
+                <span>Delivery</span>
+              </Label>
+              <Label
+                htmlFor="pickup"
+                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary"
+              >
+                <RadioGroupItem id="pickup" value="pickup" className="sr-only" />
+                <StoreIcon className="mb-3 h-6 w-6" />
+                <span>Pickup in Aachen</span>
+              </Label>
+            </RadioGroup>
+          </CardContent>
+        </Card>
 
-              <div>
-                <Label htmlFor="address">Street Address *</Label>
-                <Input id="address" name="address" required />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="city">City *</Label>
-                  <Input id="city" name="city" required />
-                </div>
-                <div>
-                  <Label htmlFor="state">State/Province *</Label>
-                  <Input id="state" name="state" required />
-                </div>
-                <div>
-                  <Label htmlFor="zipCode">ZIP/Postal Code *</Label>
-                  <Input id="zipCode" name="zipCode" required />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="country">Country *</Label>
+        {deliveryMethod === "delivery" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Delivery Address</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="deliveryAddress">Street Address</Label>
                 <Input
-                  id="country"
-                  name="country"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  placeholder="Germany"
-                  required
+                  id="deliveryAddress"
+                  name="deliveryAddress"
+                  placeholder="123 Main St"
+                  required={deliveryMethod === "delivery"}
                 />
               </div>
-
-              <CountryRestriction selectedCountry={country} onContactInstagram={handleContactInstagram} />
-            </div>
-          )}
-
-          {state.deliveryMethod === "pickup" && (
-            <div className="p-4 bg-green-50 rounded-lg">
-              <h3 className="font-medium text-green-900 mb-2">Pickup in Aachen</h3>
-              <p className="text-green-800 text-sm">
-                We will contact you within 24 hours to arrange the pickup location and time in Aachen.
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <h3 className="font-medium text-lg">Proof of Payment</h3>
-
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-              <input
-                type="file"
-                id="proofOfPayment"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-              <label htmlFor="proofOfPayment" className="cursor-pointer">
-                <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <p className="text-lg font-medium text-gray-900 mb-2">Upload Proof of Payment</p>
-                <p className="text-sm text-gray-600 mb-4">PDF, JPG, PNG files up to 4MB</p>
-              </label>
-
-              {selectedFile && (
-                <div className="mt-4 p-3 bg-green-50 rounded-lg flex items-center justify-center gap-2">
-                  {selectedFile.type === "application/pdf" ? (
-                    <FileText className="h-5 w-5 text-green-600" />
-                  ) : (
-                    <ImageIcon className="h-5 w-5 text-green-600" />
-                  )}
-                  <span className="text-green-800 font-medium">{selectedFile.name}</span>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input id="city" name="city" placeholder="Aachen" required={deliveryMethod === "delivery"} />
                 </div>
-              )}
+                <div className="space-y-2">
+                  <Label htmlFor="state">State/Province</Label>
+                  <Input id="state" name="state" placeholder="NRW" required={deliveryMethod === "delivery"} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="zipCode">Zip Code</Label>
+                  <Input id="zipCode" name="zipCode" placeholder="52062" required={deliveryMethod === "delivery"} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="country">Country</Label>
+                <Input id="country" name="country" placeholder="Germany" required={deliveryMethod === "delivery"} />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Proof of Payment</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <p className="text-sm text-gray-500">Please upload a screenshot or PDF of your payment confirmation.</p>
+            <Input
+              id="proofOfPayment"
+              name="proofOfPayment"
+              type="file"
+              accept="image/*,application/pdf"
+              required
+              onChange={(e) => setProofOfPayment(e.target.files ? e.target.files[0] : null)}
+            />
+            {proofOfPayment && (
+              <div className="flex items-center gap-2 text-sm text-green-600">
+                <CheckCircle2Icon className="h-4 w-4" />
+                <span>{proofOfPayment.name} uploaded.</span>
+              </div>
+            )}
+            {formError && (
+              <div className="flex items-center gap-2 text-sm text-red-600">
+                <XCircleIcon className="h-4 w-4" />
+                <span>{formError}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="lg:col-span-1">
+        <Card>
+          <CardHeader>
+            <CardTitle>Order Summary</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-2">
+              {cart.map((item) => (
+                <div
+                  key={`${item.id}-${item.selectedSize}-${item.selectedColor}`}
+                  className="flex items-center justify-between"
+                >
+                  <div className="text-sm">
+                    {item.name} ({item.quantity}x)
+                    {(item.selectedSize || item.selectedColor) && (
+                      <span className="text-gray-500">
+                        {" "}
+                        ({item.selectedSize && `Size: ${item.selectedSize}`}
+                        {item.selectedSize && item.selectedColor && ", "}
+                        {item.selectedColor && `Color: ${item.selectedColor}`})
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-sm font-medium">€{(item.price * item.quantity).toFixed(2)}</div>
+                </div>
+              ))}
             </div>
-          </div>
-
-          <div>
-            <Label htmlFor="notes">Additional Notes (Optional)</Label>
-            <Textarea id="notes" name="notes" placeholder="Any special delivery instructions or comments..." rows={3} />
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isSubmitting || !selectedFile || validationErrors.length > 0}
-          >
-            {isSubmitting ? "Submitting Order..." : `Submit Order - €${state.finalTotal.toFixed(2)}`}
-          </Button>
-        </form>
-      </CardContent>
-      {isSubmitting && <LoadingOverlay />} {/* Conditionally render the loading overlay */}
-    </Card>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <Label>Subtotal ({totalItems} items)</Label>
+              <span className="font-semibold">€{subtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>{deliveryMethod === "pickup" ? "Pickup" : "Shipping"}</Label>
+              <span className="font-semibold">€{shippingCost.toFixed(2)}</span>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between text-lg font-bold">
+              <span>Total</span>
+              <span>€{totalAmount.toFixed(2)}</span>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <SubmitButton isPending={isPending} />
+          </CardFooter>
+        </Card>
+      </div>
+    </form>
   )
 }

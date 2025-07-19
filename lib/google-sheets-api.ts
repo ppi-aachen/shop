@@ -1,9 +1,7 @@
 import { google } from "googleapis"
-import { getGoogleAuthClient } from "./google-auth-utils"
+import { getGoogleAuthClient, GOOGLE_SHEET_ID } from "./google-auth-utils"
 
-const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID
-
-if (!SPREADSHEET_ID) {
+if (!GOOGLE_SHEET_ID) {
   console.warn("GOOGLE_SHEET_ID environment variable is not set. Google Sheets functionality will be limited.")
 }
 
@@ -38,7 +36,7 @@ interface OrderData {
 }
 
 export async function getProductsFromSheet(): Promise<Product[]> {
-  if (!SPREADSHEET_ID) {
+  if (!GOOGLE_SHEET_ID) {
     console.error("GOOGLE_SHEET_ID is not set. Cannot fetch products.")
     return []
   }
@@ -48,7 +46,7 @@ export async function getProductsFromSheet(): Promise<Product[]> {
     const sheets = google.sheets({ version: "v4", auth })
 
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: GOOGLE_SHEET_ID,
       range: "Products!A:N", // Assuming products are in columns A to N
     })
 
@@ -75,7 +73,7 @@ export async function getProductsFromSheet(): Promise<Product[]> {
 }
 
 export async function appendOrderToSheet(orderData: OrderData) {
-  if (!SPREADSHEET_ID) {
+  if (!GOOGLE_SHEET_ID) {
     console.error("GOOGLE_SHEET_ID is not set. Cannot append order.")
     return
   }
@@ -98,7 +96,7 @@ export async function appendOrderToSheet(orderData: OrderData) {
     ]
 
     await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: GOOGLE_SHEET_ID,
       range: "Orders!A:J", // Assuming orders are in columns A to J
       valueInputOption: "RAW",
       requestBody: {
@@ -113,7 +111,7 @@ export async function appendOrderToSheet(orderData: OrderData) {
 }
 
 export async function updateProductStockInSheet(productId: string, newStock: number) {
-  if (!SPREADSHEET_ID) {
+  if (!GOOGLE_SHEET_ID) {
     console.error("GOOGLE_SHEET_ID is not set. Cannot update product stock.")
     return
   }
@@ -124,57 +122,5 @@ export async function updateProductStockInSheet(productId: string, newStock: num
 
     // First, find the row index of the product
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: "Products!A:A", // Get all product IDs
-    })
-
-    const rows = response.data.values
-    if (!rows || rows.length === 0) {
-      throw new Error("No products found in sheet.")
-    }
-
-    const productRowIndex = rows.findIndex((row) => row[0] === productId)
-
-    if (productRowIndex === -1) {
-      throw new Error(`Product with ID ${productId} not found.`)
-    }
-
-    // The actual row number in the sheet is productRowIndex + 1 (for 0-based index) + 1 (for header row)
-    const sheetRowNumber = productRowIndex + 2
-
-    // Get the header row to find the 'Stock' column index
-    const headersResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: "Products!1:1", // Get the first row (headers)
-    })
-
-    const headers = headersResponse.data.values?.[0]
-    if (!headers) {
-      throw new Error("Could not retrieve sheet headers.")
-    }
-
-    const stockColumnIndex = headers.indexOf("Stock")
-
-    if (stockColumnIndex === -1) {
-      throw new Error("Stock column not found in the sheet headers.")
-    }
-
-    // Convert column index to A1 notation (e.g., 0 -> A, 1 -> B, etc.)
-    const stockColumnLetter = String.fromCharCode(65 + stockColumnIndex) // 65 is ASCII for 'A'
-
-    const range = `Products!${stockColumnLetter}${sheetRowNumber}`
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: range,
-      valueInputOption: "RAW",
-      requestBody: {
-        values: [[newStock.toString()]],
-      },
-    })
-    console.log(`Stock for product ${productId} updated to ${newStock} successfully.`)
-  } catch (error) {
-    console.error(`Error updating stock for product ${productId}:`, error)
-    throw new Error(`Failed to update stock for product ${productId}.`)
-  }
-}
+      spreadsheetId: GOOGLE_SHEET_ID,
+      range:\

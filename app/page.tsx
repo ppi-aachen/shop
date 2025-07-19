@@ -1,240 +1,191 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Header } from "@/components/header"
+import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import ProductModal from "@/components/product-modal"
 import { useCart } from "@/lib/cart-context"
-import { Plus, Eye } from "lucide-react"
-import { ProductModal } from "@/components/product-modal"
-import { getProductImage } from "@/lib/image-utils"
-import { useToast } from "@/hooks/use-toast"
-import { getProductsFromGoogleSheet } from "@/app/checkout/actions" // Import the function
+import { useToast } from "@/components/ui/use-toast"
+import { Loader2Icon, ShoppingCartIcon } from "lucide-react"
 
 interface Product {
-  id: number
-  name: string
-  price: number
-  image: string
-  images?: string[]
-  description: string
-  detailedDescription?: string
-  features?: string[]
-  specifications?: { [key: string]: string }
-  materials?: string[]
-  careInstructions?: string[]
-  sizes?: string[]
-  colors?: string[]
-  stock: number
+  ID: string
+  Name: string
+  Price: string
+  Image: string
+  "Images (JSON)": string
+  Description: string
+  "Detailed Description": string
+  "Features (JSON)": string
+  "Specifications (JSON)": string
+  "Materials (JSON)": string
+  "Care Instructions (JSON)": string
+  "Sizes (JSON)": string
+  "Colors (JSON)": string
+  Stock: string
 }
 
-export default function HomePage() {
-  const { dispatch } = useCart()
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const { toast } = useToast()
+export default function Home() {
   const [products, setProducts] = useState<Product[]>([])
-  const [loadingProducts, setLoadingProducts] = useState(true)
-  const [errorLoadingProducts, setErrorLoadingProducts] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const { addToCart } = useCart()
+  const { toast } = useToast()
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      setLoadingProducts(true)
-      setErrorLoadingProducts(false)
+    async function fetchProducts() {
       try {
-        const fetchedProducts = await getProductsFromGoogleSheet()
-        setProducts(fetchedProducts)
-      } catch (error) {
-        console.error("Could not fetch products from Google Sheet:", error)
-        setErrorLoadingProducts(true)
+        setLoading(true)
+        const response = await fetch("/api/products")
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.message || "Failed to fetch products")
+        }
+        const data: Product[] = await response.json()
+        setProducts(data)
+      } catch (err) {
+        setError((err as Error).message)
         toast({
+          title: "Error fetching products",
+          description: (err as Error).message,
           variant: "destructive",
-          title: "Error",
-          description: "Failed to load products from Google Sheet. Please check your configuration.",
         })
       } finally {
-        setLoadingProducts(false)
+        setLoading(false)
       }
     }
-
     fetchProducts()
   }, [toast])
 
-  const addToCart = (product: Product) => {
-    // Check if product requires size or color selection
-    const requiresSize = product.sizes && product.sizes.length > 0
-    const requiresColor = product.colors && product.colors.length > 0
-
-    if (product.stock <= 0) {
+  const handleAddToCart = (product: Product, quantity: number, selectedSize?: string, selectedColor?: string) => {
+    const price = Number.parseFloat(product.Price)
+    if (isNaN(price)) {
       toast({
+        title: "Error",
+        description: `Invalid price for ${product.Name}.`,
         variant: "destructive",
-        title: "Out of Stock",
-        description: `${product.name} is currently out of stock.`,
       })
       return
     }
 
-    if (requiresSize || requiresColor) {
-      // Show toast and automatically open modal
-      const missingOptions = []
-      if (requiresSize) missingOptions.push("size")
-      if (requiresColor) missingOptions.push("color")
-
+    const stock = Number.parseInt(product.Stock)
+    if (isNaN(stock) || stock < quantity) {
       toast({
-        variant: "warning",
-        title: "Options Required",
-        description: `Please select ${missingOptions.join(" and ")} options first.`,
+        title: "Out of Stock",
+        description: `Not enough stock for ${product.Name}. Available: ${stock}`,
+        variant: "destructive",
       })
-
-      // Automatically open the product modal
-      openProductModal(product)
       return
     }
 
-    dispatch({ type: "ADD_ITEM", payload: product })
-
-    toast({
-      variant: "success",
-      title: "Added to Cart!",
-      description: `${product.name} has been added to your cart.`,
+    addToCart({
+      id: product.ID,
+      name: product.Name,
+      price: price,
+      quantity,
+      image: product.Image,
+      description: product.Description,
+      selectedSize,
+      selectedColor,
+      sizes: product["Sizes (JSON)"] ? JSON.parse(product["Sizes (JSON)"]) : [],
+      colors: product["Colors (JSON)"] ? JSON.parse(product["Colors (JSON)"]) : [],
+      stock: stock,
     })
+    toast({
+      title: "Added to cart!",
+      description: `${quantity} x ${product.Name} added to your cart.`,
+    })
+    setSelectedProduct(null) // Close modal after adding to cart
   }
 
-  const openProductModal = (product: Product) => {
-    setSelectedProduct(product)
-    setIsModalOpen(true)
+  if (loading) {
+    return (
+      <div className="flex min-h-[calc(100vh-64px)] items-center justify-center">
+        <Loader2Icon className="h-8 w-8 animate-spin text-primary" />
+        <p className="ml-2 text-lg">Loading products...</p>
+      </div>
+    )
   }
 
-  const closeProductModal = () => {
-    setIsModalOpen(false)
-    setSelectedProduct(null)
+  if (error) {
+    return (
+      <div className="flex min-h-[calc(100vh-64px)] flex-col items-center justify-center text-center text-red-600">
+        <XCircleIcon className="h-12 w-12 mb-4" />
+        <h2 className="text-xl font-semibold">Error Loading Products</h2>
+        <p className="text-sm">{error}</p>
+        <p className="text-sm mt-2">Please ensure your Google Sheet is correctly configured and accessible.</p>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
-
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Aachen Studio Collection</h2>
-          <p className="text-gray-600">Authentic Indonesian-inspired apparel and accessories</p>
-        </div>
-
-        {loadingProducts && <div className="text-center text-gray-600 text-lg">Loading products...</div>}
-
-        {errorLoadingProducts && (
-          <div className="text-center text-red-600 text-lg">
-            Failed to load products. Please ensure your Google Sheet is correctly configured and accessible.
-          </div>
-        )}
-
-        {!loadingProducts && !errorLoadingProducts && products.length === 0 && (
-          <div className="text-center text-gray-600 text-lg">
-            No products found. Please add products to your Google Sheet.
-          </div>
-        )}
-
-        {!loadingProducts && !errorLoadingProducts && products.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {products.map((product) => (
-              <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow group">
-                <CardHeader className="p-0 relative">
-                  <div className="relative w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
-                    <img
-                      src={getProductImage(product.image) || "/placeholder.svg"}
-                      alt={product.name}
-                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.style.display = "none"
-                        const parent = target.parentElement
-                        if (parent) {
-                          const iconDiv = document.createElement("div")
-                          iconDiv.className = "flex items-center justify-center w-full h-full"
-                          iconDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class="text-gray-400"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="M10 4v4"></path><path d="M2 8h20"></path><path d="M6 12h.01"></path><path d="M6 16h.01"></path><path d="M10 12h8"></path><path d="M10 16h8"></path></svg>`
-                          parent.appendChild(iconDiv)
-                        }
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-300 flex items-center justify-center">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => openProductModal(product)}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Details
-                      </Button>
-                    </div>
-                  </div>
-
-                  {product.images && product.images.length > 1 && (
-                    <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
-                      +{product.images.length} photos
-                    </div>
-                  )}
-
-                  {product.stock === 0 && (
-                    <div className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-1 rounded">
-                      Out of Stock
-                    </div>
-                  )}
-                </CardHeader>
-                <CardContent className="p-4">
-                  <CardTitle
-                    className="text-lg mb-2 cursor-pointer hover:text-green-600 transition-colors"
-                    onClick={() => openProductModal(product)}
-                  >
-                    {product.name}
-                  </CardTitle>
-                  <p className="text-gray-600 text-sm mb-3 line-clamp-2">{product.description}</p>
-
-                  {/* Show required options */}
-                  {((product.sizes && product.sizes.length > 0) || (product.colors && product.colors.length > 0)) && (
-                    <div className="mb-3">
-                      <p className="text-xs text-orange-600 font-medium">
-                        {product.sizes && product.sizes.length > 0 && product.colors && product.colors.length > 0
-                          ? "Size & Color selection required"
-                          : product.sizes && product.sizes.length > 0
-                            ? "Size selection required"
-                            : "Color selection required"}
-                      </p>
-                    </div>
-                  )}
-
-                  <p className="text-2xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
-                  {product.stock <= 0 && <p className="text-red-500 font-semibold">Out of Stock</p>}
-                </CardContent>
-                <CardFooter className="p-4 pt-0 flex gap-2">
-                  <Button onClick={() => addToCart(product)} className="flex-1" disabled={product.stock <= 0}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    {(product.sizes && product.sizes.length > 0) || (product.colors && product.colors.length > 0)
-                      ? "Select Options"
-                      : "Add to Cart"}
-                  </Button>
-                  <Button variant="outline" onClick={() => openProductModal(product)}>
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-16 bg-white rounded-lg shadow-sm p-8">
-          <div className="max-w-3xl mx-auto text-center">
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">About Aachen Studio</h3>
-            <p className="text-gray-600 leading-relaxed">
-              Aachen Studio by PPI Aachen brings you authentic Indonesian culture through modern fashion. Our collection
-              celebrates traditional Indonesian cuisine and heritage with contemporary designs that connect the
-              Indonesian diaspora in Germany with their roots.
-            </p>
-          </div>
-        </div>
-      </main>
-
-      <ProductModal product={selectedProduct} isOpen={isModalOpen} onClose={closeProductModal} />
+    <div className="container mx-auto px-4 py-8 md:px-6 lg:py-12">
+      <h1 className="mb-8 text-4xl font-bold text-center">Our Products</h1>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        {products.map((product) => (
+          <Card key={product.ID} className="flex flex-col overflow-hidden rounded-lg shadow-lg">
+            <div className="relative h-48 w-full">
+              <Image
+                src={product.Image || "/placeholder.svg?height=200&width=200"}
+                alt={product.Name}
+                layout="fill"
+                objectFit="cover"
+                className="transition-transform duration-300 hover:scale-105"
+              />
+            </div>
+            <CardContent className="flex-grow p-4">
+              <h2 className="text-xl font-semibold">{product.Name}</h2>
+              <p className="text-gray-600 line-clamp-2">{product.Description}</p>
+              <p className="mt-2 text-lg font-bold">€{Number.parseFloat(product.Price).toFixed(2)}</p>
+              <p className={`text-sm ${Number.parseInt(product.Stock) > 0 ? "text-green-600" : "text-red-600"}`}>
+                Stock: {Number.parseInt(product.Stock) > 0 ? product.Stock : "Out of Stock"}
+              </p>
+            </CardContent>
+            <CardFooter className="p-4 pt-0">
+              <Button
+                className="w-full"
+                onClick={() => setSelectedProduct(product)}
+                disabled={Number.parseInt(product.Stock) <= 0}
+              >
+                <ShoppingCartIcon className="mr-2 h-4 w-4" />
+                {Number.parseInt(product.Stock) > 0 ? "View Details" : "Sold Out"}
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+      {selectedProduct && (
+        <ProductModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          onAddToCart={handleAddToCart}
+        />
+      )}
     </div>
+  )
+}
+
+function XCircleIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="m15 9-6 6" />
+      <path d="m9 9 6 6" />
+    </svg>
   )
 }
