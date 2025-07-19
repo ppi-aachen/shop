@@ -28,10 +28,7 @@ function useCarousel() {
   return context
 }
 
-type CarouselProps = React.ComponentPropsWithoutRef<"div"> &
-  UseEmblaCarouselType[1] & {
-    orientation?: "horizontal" | "vertical"
-  }
+type CarouselProps = React.ComponentPropsWithoutRef<"div"> & UseEmblaCarouselType[1]
 
 const Carousel = React.forwardRef<HTMLDivElement, CarouselProps>(
   ({ orientation = "horizontal", opts, setApi, plugins, className, children, ...props }, ref) => {
@@ -59,7 +56,7 @@ const Carousel = React.forwardRef<HTMLDivElement, CarouselProps>(
     }, [api])
 
     const handleKeyDown = React.useCallback(
-      (event: React.KeyboardEvent<HTMLDivElement>) => {
+      (event: React.KeyboardEvent) => {
         if (event.key === "ArrowLeft") {
           event.preventDefault()
           scrollPrev()
@@ -81,6 +78,12 @@ const Carousel = React.forwardRef<HTMLDivElement, CarouselProps>(
       api.on("select", onSelect)
     }, [api, onSelect])
 
+    React.useLayoutEffect(() => {
+      if (setApi) {
+        setApi(api)
+      }
+    }, [api, setApi])
+
     return (
       <CarouselContext.Provider
         value={{
@@ -90,7 +93,7 @@ const Carousel = React.forwardRef<HTMLDivElement, CarouselProps>(
           scrollNext,
           canScrollPrev,
           canScrollNext,
-          ...props,
+          orientation,
         }}
       >
         <div
@@ -199,4 +202,4 @@ const CarouselNext = React.forwardRef<HTMLButtonElement, React.ComponentPropsWit
 )
 CarouselNext.displayName = "CarouselNext"
 
-export { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, useCarousel }
+export { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext }

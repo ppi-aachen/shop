@@ -1,110 +1,236 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import type { Product } from "@/lib/types"
+import { Plus, Minus, ShoppingCart } from "lucide-react"
+import { ImageGallery } from "@/components/image-gallery"
+import { Separator } from "@/components/ui/separator"
+import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/hooks/use-toast"
 import { formatCurrency } from "@/lib/utils"
-import { useCart } from "@/lib/cart-context"
-import { toast } from "sonner"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
-import { ImageGallery } from "./image-gallery"
+import type { Product } from "@/lib/types"
 
 interface ProductModalProps {
-  product: Product
+  product: Product | null
   isOpen: boolean
   onClose: () => void
+  onAddToCart: (product: Product, quantity: number, selectedSize?: string, selectedColor?: string) => void
 }
 
-export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
-  const { addToCart } = useCart()
-  const [selectedSize, setSelectedSize] = useState<string | undefined>(product.specifications?.sizes?.[0] || undefined)
-  const [selectedColor, setSelectedColor] = useState<string | undefined>(
-    product.specifications?.colors?.[0] || undefined,
-  )
+export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductModalProps) {
+  const [quantity, setQuantity] = useState(1)
+  const [selectedSize, setSelectedSize] = useState<string | undefined>(undefined)
+  const [selectedColor, setSelectedColor] = useState<string | undefined>(undefined)
+  const { toast } = useToast()
 
-  const handleAddToCart = () => {
-    addToCart({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.image,
-      quantity: 1,
-      selectedSize,
-      selectedColor,
+  useEffect(() => {
+    if (product) {
+      setQuantity(1)
+      // Reset selected options when product changes or modal opens
+      setSelectedSize(product.sizes && product.sizes.length > 0 ? product.sizes[0] : undefined)
+      setSelectedColor(product.colors && product.colors.length > 0 ? product.colors[0] : undefined)
+    }
+  }, [product])
+
+  if (!product) return null
+
+  const handleQuantityChange = (amount: number) => {
+    setQuantity((prev) => {
+      const newQty = prev + amount
+      if (newQty < 1) return 1
+      if (newQty > product.stock) {
+        toast({
+          variant: "destructive",
+          title: "Out of Stock",
+          description: `Only ${product.stock} available.`,
+        })
+        return product.stock
+      }
+      return newQty
     })
-    toast.success(`${product.name} added to cart!`)
-    onClose()
   }
 
-  const availableImages =
-    product.images && product.images.length > 0
-      ? product.images
-      : [product.image || "/placeholder.svg?height=600&width=400&text=Product"]
+  const handleAddToCartClick = () => {
+    if (product.stock === 0) {
+      toast({
+        variant: "destructive",
+        title: "Out of Stock",
+        description: `${product.name} is currently out of stock.`,
+      })
+      return
+    }
+
+    if (product.sizes && product.sizes.length > 0 && !selectedSize) {
+      toast({
+        variant: "destructive",
+        title: "Missing Option",
+        description: "Please select a size.",
+      })
+      return
+    }
+
+    if (product.colors && product.colors.length > 0 && !selectedColor) {
+      toast({
+        variant: "destructive",
+        title: "Missing Option",
+        description: "Please select a color.",
+      })
+      return
+    }
+
+    onAddToCart(product, quantity, selectedSize, selectedColor)
+  }
+
+  const displayPrice = product.price * quantity
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[900px] p-0">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-          <div className="md:col-span-1">
-            <ImageGallery images={availableImages} alt={product.name} />
+      <DialogContent className="max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-3xl font-bold">{product.name}</DialogTitle>
+          <DialogDescription className="text-lg text-gray-600">{product.description}</DialogDescription>
+        </DialogHeader>
+
+        <div className="grid md:grid-cols-2 gap-8 mt-4">
+          {/* Image Gallery */}
+          <div>
+            <ImageGallery images={product.images || [product.image]} productName={product.name} />
           </div>
-          <div className="md:col-span-1 flex flex-col justify-between">
+
+          {/* Product Details */}
+          <div className="space-y-6">
             <div>
-              <DialogHeader className="text-left">
-                <DialogTitle className="text-3xl font-bold">{product.name}</DialogTitle>
-                <DialogDescription className="text-xl font-semibold text-gray-800">
-                  {formatCurrency(product.price)}
-                </DialogDescription>
-              </DialogHeader>
-              <p className="mt-4 text-gray-600 text-sm leading-relaxed">{product.description}</p>
-
-              {product.specifications?.sizes && product.specifications.sizes.length > 0 && (
-                <div className="mt-4">
-                  <Label htmlFor="size-select" className="mb-2 block">
-                    Size
-                  </Label>
-                  <Select onValueChange={setSelectedSize} defaultValue={selectedSize}>
-                    <SelectTrigger id="size-select" className="w-[180px]">
-                      <SelectValue placeholder="Select a size" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {product.specifications.sizes.map((size) => (
-                        <SelectItem key={size} value={size}>
-                          {size}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {product.specifications?.colors && product.specifications.colors.length > 0 && (
-                <div className="mt-4">
-                  <Label htmlFor="color-select" className="mb-2 block">
-                    Color
-                  </Label>
-                  <Select onValueChange={setSelectedColor} defaultValue={selectedColor}>
-                    <SelectTrigger id="color-select" className="w-[180px]">
-                      <SelectValue placeholder="Select a color" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {product.specifications.colors.map((color) => (
-                        <SelectItem key={color} value={color}>
-                          {color}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <p className="text-4xl font-extrabold text-green-700">{formatCurrency(displayPrice)}</p>
+              <p className={`text-sm mt-1 ${product.stock > 0 ? "text-green-600" : "text-red-600"}`}>
+                Stock: {product.stock > 0 ? `${product.stock} in stock` : "Out of Stock"}
+              </p>
             </div>
-            <div className="mt-6">
-              <Button className="w-full" onClick={handleAddToCart}>
-                Add to Cart
+
+            {/* Options */}
+            {product.sizes && product.sizes.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-lg mb-2">Size</h4>
+                <div className="flex flex-wrap gap-2">
+                  {product.sizes.map((size) => (
+                    <Button
+                      key={size}
+                      variant={selectedSize === size ? "default" : "outline"}
+                      onClick={() => setSelectedSize(size)}
+                      className={selectedSize === size ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+                    >
+                      {size}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {product.colors && product.colors.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-lg mb-2">Color</h4>
+                <div className="flex flex-wrap gap-2">
+                  {product.colors.map((color) => (
+                    <Button
+                      key={color}
+                      variant={selectedColor === color ? "default" : "outline"}
+                      onClick={() => setSelectedColor(color)}
+                      className={selectedColor === color ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+                    >
+                      {color}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Quantity Selector */}
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="icon" onClick={() => handleQuantityChange(-1)}>
+                <Minus className="h-4 w-4" />
+              </Button>
+              <span className="text-xl font-semibold w-8 text-center">{quantity}</span>
+              <Button variant="outline" size="icon" onClick={() => handleQuantityChange(1)}>
+                <Plus className="h-4 w-4" />
               </Button>
             </div>
+
+            {/* Add to Cart Button */}
+            <Button
+              className="w-full bg-green-600 hover:bg-green-700 text-white text-lg py-6"
+              onClick={handleAddToCartClick}
+              disabled={
+                product.stock === 0 ||
+                (product.sizes && product.sizes.length > 0 && !selectedSize) ||
+                (product.colors && product.colors.length > 0 && !selectedColor)
+              }
+            >
+              <ShoppingCart className="h-5 w-5 mr-2" />
+              {product.stock === 0 ? "Out of Stock" : "Add to Cart"}
+            </Button>
+
+            <Separator />
+
+            {/* Detailed Description */}
+            {product.detailedDescription && (
+              <div>
+                <h4 className="font-semibold text-lg mb-2">Description</h4>
+                <p className="text-gray-700 text-sm leading-relaxed">{product.detailedDescription}</p>
+              </div>
+            )}
+
+            {/* Features */}
+            {product.features && product.features.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-lg mb-2">Features</h4>
+                <ul className="list-disc list-inside text-gray-700 text-sm space-y-1">
+                  {product.features.map((feature, index) => (
+                    <li key={index}>{feature}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Specifications */}
+            {product.specifications && Object.keys(product.specifications).length > 0 && (
+              <div>
+                <h4 className="font-semibold text-lg mb-2">Specifications</h4>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-gray-700 text-sm">
+                  {Object.entries(product.specifications).map(([key, value]) => (
+                    <div key={key} className="flex justify-between">
+                      <span className="font-medium">{key}:</span>
+                      <span>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Materials */}
+            {product.materials && product.materials.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-lg mb-2">Materials</h4>
+                <div className="flex flex-wrap gap-2">
+                  {product.materials.map((material, index) => (
+                    <Badge key={index} variant="secondary">
+                      {material}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Care Instructions */}
+            {product.careInstructions && product.careInstructions.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-lg mb-2">Care Instructions</h4>
+                <ul className="list-disc list-inside text-gray-700 text-sm space-y-1">
+                  {product.careInstructions.map((instruction, index) => (
+                    <li key={index}>{instruction}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>

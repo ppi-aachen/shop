@@ -1,140 +1,62 @@
-console.log(`
-================================================================================
-Vercel Shop Template - Environment Variable Setup Guide
-================================================================================
+// This script provides a comprehensive guide for setting up environment variables
+// required for the Aachen Studio shop application.
 
-To ensure your shop functions correctly, you need to set up several
-environment variables. These are crucial for connecting to Google Sheets,
-Google Drive, and Resend for email notifications.
+console.log("📚 Aachen Studio Shop - Environment Setup Guide")
+console.log("=".repeat(60))
+console.log("")
 
---------------------------------------------------------------------------------
-1. Google Sheet Setup (for Products and Orders)
---------------------------------------------------------------------------------
+console.log("This guide will help you configure the necessary environment variables for your shop application.")
+console.log("These variables are crucial for connecting to Google Sheets, Google Drive, and Resend for emails.")
+console.log("")
 
-This template uses Google Sheets as a simple database for products and orders.
+console.log("--- 1. Google Sheets Setup (for Products and Orders) ---")
+console.log("-------------------------------------------------------")
+console.log("a) Create a new Google Sheet:")
+console.log("   - Go to Google Sheets (sheets.new)")
+console.log("   - Create two sheets/tabs named 'Products' and 'Orders'.")
+console.log("   - For 'Products' sheet, set up headers in the first row:")
+console.log(
+  "     ID, Name, Price, Image, Images (JSON), Description, Detailed Description, Features (JSON), Specifications (JSON), Materials (JSON), Care Instructions (JSON), Sizes (JSON), Colors (JSON), Stock",
+)
+console.log("   - For 'Orders' sheet, set up headers in the first row:")
+console.log(
+  "     Order ID, Date, Time, Customer Name, Email, Phone, Address, City, State, Zip Code, Country, Delivery Method, Total Items, Subtotal, Shipping Cost, Total Amount, Notes, Proof of Payment URL, Status",
+)
+console.log("b) Share your Google Sheet:")
+console.log("   - Click 'Share' in the top right corner.")
+console.log("   - Change 'General access' to 'Anyone with the link'.")
+console.log("   - Set permission to 'Editor'.")
+console.log("c) Get your Google Sheet ID:")
+console.log("   - The ID is in the URL: https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_HERE/edit")
+console.log("   - Copy the part after '/d/' and before '/edit'.")
+console.log("d) Set the environment variable:")
+console.log("   GOOGLE_SHEET_ID=your_sheet_id_here")
+console.log("")
 
-Steps:
-  a. Create a new Google Sheet: Go to Google Sheets (sheets.new) and create a new spreadsheet.
-  b. Name your sheets:
-     - Rename the first sheet to "Products".
-     - Create a second sheet and name it "Orders".
-  c. Set up "Products" sheet headers (Row 1):
-     - A1: id
-     - B1: name
-     - C1: description
-     - D1: price
-     - E1: image (URL to product image)
-     - F1: stock
-     - G1: images (JSON array of image URLs, e.g., ["url1", "url2"])
-     - H1: specifications (JSON string, e.g., {"sizes": ["S", "M"], "colors": ["Red", "Blue"]})
-  d. Set up "Orders" sheet headers (Row 1):
-     - A1: orderId
-     - B1: timestamp
-     - C1: customerName
-     - D1: email
-     - E1: phone
-     - F1: address
-     - G1: city
-     - H1: state
-     - I1: zipCode
-     - J1: country
-     - K1: deliveryMethod
-     - L1: totalItems
-     - M1: subtotal
-     - N1: shippingCost
-     - O1: totalAmount
-     - P1: notes
-     - Q1: proofOfPaymentLink
-     - R1: status
-     - S1: itemsSummary
-  e. Populate "Products" sheet: Add some dummy product data following the headers.
-  f. Get your Google Sheet ID: The ID is part of the URL.
-     Example: https://docs.google.com/spreadsheets/d/<YOUR_SHEET_ID_HERE>/edit
-     Copy this ID.
-
---------------------------------------------------------------------------------
-2. Google Service Account Setup (for API Access)
---------------------------------------------------------------------------------
-
-To allow your application to read/write to Google Sheets and upload to Google Drive,
-you need a Google Service Account.
-
-Steps:
-  a. Go to Google Cloud Console: console.cloud.google.com
-  b. Create a new project (if you don't have one) or select an existing one.
-  c. Enable APIs:
-     - In the search bar, search for "Google Sheets API" and enable it.
-     - Search for "Google Drive API" and enable it.
-  d. Create Service Account Credentials:
-     - Navigate to "APIs & Services" > "Credentials".
-     - Click "CREATE CREDENTIALS" > "Service Account".
-     - Follow the steps to create a new service account.
-     - Grant it the "Editor" role (or more specific roles like "Google Sheets Editor" and "Google Drive Editor" for production).
-     - In step 2, click "CREATE KEY" and choose "JSON". This will download a JSON file.
-       SAVE THIS FILE SECURELY.
-  e. Extract credentials from JSON file:
-     - Open the downloaded JSON file.
-     - Copy the 'client_email' value. This will be your GOOGLE_SERVICE_ACCOUNT_EMAIL.
-     - Copy the 'private_key' value. This will be your GOOGLE_PRIVATE_KEY.
-       (Note: The private key will contain "\\n" characters. You might need to replace them with actual newlines if you're pasting into some environments, but Vercel usually handles this automatically.)
-  f. Share your Google Sheet with the Service Account:
-     - Go back to your Google Sheet.
-     - Click the "Share" button.
-     - Paste the 'client_email' (from step 2.e) into the "Add people and groups" field.
-     - Grant it "Editor" access.
-
---------------------------------------------------------------------------------
-3. Google Drive Folder Setup (for Proof of Payment Uploads)
---------------------------------------------------------------------------------
-
-This template uploads proof of payment images/PDFs to a specific Google Drive folder.
-
-Steps:
-  a. Create a new folder in Google Drive: Go to drive.google.com and create a new folder.
-     Name it something like "Aachen Studio Payments".
-  b. Get the Folder ID: Open the folder. The ID is in the URL.
-     Example: https://drive.google.com/drive/folders/<YOUR_FOLDER_ID_HERE>
-     Copy this ID.
-  c. Share the folder with the Service Account:
-     - Right-click the folder, select "Share" > "Share".
-     - Paste the 'client_email' (from step 2.e) into the "Add people and groups" field.
-     - Grant it "Editor" access.
-
---------------------------------------------------------------------------------
-4. Resend API Key Setup (for Email Notifications)
---------------------------------------------------------------------------------
-
-This template uses Resend to send order confirmation emails.
-
-Steps:
-  a. Go to Resend: resend.com
-  b. Sign up or log in.
-  c. Add a domain: Follow their instructions to add and verify your sending domain
-     (e.g., yourdomain.com or a subdomain like mail.yourdomain.com).
-  d. Create an API Key: Go to "API Keys" and create a new API key.
-     Copy this key.
-
---------------------------------------------------------------------------------
-5. Set Environment Variables in Vercel
---------------------------------------------------------------------------------
-
-Finally, add these values as Environment Variables in your Vercel project settings.
-Go to your Vercel project dashboard -> "Settings" -> "Environment Variables".
-
-Add the following variables:
-
-  - GOOGLE_SHEET_ID: Your Google Sheet ID (from step 1.f)
-  - GOOGLE_SERVICE_ACCOUNT_EMAIL: Your service account client_email (from step 2.e)
-  - GOOGLE_PRIVATE_KEY: Your service account private_key (from step 2.e)
-  - GOOGLE_DRIVE_FOLDER_ID: Your Google Drive folder ID (from step 3.b)
-  - RESEND_API_KEY: Your Resend API Key (from step 4.d)
-  - NEXT_PUBLIC_VERCEL_URL: Set this to your Vercel deployment URL (e.g., https://your-project-name.vercel.app).
-    This is used for the link in the confirmation email. For local development, it will be http://localhost:3000.
-
-Make sure these are available for both "Development", "Preview", and "Production" environments.
-
-================================================================================
-Once all variables are set, redeploy your project.
-If you encounter issues, refer to the troubleshooting scripts in the 'scripts' folder.
-================================================================================
-`)
+console.log("--- 2. Google Service Account Setup (for API Access) ---")
+console.log("------------------------------------------------------")
+console.log("This account will allow your application to securely interact with Google Sheets and Drive.")
+console.log("a) Create a Google Cloud Project:")
+console.log("   - Go to Google Cloud Console (console.cloud.google.com).")
+console.log("   - Create a new project or select an existing one.")
+console.log("b) Enable APIs:")
+console.log("   - In the Google Cloud Console, navigate to 'APIs & Services' > 'Enabled APIs & Services'.")
+console.log("   - Enable 'Google Sheets API' and 'Google Drive API'.")
+console.log("c) Create a Service Account:")
+console.log("   - Go to 'IAM & Admin' > 'Service Accounts'.")
+console.log("   - Click '+ CREATE SERVICE ACCOUNT'.")
+console.log("   - Give it a name (e.g., 'aachen-studio-shop-service').")
+console.log(
+  "   - Grant it the 'Editor' role (or more granular roles like 'Google Sheets Editor' and 'Google Drive Editor').",
+)
+console.log("   - In step 2, click 'CREATE KEY' and select 'JSON'. This will download a JSON file.")
+console.log("d) Extract credentials from the JSON file:")
+console.log("   - Open the downloaded JSON file.")
+console.log("   - Copy the 'client_email' value. This is your GOOGLE_SERVICE_ACCOUNT_EMAIL.")
+console.log("   - Copy the 'private_key' value. This is your GOOGLE_PRIVATE_KEY.")
+console.log(
+  "     NOTE: The private key includes '\\n' characters. You must keep these as literal '\\n' in your environment variable.",
+)
+console.log("e) Set the environment variables:")
+console.log("   GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@your-project-id.iam.gserviceaccount.com")
+console.log(\"   GOOGLE_PRIVATE_KEY=\"-----BEGIN PRIVATE KEY-----\\nYOUR_PRIVATE_\

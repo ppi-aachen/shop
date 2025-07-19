@@ -9,21 +9,35 @@ export async function GET() {
     "GOOGLE_DRIVE_FOLDER_ID",
   ]
 
-  const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar])
+  const missingVars: string[] = []
+  const configuredVars: string[] = []
 
-  if (missingEnvVars.length > 0) {
+  for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+      missingVars.push(envVar)
+    } else {
+      configuredVars.push(envVar)
+    }
+  }
+
+  if (missingVars.length > 0) {
     return NextResponse.json(
       {
         status: "error",
-        message: "Missing environment variables",
-        missing: missingEnvVars,
+        message: "Missing required environment variables.",
+        missing: missingVars,
+        configured: configuredVars,
       },
       { status: 500 },
     )
   }
 
-  return NextResponse.json({
-    status: "success",
-    message: "All required environment variables are set.",
-  })
+  return NextResponse.json(
+    {
+      status: "success",
+      message: "All required environment variables are configured.",
+      configured: configuredVars,
+    },
+    { status: 200 },
+  )
 }

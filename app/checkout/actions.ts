@@ -1,23 +1,695 @@
 "use server"
 
 import { Resend } from "resend"
-import { generatePdfReceipt } from "@/lib/pdf-generator"
-import { uploadFileToGoogleDrive } from "@/lib/google-drive-upload"
-import { getProductsFromSheet, updateProductStockInSheet } from "@/lib/google-sheets-api"
-import { formatCurrency } from "@/lib/utils"
-import type { OrderItem } from "@/lib/types"
+import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload"
+import { updateStockInGoogleSheet } from "@/scripts/update-google-sheet"
 
+// Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-interface CheckoutFormState {
-  success: boolean
-  message: string
-  orderId?: string
+// Google Sheets configuration
+const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID
+const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
+const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
+
+interface CartItem {
+  id: number
+  name: string
+  price: number
+  quantity: number
+  description?: string
+  selectedSize?: string
+  selectedColor?: string
+  sizes?: string[]
+  colors?: string[]
 }
 
-export async function processCheckout(prevState: CheckoutFormState, formData: FormData): Promise<CheckoutFormState> {
+interface ProductData {
+  id: number
+  name: string
+  price: number
+  image: string
+  images?: string[]
+  description: string
+  detailedDescription?: string
+  features?: string[]
+  specifications?: { [key: string]: string }
+  materials?: string[]
+  careInstructions?: string[]
+  sizes?: string[]
+  colors?: string[]
+  stock: number
+}
+
+interface OrderData {
+  orderId: string
+  date: string
+  time: string
+  customerName: string
+  email: string
+  phone: string
+  address: string
+  city: string
+  state: string
+  zipCode: string
+  country: string
+  deliveryMethod: string
+  totalItems: number
+  subtotal: number
+  shippingCost: number
+  totalAmount: number
+  notes: string
+  proofOfPaymentUrl: string
+  status: string
+}
+
+interface OrderItemData {
+  orderId: string
+  itemId: number
+  productName: string
+  price: number
+  quantity: number
+  subtotal: number
+  description: string
+  selectedSize: string
+  selectedColor: string
+}
+
+async function getGoogleSheetsAuth() {
+  if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
+    throw new Error("Google Sheets credentials not configured")
+  }
+
+  const now = Math.floor(Date.now() / 1000)
+
+  const header = {
+    alg: "RS256",
+    typ: "JWT",
+  }
+
+  const payload = {
+    iss: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    scope: "https://www.googleapis.com/auth/spreadsheets",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now,
+  }
+
+  function base64UrlEncode(str: string): string {
+    return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+  }
+
+  const encodedHeader = base64UrlEncode(JSON.stringify(header))
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload))
+  const unsignedToken = `${encodedHeader}.${encodedPayload}`
+
+  const privateKeyPem = GOOGLE_PRIVATE_KEY
+  const privateKeyDer = pemToDer(privateKeyPem)
+
+  const cryptoKey = await crypto.subtle.importKey(
+    "pkcs8",
+    privateKeyDer,
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      hash: "SHA-256",
+    },
+    false,
+    ["sign"],
+  )
+
+  const encoder = new TextEncoder()
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", cryptoKey, encoder.encode(unsignedToken))
+
+  const encodedSignature = base64UrlEncode(String.fromCharCode(...new Uint8Array(signature)))
+
+  const jwt = `${unsignedToken}.${encodedSignature}`
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt,
+    }),
+  })
+
+  const authData = await response.json()
+
+  if (!response.ok) {
+    throw new Error(`Auth error: ${authData.error_description || authData.error}`)
+  }
+
+  return authData.access_token
+}
+
+function pemToDer(pem: string): ArrayBuffer {
+  const pemContents = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\s/g, "")
+
+  const binaryString = atob(pemContents)
+  const bytes = new Uint8Array(binaryString.length)
+
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i)
+  }
+
+  return bytes.buffer
+}
+
+export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
   try {
-    const customerName = formData.get("customerName") as string
+    const accessToken = await getGoogleSheetsAuth()
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products?valueRenderOption=FORMATTED_VALUE`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values as string[][]
+
+    if (!rows || rows.length < 2) {
+      console.warn("No product data found in Google Sheet or only headers present.")
+      return []
+    }
+
+    // Assuming the first row is the header
+    const headers = rows[0]
+    const products = rows.slice(1).map((row) => {
+      const product: any = {}
+      headers.forEach((header, index) => {
+        const value = row[index]
+        // Convert specific fields to numbers or arrays
+        if (header === "id" || header === "price" || header === "stock") {
+          product[header] = Number(value)
+        } else if (
+          header === "sizes" ||
+          header === "colors" ||
+          header === "features" ||
+          header === "materials" ||
+          header === "careInstructions"
+        ) {
+          product[header] = value ? value.split(",").map((s: string) => s.trim()) : []
+        } else if (header === "images") {
+          product[header] = value ? value.split(",").map((s: string) => s.trim()) : []
+        } else if (header === "specifications") {
+          try {
+            product[header] = value ? JSON.parse(value) : {}
+          } catch (e) {
+            console.error(`Error parsing specifications for product: ${product.name}`, e)
+            product[header] = {}
+          }
+        } else {
+          product[header] = value
+        }
+      })
+      return product as ProductData
+    })
+
+    return products
+  } catch (error) {
+    console.error("Error fetching products from Google Sheet:", error)
+    throw error
+  }
+}
+
+async function addOrderToGoogleSheet(orderData: OrderData) {
+  try {
+    const accessToken = await getGoogleSheetsAuth()
+
+    const values = [
+      [
+        orderData.orderId,
+        orderData.date,
+        orderData.time,
+        orderData.customerName,
+        orderData.email,
+        orderData.phone,
+        orderData.address,
+        orderData.city,
+        orderData.state,
+        orderData.zipCode,
+        orderData.country,
+        orderData.deliveryMethod,
+        orderData.totalItems,
+        orderData.subtotal,
+        orderData.shippingCost,
+        orderData.totalAmount,
+        orderData.notes,
+        orderData.proofOfPaymentUrl,
+        orderData.status,
+      ],
+    ]
+
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Orders:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          values,
+        }),
+      },
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error adding order to Google Sheet:", error)
+    throw error
+  }
+}
+
+async function addOrderItemsToGoogleSheet(orderItems: OrderItemData[]) {
+  try {
+    const accessToken = await getGoogleSheetsAuth()
+
+    const values = orderItems.map((item) => [
+      item.orderId,
+      item.itemId,
+      item.productName,
+      item.price,
+      item.quantity,
+      item.subtotal,
+      item.description,
+      item.selectedSize || "",
+      item.selectedColor || "",
+    ])
+
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Order_Items:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          values,
+        }),
+      },
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error adding order items to Google Sheet:", error)
+    throw error
+  }
+}
+
+async function sendCustomerConfirmationEmail(orderData: OrderData, orderItems: OrderItemData[]) {
+  try {
+    if (!process.env.RESEND_API_KEY || !process.env.RESEND_API_KEY.startsWith("re_")) {
+      console.log("Resend API key not configured, skipping customer email")
+      return { success: false, error: "Email service not configured" }
+    }
+
+    const itemsTable = orderItems
+      .map(
+        (item) => `
+        <tr>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${item.productName}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+            ${item.selectedSize ? `Size: ${item.selectedSize}` : ""}
+            ${item.selectedColor ? `${item.selectedSize ? ", " : ""}Color: ${item.selectedColor}` : ""}
+            ${!item.selectedSize && !item.selectedColor ? "-" : ""}
+          </td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">€${item.subtotal.toFixed(2)}</td>
+        </tr>
+      `,
+      )
+      .join("")
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Order Confirmation - ${orderData.orderId}</title>
+        </head>
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+         
+          <div style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color: white; padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+            <h1 style="margin: 0; font-size: 28px; font-weight: bold;">Aachen Studio</h1>
+            <p style="margin: 5px 0 0 0; opacity: 0.9;">by PPI Aachen</p>
+          </div>
+         
+          <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+           
+            <h2 style="color: #16a34a; margin-top: 0; font-size: 24px;">Order Confirmation</h2>
+           
+            <p style="font-size: 16px; margin-bottom: 25px;">Dear ${orderData.customerName},</p>
+           
+            <p style="font-size: 16px; margin-bottom: 25px;">
+              Thank you for your order! We have received your order and proof of payment.
+              We will process your order within 24 hours and keep you updated on the progress.
+            </p>
+           
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 25px 0;">
+              <h3 style="margin-top: 0; color: #1e293b; font-size: 18px;">Order Details</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; font-weight: 600;">Order ID:</td>
+                  <td style="padding: 8px 0;">${orderData.orderId}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: 600;">Date:</td>
+                  <td style="padding: 8px 0;">${orderData.date} at ${orderData.time}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: 600;">Delivery Method:</td>
+                  <td style="padding: 8px 0;">
+                    ${orderData.deliveryMethod === "pickup" ? "🏪 Pickup in Aachen" : "🚚 Delivery"}
+                  </td>
+                </tr>
+              </table>
+            </div>
+           
+            <h3 style="color: #1e293b; font-size: 18px; margin-top: 30px;">Items Ordered</h3>
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+              <thead>
+                <tr style="background: #f9fafb;">
+                  <th style="padding: 15px 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Product</th>
+                  <th style="padding: 15px 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Options</th>
+                  <th style="padding: 15px 12px; text-align: center; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Qty</th>
+                  <th style="padding: 15px 12px; text-align: right; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsTable}
+              </tbody>
+            </table>
+           
+            <div style="margin-top: 25px; padding: 20px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 5px 0; font-size: 16px;">Subtotal:</td>
+                  <td style="padding: 5px 0; text-align: right; font-size: 16px;">€${orderData.subtotal.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px 0; font-size: 16px;">${orderData.deliveryMethod === "pickup" ? "Pickup" : "Delivery"}:</td>
+                  <td style="padding: 5px 0; text-align: right; font-size: 16px;">€${orderData.shippingCost.toFixed(2)}</td>
+                </tr>
+                <tr style="border-top: 2px solid #16a34a;">
+                  <td style="padding: 15px 0 5px 0; font-size: 20px; font-weight: bold; color: #16a34a;">Total:</td>
+                  <td style="padding: 15px 0 5px 0; text-align: right; font-size: 20px; font-weight: bold; color: #16a34a;">€${orderData.totalAmount.toFixed(2)}</td>
+                </tr>
+              </table>
+            </div>
+           
+            ${
+              orderData.deliveryMethod === "pickup"
+                ? `
+              <div style="margin-top: 25px; padding: 20px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;">
+                <h4 style="margin-top: 0; color: #1e40af; font-size: 16px;">🏪 Pickup Information</h4>
+                <p style="margin-bottom: 0; color: #1e40af;">
+                  We will contact you within 24 hours to arrange the pickup location and time in Aachen.
+                  Please keep your phone available for our call.
+                </p>
+              </div>
+            `
+                : `
+              <div style="margin-top: 25px; padding: 20px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;">
+                <h4 style="margin-top: 0; color: #1e40af; font-size: 16px;">🚚 Delivery Information</h4>
+                <p style="margin-bottom: 0; color: #1e40af;">
+                  Your order will be shipped to:<br>
+                  <strong>${orderData.address}</strong><br>
+                  ${orderData.city}, ${orderData.state} ${orderData.zipCode}<br>
+                  ${orderData.country}</strong><br><br>
+                  You will receive tracking information once your order has been shipped.
+                </p>
+              </div>
+            `
+            }
+           
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center;">
+              <p style="margin-bottom: 10px; color: #6b7280;">Questions about your order?</p>
+              <p style="margin: 0;">
+                <strong>Email:</strong> <a href="mailto:funding@ppiaachen.de" style="color: #16a34a; text-decoration: none;">funding@ppiaachen.de</a><br>
+                <strong>Instagram:</strong> <a href="https://instagram.com/aachen.studio" style="color: #16a34a; text-decoration: none;">@aachen.studio</a>
+              </p>
+            </div>
+           
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280;">
+              <p style="margin: 0; font-size: 14px;">
+                Thank you for supporting Indonesian culture through Aachen Studio!<br>
+                <strong>PPI Aachen</strong> - Connecting Indonesian heritage with modern style
+              </p>
+            </div>
+           
+          </div>
+        </body>
+      </html>
+    `
+
+    const { data, error } = await resend.emails.send({
+      from: "Aachen Studio <orders@ppiaachen.de>",
+      to: [orderData.email],
+      subject: `Order Confirmation - ${orderData.orderId} | Aachen Studio`,
+      html: emailHtml,
+    })
+
+    if (error) {
+      console.error("Error sending customer email:", error)
+      return { success: false, error: error.message }
+    }
+
+    console.log("Customer confirmation email sent successfully:", data)
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error sending customer email:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
+  }
+}
+
+async function sendBusinessNotificationEmail(orderData: OrderData, orderItems: OrderItemData[]) {
+  try {
+    if (!process.env.RESEND_API_KEY || !process.env.RESEND_API_KEY.startsWith("re_")) {
+      console.log("Resend API key not configured, skipping business notification")
+      return { success: false, error: "Email service not configured" }
+    }
+
+    const itemsTable = orderItems
+      .map(
+        (item) => `
+        <tr>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${item.productName}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+            ${item.selectedSize ? `Size: ${item.selectedSize}` : ""}
+            ${item.selectedColor ? `${item.selectedSize ? ", " : ""}Color: ${item.selectedColor}` : ""}
+            ${!item.selectedSize && !item.selectedColor ? "-" : ""}
+          </td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">€${item.subtotal.toFixed(2)}</td>
+        </tr>
+      `,
+      )
+      .join("")
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>New Order - ${orderData.orderId}</title>
+        </head>
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px;">
+         
+          <div style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; padding: 25px; border-radius: 12px 12px 0 0; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: bold;">🚨 NEW ORDER RECEIVED</h1>
+            <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 18px;">${orderData.orderId}</p>
+          </div>
+         
+          <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+           
+            <div style="background: #fef2f2; border: 2px solid #fecaca; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+              <h3 style="margin-top: 0; color: #dc2626; font-size: 18px;">⚡ ACTION REQUIRED</h3>
+              <p style="margin-bottom: 0; color: #dc2626; font-weight: 600;">
+                Please review the proof of payment and process this order within 24 hours.
+              </p>
+            </div>
+           
+            <h3 style="color: #1e293b; font-size: 18px; margin-top: 0;">👤 Customer Information</h3>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; font-weight: 600; width: 140px;">Name:</td>
+                  <td style="padding: 8px 0;">${orderData.customerName}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: 600;">Email:</td>
+                  <td style="padding: 8px 0;"><a href="mailto:${orderData.email}" style="color: #16a34a;">${orderData.email}</a></td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: 600;">Phone:</td>
+                  <td style="padding: 8px 0;"><a href="tel:${orderData.phone}" style="color: #16a34a;">${orderData.phone}</a></td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: 600;">Delivery:</td>
+                  <td style="padding: 8px 0;">
+                    <span style="background: ${orderData.deliveryMethod === "pickup" ? "#dcfce7" : "#dbeafe"}; color: ${orderData.deliveryMethod === "pickup" ? "#166534" : "#1e40af"}; padding: 4px 8px; border-radius: 4px; font-weight: 600;">
+                      ${orderData.deliveryMethod === "pickup" ? "🏪 PICKUP" : "🚚 DELIVERY"}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </div>
+           
+            ${
+              orderData.deliveryMethod === "delivery"
+                ? `
+              <h3 style="color: #1e293b; font-size: 18px;">📍 Delivery Address</h3>
+              <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                <p style="margin: 0; font-size: 16px; line-height: 1.5;">
+                  <strong>${orderData.address}</strong><br>
+                  ${orderData.city}, ${orderData.state} ${orderData.zipCode}<br>
+                  ${orderData.country}
+                </p>
+              </div>
+            `
+                : `
+              <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                <p style="margin: 0; color: #166534; font-weight: 600;">
+                  📞 Contact customer to arrange pickup location and time in Aachen
+                </p>
+              </div>
+            `
+            }
+           
+            <h3 style="color: #1e293b; font-size: 18px;">📦 Order Details</h3>
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin-bottom: 25px;">
+              <thead>
+                <tr style="background: #f9fafb;">
+                  <th style="padding: 15px 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Product</th>
+                  <th style="padding: 15px 12px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Options</th>
+                  <th style="padding: 15px 12px; text-align: center; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Qty</th>
+                  <th style="padding: 15px 12px; text-align: right; font-weight: 600; border-bottom: 1px solid #e5e7eb;">Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsTable}
+              </tbody>
+            </table>
+           
+            <div style="background: #fef2f2; border: 2px solid #fecaca; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+              <h4 style="margin-top: 0; color: #dc2626; font-size: 16px;">💰 Payment Information</h4>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 5px 0; font-size: 16px;">Subtotal:</td>
+                  <td style="padding: 5px 0; text-align: right; font-size: 16px;">€${orderData.subtotal.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px 0; font-size: 16px;">Shipping:</td>
+                  <td style="padding: 5px 0; text-align: right; font-size: 16px;">€${orderData.shippingCost.toFixed(2)}</td>
+                </tr>
+                <tr style="border-top: 2px solid #dc2626;">
+                  <td style="padding: 15px 0 5px 0; font-size: 20px; font-weight: bold; color: #dc2626;">TOTAL AMOUNT:</td>
+                  <td style="padding: 15px 0 5px 0; text-align: right; font-size: 20px; font-weight: bold; color: #dc2626;">€${orderData.totalAmount.toFixed(2)}</td>
+                </tr>
+              </table>
+             
+              <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #fecaca;">
+                <p style="margin: 0; font-weight: 600; color: #dc2626;">
+                  📎 <a href="${orderData.proofOfPaymentUrl}" style="color: #dc2626; text-decoration: underline;" target="_blank">
+                    VIEW PROOF OF PAYMENT
+                  </a>
+                </p>
+              </div>
+            </div>
+           
+            ${
+              orderData.notes
+                ? `
+              <div style="background: #fffbeb; border: 1px solid #fde047; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                <h4 style="margin-top: 0; color: #a16207; font-size: 16px;">📝 Customer Notes</h4>
+                <p style="margin-bottom: 0; color: #a16207; font-style: italic;">
+                  "${orderData.notes}"
+                </p>
+              </div>
+            `
+                : ""
+            }
+           
+            <div style="background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; padding: 20px;">
+              <h4 style="margin-top: 0; color: #0369a1; font-size: 16px;">🚀 Quick Actions</h4>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <a href="mailto:${orderData.email}?subject=Order Update - ${orderData.orderId}"
+                   style="background: #16a34a; color: white; padding: 10px 15px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
+                  📧 Email Customer
+                </a>
+                <a href="tel:${orderData.phone}"
+                   style="background: #0ea5e9; color: white; padding: 10px 15px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
+                  📞 Call Customer
+                </a>
+                <a href="${orderData.proofOfPaymentUrl}" target="_blank"
+                   style="background: #dc2626; color: white; padding: 10px 15px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">
+                  💰 View Payment
+                </a>
+              </div>
+            </div>
+           
+          </div>
+        </body>
+      </html>
+    `
+
+    const { data, error } = await resend.emails.send({
+      from: "Aachen Studio Orders <orders@ppiaachen.de>",
+      to: ["funding@ppiaachen.de"],
+      subject: `🚨 NEW ORDER: ${orderData.orderId} - €${orderData.totalAmount.toFixed(2)} | Action Required`,
+      html: emailHtml,
+    })
+
+    if (error) {
+      console.error("Error sending business notification:", error)
+      return { success: false, error: error.message }
+    }
+
+    console.log("Business notification email sent successfully:", data)
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error sending business notification:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
+  }
+}
+
+export async function submitOrder(formData: FormData) {
+  try {
+    const cartItems = JSON.parse(formData.get("cartItems") as string) as CartItem[]
+    const deliveryMethod = formData.get("deliveryMethod") as string
+    const subtotal = Number.parseFloat(formData.get("subtotal") as string)
+    const shippingCost = Number.parseFloat(formData.get("shippingCost") as string)
+    const totalAmount = Number.parseFloat(formData.get("totalAmount") as string)
+    const itemCount = Number.parseInt(formData.get("itemCount") as string)
+    const firstName = formData.get("firstName") as string
+    const lastName = formData.get("lastName") as string
     const email = formData.get("email") as string
     const phone = formData.get("phone") as string
     const address = formData.get("address") as string
@@ -25,34 +697,60 @@ export async function processCheckout(prevState: CheckoutFormState, formData: Fo
     const state = formData.get("state") as string
     const zipCode = formData.get("zipCode") as string
     const country = formData.get("country") as string
-    const deliveryMethod = formData.get("deliveryMethod") as string
-    const notes = formData.get("notes") as string
-    const cartItemsJson = formData.get("cartItems") as string
-    const proofOfPayment = formData.get("proofOfPayment") as File
+    const notes = (formData.get("notes") as string) || ""
+    const proofFile = formData.get("proofOfPayment") as File
 
-    if (!proofOfPayment || proofOfPayment.size === 0) {
-      return { success: false, message: "Proof of payment is required." }
+    // Validate cart items for required options
+    const validationErrors: string[] = []
+    cartItems.forEach((item, index) => {
+      if (item.sizes && item.sizes.length > 0 && !item.selectedSize) {
+        validationErrors.push(`Item ${index + 1} (${item.name}): Size is required`)
+      }
+      if (item.colors && item.colors.length > 0 && !item.selectedColor) {
+        validationErrors.push(`Item ${index + 1} (${item.name}): Color is required`)
+      }
+    })
+
+    if (validationErrors.length > 0) {
+      return {
+        success: false,
+        error: "Required options missing: " + validationErrors.join(", "),
+      }
     }
 
-    const cartItems: OrderItem[] = JSON.parse(cartItemsJson)
+    const now = new Date()
+    // Generate order ID with format: PU/DL + DDMMYY + random 3-char alphanumeric
+    const deliveryPrefix = deliveryMethod === "pickup" ? "PU" : "DL"
+    const dateStr = now
+      .toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+      })
+      .replace(/\//g, "")
+    const randomSuffix = Math.random().toString(36).substr(2, 3).toUpperCase()
+    const orderId = `${deliveryPrefix}${dateStr}-${randomSuffix}`
 
-    if (!cartItems || cartItems.length === 0) {
-      return { success: false, message: "Cart is empty." }
+    const customerName = `${firstName} ${lastName}`
+
+    // Upload proof of payment to Google Drive
+    console.log("Uploading proof of payment to Google Drive...")
+    const uploadResult = await uploadProofOfPaymentToDrive(proofFile, orderId, customerName)
+
+    if (!uploadResult.success) {
+      console.error("Failed to upload proof of payment:", uploadResult.error)
+      throw new Error(`Failed to upload proof of payment: ${uploadResult.error}`)
     }
 
-    const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-    const shippingCost = deliveryMethod === "delivery" ? 5.0 : 0.0 // Example: flat shipping fee
-    const totalAmount = subtotal + shippingCost
-    const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0)
+    console.log("Proof of payment uploaded successfully:", uploadResult.webViewLink)
 
-    // Generate a unique order ID
-    const orderIdPrefix = deliveryMethod === "pickup" ? "PU" : "DL"
-    const orderId = `${orderIdPrefix}-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`
+    const date = now.toLocaleDateString("en-GB")
+    const time = now.toLocaleTimeString("en-GB", { hour12: false })
 
-    const orderData = {
+    const orderData: OrderData = {
       orderId,
-      date: new Date().toLocaleDateString("en-GB"),
-      time: new Date().toLocaleTimeString("en-GB"),
+      date,
+      time,
       customerName,
       email,
       phone,
@@ -62,126 +760,67 @@ export async function processCheckout(prevState: CheckoutFormState, formData: Fo
       zipCode,
       country,
       deliveryMethod,
-      totalItems,
+      totalItems: itemCount,
       subtotal,
       shippingCost,
       totalAmount,
       notes,
+      proofOfPaymentUrl: uploadResult.webViewLink || "",
+      status: "Pending Review",
     }
 
-    // 1. Upload proof of payment to Google Drive
-    const proofOfPaymentBuffer = Buffer.from(await proofOfPayment.arrayBuffer())
-    const proofOfPaymentFileName = `${orderId}_proof_of_payment_${proofOfPayment.name}`
-    const proofOfPaymentMimeType = proofOfPayment.type || "application/octet-stream"
-
-    const driveFileLink = await uploadFileToGoogleDrive(
-      proofOfPaymentBuffer,
-      proofOfPaymentFileName,
-      proofOfPaymentMimeType,
-    )
-
-    if (!driveFileLink) {
-      return { success: false, message: "Failed to upload proof of payment." }
-    }
-
-    // 2. Update Google Sheet (reduce stock and add order details)
-    const products = await getProductsFromSheet()
-    const updatedProducts = products.map((product) => {
-      const cartItem = cartItems.find((item) => item.id === product.id)
-      if (cartItem) {
-        return {
-          ...product,
-          stock: Math.max(0, product.stock - cartItem.quantity), // Ensure stock doesn't go below 0
-        }
-      }
-      return product
-    })
-
-    await updateProductStockInSheet(updatedProducts)
-
-    // Prepare order details for Google Sheet
-    const orderDetailsRow = [
+    const orderItemsData: OrderItemData[] = cartItems.map((item) => ({
       orderId,
-      new Date().toISOString(),
-      customerName,
-      email,
-      phone,
-      address,
-      city,
-      state,
-      zipCode,
-      country,
-      deliveryMethod,
-      totalItems.toString(),
-      subtotal.toFixed(2),
-      shippingCost.toFixed(2),
-      totalAmount.toFixed(2),
-      notes,
-      driveFileLink, // Link to proof of payment
-      "Pending Review", // Initial status
-      cartItems
-        .map((item) => `${item.name} (x${item.quantity})`)
-        .join("; "), // Simple list of items
-    ]
+      itemId: item.id,
+      productName: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      subtotal: item.price * item.quantity,
+      description: item.description || "",
+      selectedSize: item.selectedSize || "",
+      selectedColor: item.selectedColor || "",
+    }))
 
-    // Assuming you have a function to append a row to the sheet
-    // This is a placeholder, you'll need to implement appendOrderToSheet in google-sheets-api.ts
-    await updateProductStockInSheet(updatedProducts, orderDetailsRow) // Re-using updateProductStockInSheet for simplicity, but ideally a separate appendOrderToSheet
+    await Promise.all([addOrderToGoogleSheet(orderData), addOrderItemsToGoogleSheet(orderItemsData)])
 
-    // 3. Generate PDF receipt
-    const pdfHtml = generatePdfReceipt(orderData, cartItems)
+    // Update stock in Google Sheet
+    try {
+      await updateStockInGoogleSheet(orderItemsData)
+    } catch (stockError) {
+      console.error("Error updating stock in Google Sheet:", stockError)
+      return { success: false, error: "Failed to update stock" }
+    }
 
-    // 4. Send confirmation email to customer
-    await resend.emails.send({
-      from: "Aachen Studio <noreply@ppiaachen.de>", // Replace with your verified domain
-      to: [email],
-      subject: `Order Confirmation #${orderId} - Aachen Studio`,
-      html: `
-        <p>Dear ${customerName},</p>
-        <p>Thank you for your order from Aachen Studio! Your order ID is <strong>${orderId}</strong>.</p>
-        <p>We have received your proof of payment and your order is now pending review. We will notify you once it has been processed.</p>
-        <p><strong>Order Summary:</strong></p>
-        <ul>
-          ${cartItems
-            .map((item) => `<li>${item.name} (x${item.quantity}) - ${formatCurrency(item.price * item.quantity)}</li>`)
-            .join("")}
-        </ul>
-        <p><strong>Total Amount:</strong> ${formatCurrency(totalAmount)}</p>
-        <p>You can view your full receipt <a href="${process.env.NEXT_PUBLIC_VERCEL_URL}/success?orderId=${orderId}">here</a>.</p>
-        <p>If you have any questions, please contact us at funding@ppiaachen.de.</p>
-        <p>Best regards,<br/>Aachen Studio by PPI Aachen</p>
-      `,
+    const emailResults = await Promise.allSettled([
+      sendCustomerConfirmationEmail(orderData, orderItemsData),
+      sendBusinessNotificationEmail(orderData, orderItemsData),
+    ])
+
+    let emailsFailed = false
+    emailResults.forEach((result, index) => {
+      const emailType = index === 0 ? "Customer" : "Business"
+      if (result.status === "fulfilled" && result.value.success) {
+        console.log(`${emailType} email sent successfully`)
+      } else {
+        console.error(`${emailType} email failed:`, result.status === "fulfilled" ? result.value.error : result.reason)
+        emailsFailed = true
+      }
     })
 
-    // 5. Send notification email to admin (optional)
-    await resend.emails.send({
-      from: "Aachen Studio <noreply@ppiaachen.de>",
-      to: ["funding@ppiaachen.de"], // Your admin email
-      subject: `New Order #${orderId} - Aachen Studio`,
-      html: `
-        <p>A new order has been placed:</p>
-        <ul>
-          <li><strong>Order ID:</strong> ${orderId}</li>
-          <li><strong>Customer Name:</strong> ${customerName}</li>
-          <li><strong>Email:</strong> ${email}</li>
-          <li><strong>Phone:</strong> ${phone}</li>
-          <li><strong>Delivery Method:</strong> ${deliveryMethod}</li>
-          <li><strong>Total Amount:</strong> ${formatCurrency(totalAmount)}</li>
-          <li><strong>Proof of Payment:</strong> <a href="${driveFileLink}">View Proof</a></li>
-        </ul>
-        <p><strong>Items:</strong></p>
-        <ul>
-          ${cartItems
-            .map((item) => `<li>${item.name} (x${item.quantity}) - ${formatCurrency(item.price * item.quantity)}</li>`)
-            .join("")}
-        </ul>
-        <p>Please review the order and proof of payment.</p>
-      `,
-    })
+    if (emailsFailed) {
+      console.log("📧 Email service unavailable - logging order for manual processing")
+      const { logOrderForManualProcessing, generatePlainTextCustomerEmail } = await import(
+        "@/lib/fallback-notifications"
+      )
+      logOrderForManualProcessing(orderData, orderItemsData)
+      const plainTextEmail = generatePlainTextCustomerEmail(orderData, orderItemsData)
+      console.log("📧 CUSTOMER EMAIL TEMPLATE (copy and send manually):")
+      console.log(plainTextEmail)
+    }
 
-    return { success: true, message: "Order placed successfully!", orderId }
+    return { success: true, orderId, emailsSent: !emailsFailed, orderData, orderItemsData }
   } catch (error) {
-    console.error("Checkout error:", error)
-    return { success: false, message: `Failed to place order: ${error.message}` }
+    console.error("Error submitting order:", error)
+    return { success: false, error: "Failed to submit order" }
   }
 }

@@ -1,77 +1,83 @@
-const { google } = require("googleapis")
-const readline = require("readline")
+// Google Drive Integration Troubleshooting Guide
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-})
+console.log("🔧 GOOGLE DRIVE TROUBLESHOOTING")
+console.log("=".repeat(35))
+console.log("")
 
-async function runTroubleshooting() {
-  console.log('--- Google Drive API Troubleshooting ---');
-  console.log('This script will help you verify your Google Drive setup.');
+console.log("❌ COMMON ERRORS AND SOLUTIONS:")
+console.log("")
 
-  const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
-  const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID;
+console.log("1. 'Google Drive API has not been used'")
+console.log("   SOLUTION:")
+console.log("   a) Go to https://console.cloud.google.com")
+console.log("   b) Select your project")
+console.log("   c) APIs & Services → Library")
+console.log("   d) Search 'Google Drive API'")
+console.log("   e) Click 'Enable'")
+console.log("")
 
-  if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY || !GOOGLE_DRIVE_FOLDER_ID) {
-    console.error('\nERROR: Missing one or more required environment variables:');
-    if (!GOOGLE_SERVICE_ACCOUNT_EMAIL) console.error(' - GOOGLE_SERVICE_ACCOUNT_EMAIL');
-    if (!GOOGLE_PRIVATE_KEY) console.error(' - GOOGLE_PRIVATE_KEY');
-    if (!GOOGLE_DRIVE_FOLDER_ID) console.error(' - GOOGLE_DRIVE_FOLDER_ID');
-    console.log('\nPlease ensure these are set in your .env.local file or Vercel project settings.');
-    rl.close();
-    return;
-  }
+console.log("2. 'Insufficient permissions'")
+console.log("   SOLUTION:")
+console.log("   a) Your service account needs Drive access")
+console.log("   b) The same account used for Sheets should work")
+console.log("   c) Verify GOOGLE_SERVICE_ACCOUNT_EMAIL is correct")
+console.log("")
 
-  console('\nAttempting to authenticate with Google...');
-  let auth;
-  try {
-    auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        private_key: GOOGLE_PRIVATE_KEY,
-      },
-      scopes: ['https://www.googleapis.com/auth/drive'],
-    });
-    await auth.getClient(); // Test authentication
-    console.log('✅ Authentication successful.');
-  } catch (error) {
-    console.error('❌ Authentication failed. Check GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY.');
-    console.error('Error details:', error.message);
-    rl.close();
-    return;
-  }
+console.log("3. 'Upload failed' or 'Auth error'")
+console.log("   SOLUTION:")
+console.log("   a) Check GOOGLE_PRIVATE_KEY format")
+console.log("   b) Ensure \\n line breaks are preserved")
+console.log("   c) Verify service account JSON is valid")
+console.log("")
 
-  const drive = google.drive({ version: 'v3', auth });
+console.log("4. 'Folder creation failed'")
+console.log("   SOLUTION:")
+console.log("   a) Service account needs Drive file creation permission")
+console.log("   b) Check if folder already exists manually")
+console.log("   c) Try creating folder manually first")
+console.log("")
 
-  console('\nChecking Google Drive folder access...');
-  try {
-    const res = await drive.files.get({
-      fileId: GOOGLE_DRIVE_FOLDER_ID,
-      fields: 'id, name, mimeType, permissions',
-    });
+console.log("🔍 DEBUGGING STEPS:")
+console.log("=".repeat(18))
+console.log("1. Check browser console for detailed error messages")
+console.log("2. Verify Google Drive API is enabled")
+console.log("3. Test with a small image file first")
+console.log("4. Check Google Drive for folder creation")
+console.log("5. Verify service account permissions")
+console.log("")
 
-    const folder = res.data;
-    console(`✅ Found folder: "${folder.name}" (ID: ${folder.id})`);
-    if (folder.mimeType !== 'application/vnd.google-apps.folder') {
-      console.warn('⚠️ Warning: The provided ID does not seem to belong to a folder. It might be a file ID.');
-    }
+console.log("📂 MANUAL FOLDER SETUP (if needed):")
+console.log("=".repeat(35))
+console.log("1. Go to https://drive.google.com")
+console.log("2. Create folder: 'Aachen Studio - Proof of Payments'")
+console.log("3. Share folder with your service account email")
+console.log("4. Give 'Editor' permissions")
+console.log("")
 
-    // Check permissions
-    const permissions = folder.permissions;
-    const serviceAccountPermission = permissions?.find(p => p.emailAddress === GOOGLE_SERVICE_ACCOUNT_EMAIL);
+console.log("✅ VERIFICATION CHECKLIST:")
+console.log("=".repeat(25))
+console.log("□ Google Drive API enabled in Cloud Console")
+console.log("□ Same service account as Google Sheets")
+console.log("□ GOOGLE_PRIVATE_KEY has proper \\n formatting")
+console.log("□ Service account email is correct")
+console.log("□ Test order completes successfully")
+console.log("□ File appears in Google Drive folder")
+console.log("□ Link works in Google Sheets")
+console.log("")
 
-    if (serviceAccountPermission) {
-      console(`✅ Service account has permission: "${serviceAccountPermission.role}"`);
-      if (serviceAccountPermission.role !== 'writer' && serviceAccountPermission.role !== 'owner') {
-        console.warn('⚠️ Warning: Service account might not have write access. Ensure it has "Editor" role on the folder.');
-      }
-    } else {
-      console('❌ Service account does NOT have explicit permissions on this folder.');
-      console('Please ensure you have shared the Google Drive folder with your service account email:');
-      console(`   ${GOOGLE_SERVICE_ACCOUNT_EMAIL}`);
-      console('   And granted it "Editor" access.');
-    }
+console.log("🆘 FALLBACK OPTION:")
+console.log("=".repeat(17))
+console.log("If Google Drive upload fails:")
+console.log("• Order will still be saved to Google Sheets")
+console.log("• Email notifications will still work")
+console.log("• Proof of payment URL will show error message")
+console.log("• You can manually handle the payment proof")
+console.log("")
 
-    console(\'\nAttempting to create a test\
+console.log("📞 SUPPORT:")
+console.log("=".repeat(10))
+console.log("If issues persist:")
+console.log("1. Check Google Cloud Console logs")
+console.log("2. Verify all APIs are enabled")
+console.log("3. Test service account permissions")
+console.log("4. Contact support with specific error messages")

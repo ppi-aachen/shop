@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { OTPInput, Slot, type OTPInputProps } from "input-otp"
-import { MinusIcon } from "lucide-react"
+import { Minus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -31,7 +31,7 @@ const InputOTPSlot = React.forwardRef<
     ref={ref}
     index={index}
     className={cn(
-      "relative flex h-9 w-9 items-center justify-center border border-input text-sm shadow-sm transition-all focus-within:z-10 group-data-[focus]:border-accent-foreground group-data-[active]:border-accent-foreground",
+      "relative flex h-9 w-9 items-center justify-center border border-input text-sm shadow-sm transition-all focus:z-10 group-data-[focused]:group-data-[selected]:border-accent-foreground group-data-[active]:group-data-[selected]:border-accent-foreground",
       className,
     )}
     {...props}
@@ -40,9 +40,9 @@ const InputOTPSlot = React.forwardRef<
 InputOTPSlot.displayName = "InputOTPSlot"
 
 const InputOTPSeparator = React.forwardRef<React.ElementRef<"div">, React.HTMLAttributes<HTMLDivElement>>(
-  ({ ...props }, ref) => (
-    <div ref={ref} role="separator" {...props}>
-      <MinusIcon />
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn("flex items-center", className)} {...props}>
+      <Minus />
     </div>
   ),
 )

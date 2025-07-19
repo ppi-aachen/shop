@@ -1,157 +1,126 @@
 "use client"
 
-import * as React from "react"
-import Image from "next/image"
-import { cn } from "@/lib/utils"
+import { useState } from "react"
+import { ChevronLeft, ChevronRight, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "lucide-react"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 
 interface ImageGalleryProps {
   images: string[]
-  alt: string
+  productName: string
+  className?: string
 }
 
-export function ImageGallery({ images, alt }: ImageGalleryProps) {
-  const [currentImageIndex, setCurrentImageIndex] = React.useState(0)
-  const [isViewerOpen, setIsViewerOpen] = React.useState(false)
+export function ImageGallery({ images, productName, className }: ImageGalleryProps) {
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
+  const [imageErrors, setImageErrors] = useState<{ [key: number]: boolean }>({})
 
-  const handleThumbnailClick = (index: number) => {
-    setCurrentImageIndex(index)
+  const handleImageError = (index: number) => {
+    console.log(`Image failed to load at index ${index}:`, images[index]);
+    console.log(`Image type: ${images[index]?.includes('drive.google.com') ? 'Google Drive' : 'Other'}`);
+    console.log(`Full error details for image ${index}:`, images[index]);
+    setImageErrors((prev) => ({ ...prev, [index]: true }))
   }
 
-  const handlePrevClick = () => {
-    setCurrentImageIndex((prevIndex) => (prevIndex === 0 ? images.length - 1 : prevIndex - 1))
+  const goToPrevious = () => {
+    setSelectedImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1))
   }
 
-  const handleNextClick = () => {
-    setCurrentImageIndex((prevIndex) => (prevIndex === images.length - 1 ? 0 : prevIndex + 1))
+  const goToNext = () => {
+    setSelectedImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1))
   }
 
-  const openViewer = (index: number) => {
-    setCurrentImageIndex(index)
-    setIsViewerOpen(true)
-  }
+  const currentImage = images[selectedImageIndex]
+  const hasMultipleImages = images.length > 1
 
-  const closeViewer = () => {
-    setIsViewerOpen(false)
-  }
-
-  React.useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!isViewerOpen) return
-      if (event.key === "ArrowLeft") {
-        handlePrevClick()
-      } else if (event.key === "ArrowRight") {
-        handleNextClick()
-      } else if (event.key === "Escape") {
-        closeViewer()
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [isViewerOpen])
+  // Check if the current image is a Google Drive URL
+  const isGoogleDriveImage = currentImage && currentImage.includes('drive.google.com')
 
   return (
-    <div className="grid gap-4">
-      <div className="relative overflow-hidden rounded-lg">
-        <Image
-          src={images[currentImageIndex] || "/placeholder.svg"}
-          alt={alt}
-          width={600}
-          height={400}
-          className="w-full h-auto object-cover aspect-[3/2] cursor-pointer"
-          onClick={() => openViewer(currentImageIndex)}
-          priority
-        />
-        {images.length > 1 && (
+    <div className={cn("space-y-4", className)}>
+      {/* Main Image Display */}
+      <div className="relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg overflow-hidden group">
+        {!imageErrors[selectedImageIndex] ? (
+          <img
+            src={currentImage || "/placeholder.svg"}
+            alt={`${productName} - Image ${selectedImageIndex + 1}`}
+            className="w-full h-full object-contain"
+            onError={() => handleImageError(selectedImageIndex)}
+            onLoad={() => console.log(`Image loaded successfully at index ${selectedImageIndex}:`, currentImage)}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <Package className="h-24 w-24 text-gray-400 mx-auto mb-4" />
+              <p className="text-lg text-gray-500 font-medium">{productName}</p>
+              <p className="text-sm text-gray-400 mt-2">Image {selectedImageIndex + 1}</p>
+              {isGoogleDriveImage && (
+                <p className="text-xs text-red-400 mt-1">Google Drive image failed to load</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Navigation Arrows - Only show if multiple images */}
+        {hasMultipleImages && (
           <>
             <Button
-              variant="ghost"
+              variant="secondary"
               size="icon"
-              className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-white/50 hover:bg-white"
-              onClick={handlePrevClick}
+              className="absolute left-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={goToPrevious}
             >
-              <ChevronLeftIcon className="h-6 w-6" />
+              <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button
-              variant="ghost"
+              variant="secondary"
               size="icon"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-white/50 hover:bg-white"
-              onClick={handleNextClick}
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={goToNext}
             >
-              <ChevronRightIcon className="h-6 w-6" />
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </>
         )}
+
+        {/* Image Counter */}
+        {hasMultipleImages && (
+          <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+            {selectedImageIndex + 1} / {images.length}
+          </div>
+        )}
       </div>
-      {images.length > 1 && (
-        <div className="grid grid-cols-4 gap-2">
+
+      {/* Thumbnail Navigation - Only show if multiple images */}
+      {hasMultipleImages && (
+        <div className="flex gap-2 overflow-x-auto pb-2">
           {images.map((image, index) => (
-            <div
+            <button
               key={index}
+              onClick={() => setSelectedImageIndex(index)}
               className={cn(
-                "relative cursor-pointer overflow-hidden rounded-lg border-2",
-                index === currentImageIndex ? "border-primary" : "border-transparent",
+                "flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all",
+                selectedImageIndex === index
+                  ? "border-green-600 ring-2 ring-green-200"
+                  : "border-gray-200 hover:border-gray-300",
               )}
-              onClick={() => handleThumbnailClick(index)}
             >
-              <Image
-                src={image || "/placeholder.svg"}
-                alt={`${alt} thumbnail ${index + 1}`}
-                width={100}
-                height={75}
-                className="w-full h-auto object-cover aspect-[4/3]"
-              />
-            </div>
+              {!imageErrors[index] ? (
+                <img
+                  src={image || "/placeholder.svg"}
+                  alt={`${productName} thumbnail ${index + 1}`}
+                  className="w-full h-full object-cover"
+                  onError={() => handleImageError(index)}
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                  <Package className="h-6 w-6 text-gray-400" />
+                </div>
+              )}
+            </button>
           ))}
         </div>
       )}
-
-      <Dialog open={isViewerOpen} onOpenChange={setIsViewerOpen}>
-        <DialogContent className="max-w-5xl p-0 bg-transparent border-none shadow-none">
-          <div className="relative flex items-center justify-center">
-            <Image
-              src={images[currentImageIndex] || "/placeholder.svg"}
-              alt={alt}
-              width={1200}
-              height={800}
-              className="max-w-full max-h-[90vh] object-contain"
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-4 right-4 text-white hover:bg-white/20"
-              onClick={closeViewer}
-            >
-              <XIcon className="h-6 w-6" />
-            </Button>
-            {images.length > 1 && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20"
-                  onClick={handlePrevClick}
-                >
-                  <ChevronLeftIcon className="h-8 w-8" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:bg-white/20"
-                  onClick={handleNextClick}
-                >
-                  <ChevronRightIcon className="h-8 w-8" />
-                </Button>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

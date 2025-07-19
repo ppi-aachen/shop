@@ -2,146 +2,180 @@
 
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
-
 import { cn } from "@/lib/utils"
 
 // Workaround for https://github.com/recharts/recharts/issues/3615
-const Tooltip = ({
-  active,
-  payload,
-  label,
-  formatter,
-  content,
-  className,
-}: React.ComponentProps<typeof RechartsPrimitive.Tooltip> & {
-  formatter?: (value: any, name: string, props: any) => React.ReactNode | [React.ReactNode, string]
-}) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload
-    return (
-      <div className={cn("rounded-lg border bg-background p-2 shadow-sm", className)}>
-        <p className="text-sm font-medium">{label}</p>
-        {content ? (
-          content({ active, payload, label })
-        ) : (
-          <div className="grid gap-1">
-            {payload.map((item: any, i: number) => (
-              <div key={item.dataKey || i} className="flex items-center gap-2">
-                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                <div className="flex flex-1 justify-between">
-                  {item.name && <p className="text-sm text-muted-foreground">{item.name}:</p>}
-                  <p className="text-sm font-medium">
-                    {formatter ? formatter(item.value, item.name, item) : item.value}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    )
-  }
+const Customized = <T extends abstract new (...args: any) => any>(Component: T) => {
+  return React.memo((props: React.ComponentProps<T>) => <Component {...props} />) as T
+}
 
-  return null
+const defaultValue = {
+  color: [
+    "hsl(var(--chart-1))",
+    "hsl(var(--chart-2))",
+    "hsl(var(--chart-3))",
+    "hsl(var(--chart-4))",
+    "hsl(var(--chart-5))",
+    "hsl(var(--chart-6))",
+  ],
 }
 
 const ChartContext = React.createContext<
-  | {
-      data: Record<string, any>[]
-      categories: string[]
-      index: string
-      colors: string[]
-      yAxisDomain?: [number | string, number | string]
-    }
-  | undefined
->(undefined)
+  React.ComponentProps<typeof RechartsPrimitive.ResponsiveContainer> & {
+    /**
+     * The color palette for the chart.
+     */
+    color?: string[]
+  }
+>(defaultValue)
 
-type ChartProps = React.ComponentProps<typeof RechartsPrimitive.ResponsiveContainer> & {
-  data: Record<string, any>[]
-  categories: string[]
-  index: string
-  colors?: string[]
-  yAxisDomain?: [number | string, number | string]
+function Chart({
+  color,
+  ...props
+}: React.ComponentProps<typeof RechartsPrimitive.ResponsiveContainer> & {
+  /**
+   * The color palette for the chart.
+   */
+  color?: string[]
+}) {
+  return (
+    <ChartContext.Provider value={{ color, ...props }}>
+      <RechartsPrimitive.ResponsiveContainer {...props} />
+    </ChartContext.Provider>
+  )
 }
 
-const Chart = React.forwardRef<HTMLDivElement, ChartProps>(
-  (
-    {
-      data,
-      categories,
-      index,
-      colors = [
-        "hsl(var(--chart-1))",
-        "hsl(var(--chart-2))",
-        "hsl(var(--chart-3))",
-        "hsl(var(--chart-4))",
-        "hsl(var(--chart-5))",
-      ],
-      yAxisDomain,
-      className,
-      children,
-      ...props
-    },
-    ref,
-  ) => {
-    const customColors = React.useMemo(() => {
-      return colors.map((color) => `var(${color})`)
-    }, [colors])
+const ChartContainer = React.forwardRef<
+  HTMLDivElement,
+  React.ComponentProps<typeof Chart> & React.ComponentPropsWithoutRef<"div">
+>(({ className, children, ...props }, ref) => {
+  const {
+    color: colorPalette = [
+      "hsl(var(--chart-1))",
+      "hsl(var(--chart-2))",
+      "hsl(var(--chart-3))",
+      "hsl(var(--chart-4))",
+      "hsl(var(--chart-5))",
+      "hsl(var(--chart-6))",
+    ],
+    ...chartProps
+  } = props
+  return (
+    <div ref={ref} className={cn("flex aspect-video justify-center text-foreground", className)} {...props}>
+      <Chart color={colorPalette} {...chartProps}>
+        {children}
+      </Chart>
+    </div>
+  )
+})
+ChartContainer.displayName = "Chart"
 
-    return (
-      <ChartContext.Provider
-        value={{
-          data,
-          categories,
-          index,
-          colors: customColors,
-          yAxisDomain,
-        }}
-      >
-        <div ref={ref} className={cn("h-[400px] w-full", className)}>
-          <RechartsPrimitive.ResponsiveContainer {...props}>{children}</RechartsPrimitive.ResponsiveContainer>
-        </div>
-      </ChartContext.Provider>
-    )
-  },
-)
+const useChart = () => React.useContext(ChartContext)
 
-Chart.displayName = "Chart"
+const ChartTooltip = ({
+  className,
+  ...props
+}: React.ComponentProps<typeof RechartsPrimitive.Tooltip> & React.ComponentPropsWithoutRef<"div">) => {
+  const { color } = useChart()
 
-const ChartTooltip = ({ ...props }: React.ComponentProps<typeof Tooltip>) => {
-  const chart = useChart()
   return (
     <RechartsPrimitive.Tooltip
-      cursor={{ stroke: "hsl(var(--border))", strokeWidth: 1 }}
-      content={<Tooltip className="bg-background text-foreground" formatter={props.formatter} {...props} />}
+      cursor={false}
+      content={({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+          return (
+            <div
+              className={cn(
+                "grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-3 py-2 text-sm shadow-md",
+                className,
+              )}
+              {...props}
+            >
+              {label ? <div className="text-muted-foreground">{label}</div> : null}
+              <div className="grid gap-1">
+                {payload.map((item, i) => {
+                  const [itemValue, itemLabel] =
+                    typeof item.value === "object"
+                      ? item.value instanceof Date
+                        ? [item.value.toLocaleDateString(), item.name]
+                        : [JSON.stringify(item.value), item.name]
+                      : [item.value, item.name]
+
+                  return (
+                    <div key={item.dataKey || i} className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        {item.color ? (
+                          <span
+                            className="flex h-3 w-3 rounded-full"
+                            style={{
+                              backgroundColor: item.color,
+                            }}
+                          />
+                        ) : color?.[i] ? (
+                          <span
+                            className="flex h-3 w-3 rounded-full"
+                            style={{
+                              backgroundColor: color[i],
+                            }}
+                          />
+                        ) : null}
+                        <span className="text-muted-foreground">{itemLabel}</span>
+                      </div>
+                      <span className="font-bold text-foreground">{itemValue}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        }
+
+        return null
+      }}
       {...props}
     />
   )
 }
 
-const ChartLegend = ({ ...props }: React.ComponentProps<typeof RechartsPrimitive.Legend>) => {
+const ChartLegend = ({
+  className,
+  ...props
+}: React.ComponentProps<typeof RechartsPrimitive.Legend> & React.ComponentPropsWithoutRef<"div">) => {
   return (
     <RechartsPrimitive.Legend
-      wrapperStyle={{ paddingTop: 10 }}
-      itemClassName="text-sm font-medium text-muted-foreground"
-      formatter={(value) => <span className="text-foreground">{value}</span>}
+      content={({ payload }) => {
+        if (payload && payload.length) {
+          return (
+            <div className={cn("flex flex-wrap items-center justify-center gap-4", className)} {...props}>
+              {payload.map((item, i) => {
+                if (item.inactive) {
+                  return null
+                }
+
+                return (
+                  <div key={item.value} className="flex items-center gap-1.5">
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{
+                        backgroundColor: item.color,
+                      }}
+                    />
+                    <span className="text-xs text-muted-foreground">{item.value}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        }
+
+        return null
+      }}
       {...props}
     />
   )
 }
 
-const ChartCrosshair = ({ ...props }: React.ComponentProps<typeof RechartsPrimitive.ReferenceLine>) => {
-  return (
-    <RechartsPrimitive.ReferenceLine stroke="hsl(var(--border))" strokeDasharray="4 4" strokeWidth={1} {...props} />
-  )
-}
+const ChartTooltipContent = Customized(ChartTooltip)
+const ChartLegendContent = Customized(ChartLegend)
 
-const useChart = () => {
-  const context = React.useContext(ChartContext)
-  if (!context) {
-    throw new Error("useChart must be used within a <Chart />")
-  }
-  return context
-}
-
-export { Chart, ChartTooltip, ChartLegend, ChartCrosshair, useChart }
+export { Chart, ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent }

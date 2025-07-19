@@ -1,53 +1,44 @@
 export interface Product {
-  id: string
+  id: string // Changed to string to match sheet ID
   name: string
-  description: string
   price: number
-  stock: number
   image: string
-  images?: string[] // Optional array of additional image URLs
-  specifications?: {
-    sizes?: string[]
-    colors?: string[]
-    [key: string]: string[] | undefined // Allow other string array properties
-  }
+  images?: string[] // Array of image URLs
+  description: string
+  detailedDescription?: string
+  features?: string[]
+  specifications?: { [key: string]: string }
+  materials?: string[]
+  careInstructions?: string[]
+  sizes?: string[]
+  colors?: string[]
+  stock: number
 }
 
 export interface CartItem {
-  id: string
+  id: string // Changed to string to match sheet ID
   name: string
   price: number
-  image?: string
   quantity: number
+  image: string
+  description?: string
   selectedSize?: string
   selectedColor?: string
-}
-
-export interface OrderData {
-  orderId: string
-  date: string
-  time: string
-  customerName: string
-  email: string
-  phone: string
-  address: string
-  city: string
-  state: string
-  zipCode: string
-  country: string
-  deliveryMethod: string
-  totalItems: number
-  subtotal: number
-  shippingCost: number
-  totalAmount: number
-  notes: string
+  sizes?: string[]
+  colors?: string[]
+  stock: number
 }
 
 export interface OrderItem {
-  productName: string
+  id: string
+  name: string
   price: number
   quantity: number
-  subtotal: number
+  image: string
+  description?: string
   selectedSize?: string
   selectedColor?: string
+  sizes?: string[]
+  colors?: string[]
+  stock: number
 }

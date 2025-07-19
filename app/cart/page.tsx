@@ -1,105 +1,131 @@
 "use client"
 
-import type React from "react"
-
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardFooter } from "@/components/ui/card"
 import { useCart } from "@/lib/cart-context"
+import { formatCurrency } from "@/lib/utils"
 import Image from "next/image"
 import Link from "next/link"
-import { MinusIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { Separator } from "@/components/ui/separator"
-import { formatCurrency } from "@/lib/utils"
+import { MinusCircle, PlusCircle, Trash2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { getProductImage } from "@/lib/image-utils"
+import ShoppingCart from "@/components/icons/shopping-cart" // Added import for ShoppingCart
 
 export default function CartPage() {
-  const { cart, removeFromCart, updateQuantity } = useCart()
+  const { state, dispatch } = useCart()
+  const { toast } = useToast()
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const shippingCost = subtotal > 0 ? 5.0 : 0.0 // Example: flat shipping fee if there are items
-  const total = subtotal + shippingCost
+  const handleUpdateQuantity = (id: string, newQuantity: number, stock: number) => {
+    if (newQuantity <= 0) {
+      dispatch({ type: "REMOVE_ITEM", payload: id })
+      toast({
+        title: "Item Removed",
+        description: "Product removed from your cart.",
+      })
+    } else if (newQuantity > stock) {
+      toast({
+        variant: "destructive",
+        title: "Out of Stock",
+        description: `Cannot add more. Only ${stock} available.`,
+      })
+    } else {
+      dispatch({ type: "UPDATE_QUANTITY", payload: { id, quantity: newQuantity } })
+      toast({
+        title: "Quantity Updated",
+        description: "Product quantity updated in your cart.",
+      })
+    }
+  }
 
-  if (cart.length === 0) {
+  const handleRemoveItem = (id: string, name: string) => {
+    dispatch({ type: "REMOVE_ITEM", payload: id })
+    toast({
+      title: "Item Removed",
+      description: `${name} removed from your cart.`,
+    })
+  }
+
+  if (state.items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)] px-4">
-        <ShoppingCartIcon className="h-24 w-24 text-gray-300 mb-6" />
-        <h2 className="text-3xl font-bold text-gray-700 mb-2">Your cart is empty</h2>
-        <p className="text-gray-500 mb-8">Looks like you haven't added anything to your cart yet.</p>
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] bg-gray-50 p-4">
+        <ShoppingCart className="h-24 w-24 text-gray-400 mb-6" />
+        <h2 className="text-3xl font-bold text-gray-800 mb-3">Your Cart is Empty</h2>
+        <p className="text-gray-600 mb-8 text-center">Looks like you haven't added anything to your cart yet.</p>
         <Link href="/">
-          <Button size="lg">Start Shopping</Button>
+          <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white">
+            Start Shopping
+          </Button>
         </Link>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 md:py-12">
-      <h1 className="text-3xl md:text-4xl font-bold mb-8 text-center">Your Shopping Cart</h1>
-      <div className="grid md:grid-cols-3 gap-8">
-        <div className="md:col-span-2 space-y-6">
-          {cart.map((item) => (
-            <Card key={item.id} className="flex flex-col sm:flex-row items-center p-4 gap-4">
-              <Image
-                src={item.image || "/placeholder.svg?height=100&width=100&text=Product"}
-                alt={item.name}
-                width={100}
-                height={100}
-                className="rounded-md object-cover aspect-square"
-              />
-              <div className="flex-1 grid gap-1 text-center sm:text-left">
-                <h3 className="font-semibold text-lg">{item.name}</h3>
-                <p className="text-gray-500 text-sm">
-                  {item.selectedSize && `Size: ${item.selectedSize}`}
-                  {item.selectedColor && ` | Color: ${item.selectedColor}`}
-                </p>
-                <p className="font-medium text-base">{formatCurrency(item.price)}</p>
+    <div className="max-w-7xl mx-auto px-4 py-8 grid md:grid-cols-3 gap-8">
+      <div className="md:col-span-2">
+        <h2 className="text-3xl font-bold text-gray-900 mb-6">Your Cart ({state.itemCount} items)</h2>
+        <div className="space-y-4">
+          {state.items.map((item) => (
+            <Card key={item.id} className="flex items-center p-4 shadow-sm">
+              <div className="relative w-24 h-24 flex-shrink-0 rounded-md overflow-hidden mr-4">
+                <Image
+                  src={getProductImage(item.image) || "/placeholder.svg"}
+                  alt={item.name}
+                  layout="fill"
+                  objectFit="cover"
+                />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex-grow">
+                <h3 className="font-semibold text-lg">{item.name}</h3>
+                {item.selectedSize && <p className="text-sm text-gray-600">Size: {item.selectedSize}</p>}
+                {item.selectedColor && <p className="text-sm text-gray-600">Color: {item.selectedColor}</p>}
+                <p className="text-gray-800 font-medium mt-1">{formatCurrency(item.price)}</p>
+              </div>
+              <div className="flex items-center space-x-2 ml-4">
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                  disabled={item.quantity <= 1}
+                  onClick={() => handleUpdateQuantity(item.id, item.quantity - 1, item.stock)}
                 >
-                  <MinusIcon className="h-4 w-4" />
+                  <MinusCircle className="h-4 w-4" />
                 </Button>
                 <span className="font-medium w-8 text-center">{item.quantity}</span>
-                <Button variant="outline" size="icon" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
-                  <PlusIcon className="h-4 w-4" />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => handleUpdateQuantity(item.id, item.quantity + 1, item.stock)}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.id, item.name)}>
+                  <Trash2 className="h-5 w-5 text-red-500" />
                 </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => removeFromCart(item.id)}
-                className="text-red-500 hover:text-red-600"
-              >
-                <Trash2Icon className="h-5 w-5" />
-              </Button>
             </Card>
           ))}
         </div>
-        <Card className="md:col-span-1 h-fit">
-          <CardHeader>
-            <CardTitle>Order Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
+      </div>
+
+      <div className="md:col-span-1">
+        <Card className="p-6 shadow-lg sticky top-24">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Order Summary</h2>
+          <div className="space-y-2 text-gray-700">
             <div className="flex justify-between">
-              <span>Subtotal:</span>
-              <span className="font-medium">{formatCurrency(subtotal)}</span>
+              <span>Subtotal ({state.itemCount} items)</span>
+              <span>{formatCurrency(state.totalAmount)}</span>
             </div>
             <div className="flex justify-between">
-              <span>Shipping:</span>
-              <span className="font-medium">{formatCurrency(shippingCost)}</span>
+              <span>Shipping</span>
+              <span>Calculated at checkout</span>
             </div>
-            <Separator />
-            <div className="flex justify-between text-lg font-bold">
-              <span>Total:</span>
-              <span>{formatCurrency(total)}</span>
+            <div className="flex justify-between font-bold text-xl text-gray-900 border-t pt-4 mt-4">
+              <span>Total</span>
+              <span>{formatCurrency(state.totalAmount)}</span>
             </div>
-          </CardContent>
-          <CardFooter>
+          </div>
+          <CardFooter className="p-0 mt-6">
             <Link href="/checkout" className="w-full">
-              <Button size="lg" className="w-full">
+              <Button size="lg" className="w-full bg-green-600 hover:bg-green-700 text-white">
                 Proceed to Checkout
               </Button>
             </Link>
@@ -107,26 +133,5 @@ export default function CartPage() {
         </Card>
       </div>
     </div>
-  )
-}
-
-function ShoppingCartIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="8" cy="21" r="1" />
-      <circle cx="19" cy="21" r="1" />
-      <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
-    </svg>
   )
 }

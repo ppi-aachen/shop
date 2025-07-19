@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
-import { cva } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
@@ -75,7 +74,14 @@ const AlertDialogAction = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Action>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Action>
 >(({ className, ...props }, ref) => (
-  <AlertDialogPrimitive.Action ref={ref} className={cn(cva("button"), className)} {...props} />
+  <AlertDialogPrimitive.Action
+    ref={ref}
+    className={cn(
+      "inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+      className,
+    )}
+    {...props}
+  />
 ))
 AlertDialogAction.displayName = AlertDialogPrimitive.Action.displayName
 
@@ -85,7 +91,10 @@ const AlertDialogCancel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Cancel
     ref={ref}
-    className={cn(cva("button", { variant: "outline" }), "mt-2 sm:mt-0", className)}
+    className={cn(
+      "inline-flex h-9 items-center justify-center rounded-md border border-input bg-transparent px-4 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 sm:mt-0",
+      className,
+    )}
     {...props}
   />
 ))
@@ -93,8 +102,6 @@ AlertDialogCancel.displayName = AlertDialogPrimitive.Cancel.displayName
 
 export {
   AlertDialog,
-  AlertDialogPortal,
-  AlertDialogOverlay,
   AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogHeader,
