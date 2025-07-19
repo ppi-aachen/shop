@@ -31,4 +31,4 @@ async function testStockUpdate() {
 }
 
 // Run the test
-testStockUpdate() 
+testStockUpdate()

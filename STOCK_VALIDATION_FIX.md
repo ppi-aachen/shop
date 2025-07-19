@@ -47,7 +47,7 @@ This function:
 ## 🔧 How It Works
 
 ### Step 1: Cart Addition (Client-side)
-```typescript
+\`\`\`typescript
 // When adding to cart
 if (product.stock <= 0) {
   // Prevent adding out-of-stock items
@@ -56,10 +56,10 @@ if (product.stock <= 0) {
 
 // When updating quantity
 const maxQuantity = Math.min(requestedQuantity, item.stock)
-```
+\`\`\`
 
 ### Step 2: Checkout Validation (Server-side)
-```typescript
+\`\`\`typescript
 // Before processing order
 const stockValidation = await validateStockAvailability(cartItems)
 
@@ -69,22 +69,22 @@ if (!stockValidation.valid) {
     error: "Stock validation failed: " + stockValidation.errors.join(", ")
   }
 }
-```
+\`\`\`
 
 ### Step 3: Stock Update (After Successful Order)
-```typescript
+\`\`\`typescript
 // Only update stock after successful validation and order processing
 await updateProductStock(cartItems)
-```
+\`\`\`
 
 ## 🧪 Testing the Fix
 
 ### Test Script
 Run the comprehensive test script:
-```bash
+\`\`\`bash
 cd shop
 node scripts/test-stock-validation.js
-```
+\`\`\`
 
 ### Test Cases Covered
 1. **Valid Order**: Order within stock limits ✅
@@ -194,4 +194,4 @@ Monitor these log messages in Vercel:
 3. **Monitor logs** for any issues
 4. **Consider adding** stock notifications for low inventory
 
-The stock validation system is now robust and prevents both identified problems while providing a better user experience! 
+The stock validation system is now robust and prevents both identified problems while providing a better user experience!

@@ -320,4 +320,4 @@ async function setupVariantStock() {
 }
 
 // Run the setup
-setupVariantStock() 
+setupVariantStock()

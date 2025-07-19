@@ -105,4 +105,4 @@ console.log("")
 console.log("Product 2 variants:")
 product2Variants.forEach(v => {
   console.log(`  - size: "${v.size}" (${typeof v.size}), color: "${v.color}" (${typeof v.color}), stock: ${v.stock}`)
-}) 
+})

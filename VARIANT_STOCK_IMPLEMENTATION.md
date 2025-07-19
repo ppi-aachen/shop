@@ -27,14 +27,14 @@ This implementation provides variant-specific stock management where each produc
 ## 📊 Google Sheets Structure
 
 ### Products Sheet (Existing)
-```
+\`\`\`
 | id | name | price | image | description | sizes | colors | stock | ... |
 |----|------|-------|-------|-------------|-------|--------|-------|-----|
 | 1  | T-Shirt | 25.99 | image.jpg | Cotton t-shirt | S,M,L | Red,White | 15 | ... |
-```
+\`\`\`
 
 ### Product_Variants Sheet (New)
-```
+\`\`\`
 | product_id | size | color | stock | variant_id |
 |------------|------|-------|-------|------------|
 | 1 | S | Red | 5 | 1-S-Red |
@@ -43,14 +43,14 @@ This implementation provides variant-specific stock management where each produc
 | 1 | M | White | 2 | 1-M-White |
 | 1 | L | Red | 0 | 1-L-Red |
 | 1 | L | White | 4 | 1-L-White |
-```
+\`\`\`
 
 ## 🔧 Implementation Details
 
 ### 1. **Data Structures**
 
 #### ProductVariant Interface
-```typescript
+\`\`\`typescript
 interface ProductVariant {
   productId: number
   size?: string
@@ -58,40 +58,40 @@ interface ProductVariant {
   stock: number
   variantId: string
 }
-```
+\`\`\`
 
 #### Updated ProductData Interface
-```typescript
+\`\`\`typescript
 interface ProductData {
   // ... existing fields
   stock: number // Total stock (sum of all variants)
   variants?: ProductVariant[] // Individual variant stock levels
 }
-```
+\`\`\`
 
 #### Updated CartItem Interface
-```typescript
+\`\`\`typescript
 interface CartItem {
   // ... existing fields
   stock: number // Total stock (for backward compatibility)
   variantStock?: number // Stock for the specific variant
   variantId?: string // Unique variant identifier
 }
-```
+\`\`\`
 
 ### 2. **Utility Functions**
 
 #### Variant ID Generation
-```typescript
+\`\`\`typescript
 function generateVariantId(productId: number, size?: string, color?: string): string {
   const sizePart = size || 'null'
   const colorPart = color || 'null'
   return `${productId}-${sizePart}-${colorPart}`
 }
-```
+\`\`\`
 
 #### Stock Calculation
-```typescript
+\`\`\`typescript
 function getVariantStock(variants: ProductVariant[], size?: string, color?: string): number {
   const variantId = generateVariantId(0, size, color)
   const variant = variants.find(v => {
@@ -100,12 +100,12 @@ function getVariantStock(variants: ProductVariant[], size?: string, color?: stri
   })
   return variant?.stock || 0
 }
-```
+\`\`\`
 
 ### 3. **Stock Validation**
 
 #### Variant-Based Validation
-```typescript
+\`\`\`typescript
 async function validateVariantStock(cartItems: CartItem[], variantsData: ProductVariant[]) {
   for (const cartItem of cartItems) {
     const variant = variantsData.find(v => 
@@ -130,12 +130,12 @@ async function validateVariantStock(cartItems: CartItem[], variantsData: Product
     }
   }
 }
-```
+\`\`\`
 
 ### 4. **Stock Updates**
 
 #### Variant-Based Updates
-```typescript
+\`\`\`typescript
 async function updateVariantStock(cartItems: CartItem[], variantRows: string[][], accessToken: string) {
   for (const cartItem of cartItems) {
     const variantKey = `${cartItem.id}-${cartItem.selectedSize || 'null'}-${cartItem.selectedColor || 'null'}`
@@ -147,15 +147,15 @@ async function updateVariantStock(cartItems: CartItem[], variantRows: string[][]
     }
   }
 }
-```
+\`\`\`
 
 ## 🚀 Setup Instructions
 
 ### 1. **Run Setup Script**
-```bash
+\`\`\`bash
 cd shop
 node scripts/setup-variant-stock.js
-```
+\`\`\`
 
 ### 2. **Environment Variables**
 Ensure these are set in Vercel:
@@ -176,7 +176,7 @@ Ensure these are set in Vercel:
 - Displays current variant stock when selected
 
 ### 2. **Stock Display**
-```typescript
+\`\`\`typescript
 // Size buttons with stock
 {product.sizes!.map((size) => {
   const sizeStock = product.variants 
@@ -194,10 +194,10 @@ Ensure these are set in Vercel:
     </Button>
   )
 })}
-```
+\`\`\`
 
 ### 3. **Stock Information Panel**
-```typescript
+\`\`\`typescript
 {product.variants && selectedSize && selectedColor && (
   <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
     <p className="text-sm text-blue-700 font-medium">
@@ -205,7 +205,7 @@ Ensure these are set in Vercel:
     </p>
   </div>
 )}
-```
+\`\`\`
 
 ## 🔄 Migration Strategy
 
@@ -216,7 +216,7 @@ Ensure these are set in Vercel:
 - Updates Products sheet with total stock
 
 ### 2. **Stock Distribution Logic**
-```typescript
+\`\`\`typescript
 // For size-only products
 const stockPerSize = Math.floor(totalStock / sizes.length)
 const remainder = totalStock % sizes.length
@@ -229,7 +229,7 @@ const remainder = totalStock % colors.length
 const totalVariants = sizes.length * colors.length
 const stockPerVariant = Math.floor(totalStock / totalVariants)
 const remainder = totalStock % totalVariants
-```
+\`\`\`
 
 ### 3. **Fallback System**
 - If Product_Variants sheet doesn't exist, uses legacy stock
@@ -246,9 +246,9 @@ const remainder = totalStock % totalVariants
 - Legacy fallback
 
 ### 2. **Test Script**
-```bash
+\`\`\`bash
 node scripts/test-stock-validation.js
-```
+\`\`\`
 
 ### 3. **Manual Testing**
 1. Create products with variants
@@ -298,4 +298,4 @@ Monitor these messages:
 4. **Monitor logs** for any issues
 5. **Adjust variant stock** as needed
 
-The variant-based stock management system is now fully implemented and ready for production use! 
+The variant-based stock management system is now fully implemented and ready for production use!

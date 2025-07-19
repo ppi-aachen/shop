@@ -248,4 +248,4 @@ async function debugVariantStock() {
 }
 
 // Run the debug
-debugVariantStock() 
+debugVariantStock()
