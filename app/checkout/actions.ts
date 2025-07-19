@@ -241,8 +241,11 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
       productHeaders.forEach((header, index) => {
         const value = row[index]
         // Convert specific fields to numbers or arrays
-        if (header === "id" || header === "price" || header === "stock") {
+        if (header === "id" || header === "price") {
           product[header] = Number(value)
+        } else if (header === "stock") {
+          // Stock is now handled by variants, but keep for backward compatibility
+          product[header] = Number(value) || 0
         } else if (
           header === "sizes" ||
           header === "colors" ||
@@ -271,6 +274,9 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
         product.variants = productVariants
         // Calculate total stock from variants
         product.stock = productVariants.reduce((total, variant) => total + variant.stock, 0)
+      } else {
+        // If no variants found, set stock to 0 (since stock column was removed)
+        product.stock = 0
       }
 
       return product as ProductData
