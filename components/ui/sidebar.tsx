@@ -4,7 +4,7 @@ import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { type VariantProps, cva } from "class-variance-authority"
 import { PanelLeft } from "lucide-react"
-import { Link } from "next-view-transitions"
+import { Link } from "next/link"
 import { usePathname } from "next/navigation"
 
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -15,7 +15,6 @@ import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { buttonVariants } from "@/components/ui/button"
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -225,6 +224,7 @@ interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   items: {
     href: string
     title: string
+    icon: React.ElementType
   }[]
 }
 
@@ -232,21 +232,28 @@ export function Sidebar({ className, items, ...props }: SidebarProps) {
   const pathname = usePathname()
 
   return (
-    <nav className={cn("flex space-x-2 lg:flex-col lg:space-x-0 lg:space-y-1", className)} {...props}>
-      {items.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          className={cn(
-            buttonVariants({ variant: "ghost" }),
-            pathname === item.href ? "bg-muted hover:bg-muted" : "hover:bg-transparent hover:underline",
-            "justify-start",
-          )}
-        >
-          {item.title}
-        </Link>
-      ))}
-    </nav>
+    <div className={cn("pb-12", className)} {...props}>
+      <div className="space-y-4 py-4">
+        <div className="px-3 py-2">
+          <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">Discover</h2>
+          <div className="space-y-1">
+            {items.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "group flex items-center rounded-md px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground",
+                  pathname === item.href ? "bg-accent text-accent-foreground" : "transparent",
+                )}
+              >
+                <item.icon className="mr-3 h-5 w-5 text-gray-500 group-hover:text-gray-900" />
+                <span>{item.title}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

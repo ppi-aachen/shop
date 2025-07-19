@@ -1,138 +1,152 @@
 "use client"
 
-import { useEffect, useState, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
-import Link from "next/link"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Package, CheckCircle2Icon, HomeIcon } from "lucide-react"
-import { generateOrderPDF, downloadPDF } from "@/lib/pdf-generator"
-import { useCart } from "@/lib/cart-context"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import Link from "next/link"
+import { CheckCircleIcon, DownloadIcon } from "lucide-react"
+import { useEffect, useState } from "react"
+import { generatePdfReceipt } from "@/lib/pdf-generator" // Corrected import
+import type { OrderData, OrderItem } from "@/lib/types" // Assuming types are defined here
 
-function SuccessContent() {
+export default function SuccessPage() {
   const searchParams = useSearchParams()
   const orderId = searchParams.get("orderId")
-  const [orderData, setOrderData] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const { dispatch } = useCart()
+  const [orderData, setOrderData] = useState<OrderData | null>(null)
+  const [orderItems, setOrderItems] = useState<OrderItem[] | null>(null)
 
   useEffect(() => {
-    dispatch({ type: "CLEAR_CART" })
-    // Try to get order data from localStorage (if available)
-    if (orderId) {
-      const savedOrderData = localStorage.getItem(`order-${orderId}`)
-      if (savedOrderData) {
-        try {
-          const parsedData = JSON.parse(savedOrderData)
-          setOrderData(parsedData)
-        } catch (error) {
-          console.error("Error parsing order data:", error)
-        }
+    // In a real application, you would fetch order details from a database
+    // using the orderId. For this example, we'll use dummy data or
+    // try to reconstruct from localStorage if available (not recommended for production)
+    const storedOrderData = localStorage.getItem("lastOrderData")
+    const storedOrderItems = localStorage.getItem("lastOrderItems")
+
+    if (orderId && storedOrderData && storedOrderItems) {
+      try {
+        setOrderData(JSON.parse(storedOrderData))
+        setOrderItems(JSON.parse(storedOrderItems))
+        // Clear localStorage after successful display
+        localStorage.removeItem("lastOrderData")
+        localStorage.removeItem("lastOrderItems")
+      } catch (error) {
+        console.error("Failed to parse stored order data:", error)
       }
     }
-    setIsLoading(false)
   }, [orderId])
 
-  const handleDownloadPDF = () => {
-    if (orderData && orderId) {
-      const htmlContent = generateOrderPDF(orderData.order, orderData.items)
-      downloadPDF(htmlContent, `Order-Receipt-${orderId}.pdf`)
+  const handleDownloadReceipt = () => {
+    if (orderData && orderItems) {
+      const pdfHtml = generatePdfReceipt(orderData, orderItems)
+      const printWindow = window.open("", "_blank")
+      if (printWindow) {
+        printWindow.document.write(pdfHtml)
+        printWindow.document.close()
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print()
+          }, 500)
+        }
+      }
     } else {
-      // Fallback if no order data available
-      alert("Order receipt data not available. Please contact support for a copy of your receipt.")
+      console.warn("Order data not available for PDF generation.")
     }
   }
 
-  const handleContactInstagram = () => {
-    window.open("https://instagram.com/aachen.studio", "_blank")
-  }
-
-  // Decode order ID for display info
-  const getOrderInfo = (orderIdStr: string) => {
-    if (!orderIdStr) return null
-
-    const isPickup = orderIdStr.startsWith("PU")
-    const isDelivery = orderIdStr.startsWith("DL")
-
-    return {
-      method: isPickup ? "Pickup" : isDelivery ? "Delivery" : "Unknown",
-      icon: isPickup ? Package : isDelivery ? "🚚" : "📦",
-    }
-  }
-
-  const orderInfo = orderId ? getOrderInfo(orderId) : null
-
-  if (isLoading) {
+  if (!orderId) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Processing your order...</p>
-          </CardContent>
-        </Card>
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)] px-4 text-center">
+        <h2 className="text-3xl font-bold text-gray-700 mb-2">Order Not Found</h2>
+        <p className="text-gray-500 mb-8">The order ID is missing or invalid. Please check your order confirmation.</p>
+        <Link href="/">
+          <Button size="lg">Go to Shop</Button>
+        </Link>
       </div>
     )
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-64px)] flex-col items-center justify-center bg-gray-100 p-4 text-center">
-      <CheckCircle2Icon className="h-20 w-20 text-green-500" />
-      <h1 className="mt-6 text-4xl font-bold text-gray-800">Order Placed Successfully!</h1>
-      <p className="mt-3 text-lg text-gray-600">Thank you for your purchase.</p>
-      {orderId && (
-        <p className="mt-2 text-xl font-semibold text-gray-700">
-          Your Order ID: <span className="text-primary">{orderId}</span>
-        </p>
-      )}
-      <p className="mt-4 max-w-md text-gray-500">
-        You will receive an email confirmation shortly with your order details and a PDF receipt. Please check your spam
-        folder if you don't see it.
-      </p>
-      <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-        <Link href="/" passHref>
-          <Button size="lg" className="flex items-center gap-2">
-            <HomeIcon className="h-5 w-5" />
-            Continue Shopping
-          </Button>
-        </Link>
-        {/* You might want to add a button to view the PDF receipt directly if you have the URL */}
-        {/* <Button size="lg" variant="outline" className="flex items-center gap-2 bg-transparent">
-          <PrinterIcon className="h-5 w-5" />
-          View Receipt
-        </Button> */}
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)] px-4 py-8">
+      <Card className="w-full max-w-2xl text-center shadow-lg">
+        <CardHeader className="bg-green-50 p-6 rounded-t-lg">
+          <CheckCircleIcon className="h-16 w-16 text-green-600 mx-auto mb-4" />
+          <CardTitle className="text-3xl font-bold text-green-800">Order Placed Successfully!</CardTitle>
+          <CardDescription className="text-green-700 text-lg">
+            Thank you for your purchase from Aachen Studio.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-6 space-y-6">
+          <div className="text-left">
+            <p className="text-gray-700 text-lg mb-2">
+              Your order ID is: <span className="font-bold text-primary">{orderId}</span>
+            </p>
+            <p className="text-gray-600">
+              We have received your proof of payment and your order is now pending review. You will receive an email
+              confirmation shortly with all the details.
+            </p>
+            <p className="text-gray-600 mt-2">
+              We will contact you once your order has been processed and is ready for{" "}
+              {orderData?.deliveryMethod === "pickup" ? "pickup" : "delivery"}.
+            </p>
+          </div>
+
+          {orderData && orderItems && (
+            <div className="border-t pt-6">
+              <h3 className="text-xl font-semibold mb-4">Order Summary</h3>
+              <div className="grid grid-cols-2 gap-4 text-left text-gray-700">
+                <div>
+                  <p>
+                    <strong>Customer:</strong> {orderData.customerName}
+                  </p>
+                  <p>
+                    <strong>Email:</strong> {orderData.email}
+                  </p>
+                  <p>
+                    <strong>Phone:</strong> {orderData.phone}
+                  </p>
+                </div>
+                <div>
+                  <p>
+                    <strong>Date:</strong> {orderData.date}
+                  </p>
+                  <p>
+                    <strong>Time:</strong> {orderData.time}
+                  </p>
+                  <p>
+                    <strong>Delivery Method:</strong> {orderData.deliveryMethod === "pickup" ? "Pickup" : "Delivery"}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 text-left">
+                <p className="font-semibold mb-2">Items:</p>
+                <ul className="list-disc list-inside">
+                  {orderItems.map((item, index) => (
+                    <li key={index}>
+                      {item.productName} (x{item.quantity}) - {item.selectedSize ? `Size: ${item.selectedSize}` : ""}{" "}
+                      {item.selectedColor ? `Color: ${item.selectedColor}` : ""} - €{item.subtotal.toFixed(2)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="mt-4 text-right text-lg font-bold text-gray-800">
+                Total: €{orderData.totalAmount.toFixed(2)}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
+            <Button onClick={handleDownloadReceipt} className="w-full sm:w-auto">
+              <DownloadIcon className="mr-2 h-4 w-4" />
+              Download Receipt
+            </Button>
+            <Link href="/" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full bg-transparent">
+                Continue Shopping
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
-  )
-}
-
-export default function SuccessPage() {
-  const searchParams = useSearchParams()
-  const orderId = searchParams.get("orderId")
-  const [isClient, setIsClient] = useState(false)
-
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
-
-  if (!isClient) {
-    return null // Render nothing on the server, wait for client-side hydration
-  }
-
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <Card className="w-full max-w-md">
-            <CardContent className="p-8 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading...</p>
-            </CardContent>
-          </Card>
-        </div>
-      }
-    >
-      <SuccessContent />
-    </Suspense>
   )
 }

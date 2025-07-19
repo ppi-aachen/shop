@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import type { ToastProps, ToastActionElement } from "@/components/ui/toast"
+import type { ToastProps } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
@@ -11,7 +11,7 @@ type ToasterToast = ToastProps & {
   id: string
   title?: React.ReactNode
   description?: React.ReactNode
-  action?: ToastActionElement
+  action?: React.ReactNode
 }
 
 const actionTypes = {
@@ -24,7 +24,7 @@ const actionTypes = {
 let count = 0
 
 function genId() {
-  count = (count + 1) % Number.MAX_VALUE
+  count = (count + 1) % Number.MAX_SAFE_INTEGER
   return count.toString()
 }
 
@@ -107,12 +107,6 @@ export const reducer = (state: State, action: Action): State => {
       }
     }
     case actionTypes.REMOVE_TOAST:
-      if (action.toastId === undefined) {
-        return {
-          ...state,
-          toasts: [],
-        }
-      }
       return {
         ...state,
         toasts: state.toasts.filter((t) => t.id !== action.toastId),
@@ -122,49 +116,23 @@ export const reducer = (state: State, action: Action): State => {
 
 const listeners: ((state: State) => void)[] = []
 
-let state: State = {
-  toasts: [],
-}
-
-function setState(action: Action) {
-  state = reducer(state, action)
-  listeners.forEach((listener) => listener(state))
-}
+let memoryState: State = { toasts: [] }
 
 function dispatch(action: Action) {
-  setState(action)
+  memoryState = reducer(memoryState, action)
+  listeners.forEach((listener) => listener(memoryState))
 }
 
-export function useToast() {
-  const [activeToasts, setActiveToasts] = React.useState(state.toasts)
-
-  React.useEffect(() => {
-    const listener = (newState: State) => {
-      setActiveToasts(newState.toasts)
-    }
-
-    listeners.push(listener)
-    return () => {
-      const index = listeners.indexOf(listener)
-      if (index > -1) {
-        listeners.splice(index, 1)
-      }
-    }
-  }, [])
-
-  return {
-    toasts: activeToasts,
-    toast,
-    dismiss: React.useCallback(function dismiss(toastId?: string) {
-      dispatch({ type: actionTypes.DISMISS_TOAST, toastId })
-    }, []),
-  }
-}
+type Toast = Pick<ToasterToast, "id" | "duration" | "type">
 
 function toast({ ...props }: ToastProps) {
   const id = genId()
 
-  const update = (props: ToasterToast) => dispatch({ type: actionTypes.UPDATE_TOAST, toast: { ...props, id } })
+  const update = (props: ToasterToast) =>
+    dispatch({
+      type: actionTypes.UPDATE_TOAST,
+      toast: { ...props, id },
+    })
   const dismiss = () => dispatch({ type: actionTypes.DISMISS_TOAST, toastId: id })
 
   dispatch({
@@ -174,16 +142,38 @@ function toast({ ...props }: ToastProps) {
       id,
       open: true,
       onOpenChange: (open) => {
-        if (!open) {
-          dismiss()
-        }
+        if (!open) dismiss()
       },
     },
   })
 
   return {
     id: id,
-    dismiss,
     update,
+    dismiss,
   }
 }
+
+function useToast() {
+  const [state, setState] = React.useState<State>(memoryState)
+
+  React.useEffect(() => {
+    listeners.push(setState)
+    return () => {
+      const index = listeners.indexOf(setState)
+      if (index > -1) {
+        listeners.splice(index, 1)
+      }
+    }
+  }, [state])
+
+  return {
+    ...state,
+    toast,
+    dismiss: React.useCallback(function dismiss(toastId?: string) {
+      dispatch({ type: actionTypes.DISMISS_TOAST, toastId })
+    }, []),
+  }
+}
+
+export { toast, useToast }

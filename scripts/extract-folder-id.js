@@ -75,3 +75,24 @@ console.log("")
 
 console.log("🚀 READY TO GO!")
 console.log("Add GOOGLE_DRIVE_FOLDER_ID to your environment variables and you're all set!")
+
+const readline = require("readline")
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+})
+
+rl.question("Please paste the full Google Drive folder URL: ", (url) => {
+  const match = url.match(/\/folders\/([a-zA-Z0-9_-]+)/)
+  if (match && match[1]) {
+    console.log(`\nExtracted Google Drive Folder ID: ${match[1]}`)
+    console.log("\nCopy this ID and set it as your GOOGLE_DRIVE_FOLDER_ID environment variable.")
+  } else {
+    console.log("\nCould not extract a valid Google Drive Folder ID from the URL.")
+    console.log(
+      "Please ensure the URL is correct and looks like: https://drive.google.com/drive/folders/YOUR_FOLDER_ID_HERE",
+    )
+  }
+  rl.close()
+})

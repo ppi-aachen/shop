@@ -175,7 +175,7 @@ export {
   DropdownMenuGroup,
   DropdownMenuPortal,
   DropdownMenuSub,
-  DropdownMenuSubContent,
   DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
   DropdownMenuRadioGroup,
 }

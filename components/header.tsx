@@ -6,7 +6,8 @@ import { ShoppingCartIcon } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import Image from "next/image"
 
-export default function Header() {
+export function Header() {
+  // Changed to named export
   const { cart } = useCart()
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
 

@@ -2,18 +2,11 @@
 
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
-import {
-  Controller,
-  FormProvider,
-  useFormContext,
-  type FieldValues,
-  type FieldPath,
-  type ControllerProps,
-} from "react-hook-form"
+import { Controller, FormProvider, useFormContext, type FieldPath, type FieldValues } from "react-hook-form"
+import type { ControllerProps } from "react-hook-form"
 
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
-import { useId } from "react"
 
 const Form = FormProvider
 
@@ -70,7 +63,7 @@ const FormItemContext = React.createContext<FormItemContextValue>({} as FormItem
 
 const FormItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
-    const id = useId()
+    const id = React.useId()
 
     return (
       <FormItemContext.Provider value={{ id }}>
@@ -92,13 +85,14 @@ FormLabel.displayName = "FormLabel"
 
 const FormControl = React.forwardRef<React.ElementRef<typeof Slot>, React.ComponentPropsWithoutRef<typeof Slot>>(
   ({ ...props }, ref) => {
-    const { formItemId, formDescriptionId, formMessageId } = useFormField()
+    const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
 
     return (
       <Slot
         ref={ref}
         id={formItemId}
-        aria-describedby={!formDescriptionId ? `${formDescriptionId}` : formMessageId ? `${formMessageId}` : undefined}
+        aria-describedby={!error ? `${formDescriptionId}` : `${formDescriptionId} ${formMessageId}`}
+        aria-invalid={!!error}
         {...props}
       />
     )

@@ -182,3 +182,6 @@ View Receipt: ${pdfReceiptUrl}
   console.log("--- END BUSINESS NOTIFICATION CONTENT ---")
   console.warn("Please manually process this order and send notifications.")
 }
+
+// This file can be used for fallback notification mechanisms (e.g., SMS, push notifications)
+// if email sending fails, but is not implemented for this project.

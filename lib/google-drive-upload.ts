@@ -1,6 +1,7 @@
 import { google } from "googleapis"
 import { getGoogleAuthClient } from "./google-auth-utils"
 import type { File } from "formdata-node"
+import type { Buffer } from "buffer"
 
 interface GoogleDriveUploadResult {
   success: boolean
@@ -304,40 +305,46 @@ export async function uploadProofOfPaymentToDrive(
 
 const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID
 
-export async function uploadFileToGoogleDrive(file: File, orderId: string): Promise<string> {
-  if (!GOOGLE_DRIVE_FOLDER_ID) {
-    throw new Error("GOOGLE_DRIVE_FOLDER_ID environment variable is not set. Cannot upload to Google Drive.")
-  }
-
+export async function uploadFileToGoogleDrive(
+  fileBuffer: Buffer,
+  fileName: string,
+  mimeType: string,
+): Promise<string | null> {
   try {
     const auth = getGoogleAuthClient()
     const drive = google.drive({ version: "v3", auth })
 
-    const fileBuffer = Buffer.from(await file.arrayBuffer())
+    const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID
 
-    const fileName = `${orderId}_${file.name}`
+    if (!driveFolderId) {
+      throw new Error("GOOGLE_DRIVE_FOLDER_ID environment variable is not set.")
+    }
+
+    const fileMetadata = {
+      name: fileName,
+      parents: [driveFolderId],
+    }
+
+    const media = {
+      mimeType: mimeType,
+      body: fileBuffer,
+    }
 
     const response = await drive.files.create({
-      requestBody: {
-        name: fileName,
-        parents: [GOOGLE_DRIVE_FOLDER_ID],
-        mimeType: file.type,
-      },
-      media: {
-        mimeType: file.type,
-        body: fileBuffer,
-      },
+      requestBody: fileMetadata,
+      media: media,
       fields: "id, webViewLink",
     })
 
-    if (!response.data.webViewLink) {
-      throw new Error("Failed to get webViewLink after upload.")
+    if (response.data.webViewLink) {
+      console.log(`File uploaded: ${response.data.webViewLink}`)
+      return response.data.webViewLink
+    } else {
+      console.error("Failed to get webViewLink from Google Drive upload response.")
+      return null
     }
-
-    console.log(`File uploaded to Google Drive: ${response.data.webViewLink}`)
-    return response.data.webViewLink
   } catch (error) {
-    console.error("Error uploading file to Google Drive:", error)
-    throw new Error(`Failed to upload file to Google Drive: ${(error as Error).message}`)
+    console.error("Error uploading file to Google Drive:", error.message)
+    throw error
   }
 }

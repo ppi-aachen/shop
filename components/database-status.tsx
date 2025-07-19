@@ -1,77 +1,57 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CheckCircle, XCircle, Loader2 } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CheckCircleIcon, XCircleIcon, Loader2Icon } from "lucide-react"
 
 export function DatabaseStatus() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading")
-  const [message, setMessage] = useState<string>("")
-  const [missingConfigs, setMissingConfigs] = useState<string[]>([])
+  const [message, setMessage] = useState("Checking database connection...")
 
   useEffect(() => {
     async function checkConfig() {
       try {
         const response = await fetch("/api/check-config")
         const data = await response.json()
-        if (data.status === "success") {
+        if (response.ok) {
           setStatus("success")
           setMessage(data.message)
         } else {
           setStatus("error")
-          setMessage(data.message)
-          setMissingConfigs(data.missing || [])
+          setMessage(data.message || "Failed to connect to database.")
+          if (data.missing && data.missing.length > 0) {
+            setMessage(
+              `Missing environment variables: ${data.missing.join(", ")}. Please check your .env file or Vercel project settings.`,
+            )
+          }
         }
       } catch (error) {
         setStatus("error")
-        setMessage("Failed to connect to the API. Check server logs.")
+        setMessage("Network error or API not reachable.")
         console.error("Failed to fetch config status:", error)
       }
     }
+
     checkConfig()
   }, [])
 
-  if (status === "loading") {
-    return (
-      <Alert className="fixed bottom-4 right-4 w-auto max-w-sm bg-blue-50 text-blue-800">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <AlertTitle>Checking Configuration...</AlertTitle>
-        <AlertDescription>Verifying environment variables for Google Sheets, Drive, and Resend.</AlertDescription>
-      </Alert>
-    )
-  }
-
-  if (status === "success") {
-    return (
-      <Alert className="fixed bottom-4 right-4 w-auto max-w-sm bg-green-50 text-green-800">
-        <CheckCircle className="h-4 w-4" />
-        <AlertTitle>Configuration OK!</AlertTitle>
-        <AlertDescription>{message}</AlertDescription>
-      </Alert>
-    )
-  }
-
-  if (status === "error") {
-    return (
-      <Alert variant="destructive" className="fixed bottom-4 right-4 w-auto max-w-sm">
-        <XCircle className="h-4 w-4" />
-        <AlertTitle>Configuration Error!</AlertTitle>
-        <AlertDescription>
-          {message}
-          {missingConfigs.length > 0 && (
-            <ul className="mt-2 list-disc pl-5">
-              {missingConfigs.map((config) => (
-                <li key={config}>{config}</li>
-              ))}
-            </ul>
-          )}
-          <p className="mt-2 text-sm">
-            Please refer to the `scripts/environment-setup-guide.js` for setup instructions.
+  return (
+    <Card className="w-full max-w-md mx-auto mt-8">
+      <CardHeader className="text-center">
+        {status === "loading" && <Loader2Icon className="h-12 w-12 animate-spin text-blue-500 mx-auto mb-4" />}
+        {status === "success" && <CheckCircleIcon className="h-12 w-12 text-green-500 mx-auto mb-4" />}
+        {status === "error" && <XCircleIcon className="h-12 w-12 text-red-500 mx-auto mb-4" />}
+        <CardTitle className="text-xl">Database Status</CardTitle>
+        <CardDescription>{message}</CardDescription>
+      </CardHeader>
+      <CardContent className="text-center">
+        {status === "error" && (
+          <p className="text-sm text-gray-500 mt-2">
+            Please ensure your Google Sheet ID, Service Account Email, Private Key, Resend API Key, and Google Drive
+            Folder ID are correctly configured as environment variables.
           </p>
-        </AlertDescription>
-      </Alert>
-    )
-  }
-
-  return null
+        )}
+      </CardContent>
+    </Card>
+  )
 }

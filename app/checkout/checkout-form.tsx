@@ -1,335 +1,402 @@
 "use client"
 
 import type React from "react"
+
 import { useState, useTransition } from "react"
-import { useFormStatus } from "react-dom"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import { Button } from "@/components/ui/button"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Separator } from "@/components/ui/separator"
 import { useCart } from "@/lib/cart-context"
-import { submitOrder } from "./actions"
+import { formatCurrency } from "@/lib/utils"
+import { processCheckout } from "./actions"
 import { useRouter } from "next/navigation"
-import { useToast } from "@/components/ui/use-toast"
-import { Loader2Icon, CheckCircle2Icon, XCircleIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
-import Link from "next/link"
+import { toast } from "sonner"
+import { Loader2Icon } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import Image from "next/image"
+import { Separator } from "@/components/ui/separator"
 
-interface CartItem {
-  id: string
-  name: string
-  price: number
-  quantity: number
-  selectedSize?: string
-  selectedColor?: string
-}
+const formSchema = z.object({
+  customerName: z.string().min(2, { message: "Name is required." }),
+  email: z.string().email({ message: "Invalid email address." }),
+  phone: z.string().min(10, { message: "Phone number is required." }),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+  country: z.string().optional(),
+  deliveryMethod: z.enum(["pickup", "delivery"], {
+    message: "Please select a delivery method.",
+  }),
+  notes: z.string().optional(),
+  proofOfPayment: z
+    .instanceof(File)
+    .refine((file) => file.size > 0, "Proof of payment is required.")
+    .refine((file) => file.size <= 5 * 1024 * 1024, "File size must be less than 5MB.")
+    .refine(
+      (file) => ["image/jpeg", "image/png", "application/pdf"].includes(file.type),
+      "Only .jpg, .png, and .pdf formats are supported.",
+    ),
+})
 
-function SubmitButton({ isPending }: { isPending: boolean }) {
-  const { pending } = useFormStatus()
-  return (
-    <Button type="submit" className="w-full" disabled={pending || isPending}>
-      {pending || isPending ? (
-        <>
-          <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-          Submitting Order...
-        </>
-      ) : (
-        "Place Order"
-      )}
-    </Button>
-  )
-}
-
-function TruckIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
-      <path d="M15 18H9" />
-      <path d="M19 18h2a1 1 0 0 0 1-1v-3.61a1 1 0 0 0-.88-.91l-1.52-.38a2 2 0 0 1-1.27-.73L14 2h-3v7" />
-      <path d="M2 18h6" />
-      <circle cx="7" cy="18" r="2" />
-      <circle cx="17" cy="18" r="2" />
-    </svg>
-  )
-}
-
-function StoreIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M20 7H4" />
-      <path d="M22 21H2" />
-      <path d="M7 21V7" />
-      <path d="M17 21V7" />
-      <path d="M2 7l7-3 2 4 2-4 7 3" />
-    </svg>
-  )
-}
-
-const buttonVariants = {
-  default: "bg-blue-500 text-white hover:bg-blue-600",
-}
-
-export default function CheckoutForm() {
+export function CheckoutForm() {
   const { cart, clearCart } = useCart()
-  const [isPending, startTransition] = useTransition()
-  const [deliveryMethod, setDeliveryMethod] = useState("delivery")
-  const [proofOfPayment, setProofOfPayment] = useState<File | null>(null)
-  const [formError, setFormError] = useState<string | null>(null)
   const router = useRouter()
-  const { toast } = useToast()
+  const [isPending, startTransition] = useTransition()
+  const [filePreview, setFilePreview] = useState<string | null>(null)
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const shippingCost = deliveryMethod === "delivery" ? 5.0 : 0.0 // Example shipping cost
-  const totalAmount = subtotal + shippingCost
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
+  const [deliveryMethod, setDeliveryMethod] = useState<"pickup" | "delivery">("pickup")
+  const shippingCost = deliveryMethod === "delivery" ? 5.0 : 0.0
+  const total = subtotal + shippingCost
 
-  const generateOrderId = () => {
-    const now = new Date()
-    const deliveryPrefix = deliveryMethod === "pickup" ? "PU" : "DL"
-    const dateStr = now
-      .toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "2-digit",
-      })
-      .replace(/\//g, "")
-    const randomSuffix = Math.random().toString(36).substr(2, 3).toUpperCase()
-    return `${deliveryPrefix}${dateStr}-${randomSuffix}`
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      customerName: "",
+      email: "",
+      phone: "",
+      address: "",
+      city: "",
+      state: "",
+      zipCode: "",
+      country: "",
+      deliveryMethod: "pickup",
+      notes: "",
+      proofOfPayment: new File([], ""), // Initialize with an empty file
+    },
+  })
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      form.setValue("proofOfPayment", file)
+      if (file.type.startsWith("image/")) {
+        setFilePreview(URL.createObjectURL(file))
+      } else {
+        setFilePreview(null) // Clear preview for non-image files
+      }
+    } else {
+      form.setValue("proofOfPayment", new File([], ""))
+      setFilePreview(null)
+    }
   }
 
-  const orderId = generateOrderId()
-
-  const handleSubmit = async (formData: FormData) => {
-    setFormError(null)
-
-    if (!proofOfPayment) {
-      setFormError("Please upload a proof of payment.")
-      return
-    }
-
-    formData.append("cartItems", JSON.stringify(cart))
-    formData.append("orderId", orderId)
-    formData.append("totalAmount", totalAmount.toFixed(2))
-    formData.append("proofOfPayment", proofOfPayment)
-    formData.append("deliveryMethod", deliveryMethod) // Add delivery method to form data
-
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     startTransition(async () => {
-      const result = await submitOrder(formData)
+      const formData = new FormData()
+      formData.append("customerName", values.customerName)
+      formData.append("email", values.email)
+      formData.append("phone", values.phone)
+      formData.append("address", values.address || "")
+      formData.append("city", values.city || "")
+      formData.append("state", values.state || "")
+      formData.append("zipCode", values.zipCode || "")
+      formData.append("country", values.country || "")
+      formData.append("deliveryMethod", values.deliveryMethod)
+      formData.append("notes", values.notes || "")
+      formData.append("cartItems", JSON.stringify(cart))
+      formData.append("proofOfPayment", values.proofOfPayment)
+
+      const result = await processCheckout({ success: false, message: "" }, formData)
+
       if (result.success) {
-        toast({
-          title: "Order Submitted!",
-          description: `Your order ${result.orderId} has been placed.`,
-          action: (
-            <Link href={`/success?orderId=${result.orderId}`} className={cn(buttonVariants.default)}>
-              View Order
-            </Link>
-          ),
-        })
+        toast.success(result.message)
         clearCart()
         router.push(`/success?orderId=${result.orderId}`)
       } else {
-        setFormError(result.message || "Failed to submit order. Please try again.")
-        toast({
-          title: "Order Failed",
-          description: result.message || "There was an error processing your order.",
-          variant: "destructive",
-        })
+        toast.error(result.message)
       }
     })
   }
 
   return (
-    <form action={handleSubmit} className="grid gap-8 lg:grid-cols-3">
-      <div className="lg:col-span-2 grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Customer Information</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="customerName">Full Name</Label>
-              <Input id="customerName" name="customerName" placeholder="John Doe" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="customerEmail">Email</Label>
-              <Input id="customerEmail" name="customerEmail" type="email" placeholder="john@example.com" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="customerPhone">Phone Number</Label>
-              <Input id="customerPhone" name="customerPhone" type="tel" placeholder="+49 123 456789" required />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="notes">Order Notes (Optional)</Label>
-              <Textarea id="notes" name="notes" placeholder="Any special instructions or requests?" rows={3} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Delivery Method</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RadioGroup value={deliveryMethod} onValueChange={setDeliveryMethod} className="grid gap-4 md:grid-cols-2">
-              <Label
-                htmlFor="delivery"
-                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary"
-              >
-                <RadioGroupItem id="delivery" value="delivery" className="sr-only" />
-                <TruckIcon className="mb-3 h-6 w-6" />
-                <span>Delivery</span>
-              </Label>
-              <Label
-                htmlFor="pickup"
-                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground [&:has([data-state=checked])]:border-primary"
-              >
-                <RadioGroupItem id="pickup" value="pickup" className="sr-only" />
-                <StoreIcon className="mb-3 h-6 w-6" />
-                <span>Pickup in Aachen</span>
-              </Label>
-            </RadioGroup>
-          </CardContent>
-        </Card>
-
-        {deliveryMethod === "delivery" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Delivery Address</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="deliveryAddress">Street Address</Label>
-                <Input
-                  id="deliveryAddress"
-                  name="deliveryAddress"
-                  placeholder="123 Main St"
-                  required={deliveryMethod === "delivery"}
+    <div className="container mx-auto px-4 py-8 md:py-12 grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="lg:col-span-2">
+        <h1 className="text-3xl md:text-4xl font-bold mb-8 text-center lg:text-left">Checkout</h1>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Customer Information</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="customerName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="city">City</Label>
-                  <Input id="city" name="city" placeholder="Aachen" required={deliveryMethod === "delivery"} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="state">State/Province</Label>
-                  <Input id="state" name="state" placeholder="NRW" required={deliveryMethod === "delivery"} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="zipCode">Zip Code</Label>
-                  <Input id="zipCode" name="zipCode" placeholder="52062" required={deliveryMethod === "delivery"} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="country">Country</Label>
-                <Input id="country" name="country" placeholder="Germany" required={deliveryMethod === "delivery"} />
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input placeholder="john@example.com" type="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="+1234567890" type="tel" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Proof of Payment</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <p className="text-sm text-gray-500">Please upload a screenshot or PDF of your payment confirmation.</p>
-            <Input
-              id="proofOfPayment"
-              name="proofOfPayment"
-              type="file"
-              accept="image/*,application/pdf"
-              required
-              onChange={(e) => setProofOfPayment(e.target.files ? e.target.files[0] : null)}
-            />
-            {proofOfPayment && (
-              <div className="flex items-center gap-2 text-sm text-green-600">
-                <CheckCircle2Icon className="h-4 w-4" />
-                <span>{proofOfPayment.name} uploaded.</span>
-              </div>
-            )}
-            {formError && (
-              <div className="flex items-center gap-2 text-sm text-red-600">
-                <XCircleIcon className="h-4 w-4" />
-                <span>{formError}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Delivery Method</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <FormField
+                  control={form.control}
+                  name="deliveryMethod"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormControl>
+                        <RadioGroup
+                          onValueChange={(value: "pickup" | "delivery") => {
+                            field.onChange(value)
+                            setDeliveryMethod(value)
+                          }}
+                          defaultValue={field.value}
+                          className="flex flex-col space-y-1"
+                        >
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="pickup" />
+                            </FormControl>
+                            <FormLabel className="font-normal">Pickup in Aachen (Free)</FormLabel>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-3 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="delivery" />
+                            </FormControl>
+                            <FormLabel className="font-normal">Delivery (Additional €5.00)</FormLabel>
+                          </FormItem>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
 
-      <div className="lg:col-span-1">
-        <Card>
-          <CardHeader>
-            <CardTitle>Order Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid gap-2">
-              {cart.map((item) => (
-                <div
-                  key={`${item.id}-${item.selectedSize}-${item.selectedColor}`}
-                  className="flex items-center justify-between"
-                >
-                  <div className="text-sm">
-                    {item.name} ({item.quantity}x)
-                    {(item.selectedSize || item.selectedColor) && (
-                      <span className="text-gray-500">
-                        {" "}
-                        ({item.selectedSize && `Size: ${item.selectedSize}`}
-                        {item.selectedSize && item.selectedColor && ", "}
-                        {item.selectedColor && `Color: ${item.selectedColor}`})
-                      </span>
+            {deliveryMethod === "delivery" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Delivery Address</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Address</FormLabel>
+                        <FormControl>
+                          <Input placeholder="123 Main St" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </div>
-                  <div className="text-sm font-medium">€{(item.price * item.quantity).toFixed(2)}</div>
+                  />
+                  <FormField
+                    control={form.control}
+                    name="city"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>City</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Aachen" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="state"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>State/Province</FormLabel>
+                        <FormControl>
+                          <Input placeholder="NRW" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="zipCode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Zip Code</FormLabel>
+                        <FormControl>
+                          <Input placeholder="52062" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="country"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Country</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Germany" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Additional Notes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes for your order (optional)</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="e.g., specific delivery instructions" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Proof of Payment</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-md text-sm">
+                  <p className="font-semibold mb-2">Please transfer the total amount to our PayPal:</p>
+                  <p>
+                    <strong>Account:</strong> treasury@ppiaachen.de
+                  </p>
+                  <p>
+                    <strong>Name:</strong> PPI Aachen
+                  </p>
+                  <p className="mt-2">
+                    After transferring, please upload a screenshot or PDF of your payment confirmation.
+                  </p>
                 </div>
-              ))}
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <Label>Subtotal ({totalItems} items)</Label>
-              <span className="font-semibold">€{subtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label>{deliveryMethod === "pickup" ? "Pickup" : "Shipping"}</Label>
-              <span className="font-semibold">€{shippingCost.toFixed(2)}</span>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between text-lg font-bold">
-              <span>Total</span>
-              <span>€{totalAmount.toFixed(2)}</span>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <SubmitButton isPending={isPending} />
-          </CardFooter>
-        </Card>
+                <FormField
+                  control={form.control}
+                  name="proofOfPayment"
+                  render={() => (
+                    <FormItem>
+                      <FormLabel>Upload Proof of Payment (JPG, PNG, PDF - Max 5MB)</FormLabel>
+                      <FormControl>
+                        <Input type="file" accept=".jpg,.jpeg,.png,.pdf" onChange={handleFileChange} />
+                      </FormControl>
+                      <FormMessage />
+                      {filePreview && (
+                        <div className="mt-4">
+                          <Image
+                            src={filePreview || "/placeholder.svg"}
+                            alt="Payment Proof Preview"
+                            width={200}
+                            height={200}
+                            className="max-w-full h-auto rounded-md border"
+                          />
+                        </div>
+                      )}
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
+            <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending && <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />}
+              Place Order
+            </Button>
+          </form>
+        </Form>
       </div>
-    </form>
+
+      <Card className="lg:col-span-1 h-fit">
+        <CardHeader>
+          <CardTitle>Order Summary</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {cart.map((item) => (
+            <div key={item.id} className="flex items-center gap-4">
+              <Image
+                src={item.image || "/placeholder.svg?height=64&width=64&text=Product"}
+                alt={item.name}
+                width={64}
+                height={64}
+                className="rounded-md object-cover aspect-square"
+              />
+              <div className="flex-1">
+                <h3 className="font-medium">{item.name}</h3>
+                <p className="text-gray-500 text-sm">
+                  {item.selectedSize && `Size: ${item.selectedSize}`}
+                  {item.selectedColor && ` | Color: ${item.selectedColor}`}
+                </p>
+                <p className="text-gray-500 text-sm">Qty: {item.quantity}</p>
+              </div>
+              <span className="font-semibold">{formatCurrency(item.price * item.quantity)}</span>
+            </div>
+          ))}
+          <Separator />
+          <div className="flex justify-between">
+            <span>Subtotal:</span>
+            <span className="font-medium">{formatCurrency(subtotal)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Shipping:</span>
+            <span className="font-medium">{formatCurrency(shippingCost)}</span>
+          </div>
+          <Separator />
+          <div className="flex justify-between text-lg font-bold">
+            <span>Total:</span>
+            <span>{formatCurrency(total)}</span>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

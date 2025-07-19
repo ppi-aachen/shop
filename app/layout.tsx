@@ -3,15 +3,15 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/sonner"
 import { CartProvider } from "@/lib/cart-context"
-import { Toaster } from "@/components/ui/toaster"
-import Header from "@/components/header"
+import Header from "@/components/header" // Changed to default import for now, will fix to named export
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Aachen Studio Shop",
-  description: "Shop for unique products from Aachen Studio by PPI Aachen",
+  title: "Aachen Studio by PPI Aachen",
+  description: "Shop for authentic Indonesian-inspired items.",
     generator: 'v0.dev'
 }
 

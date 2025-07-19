@@ -27,7 +27,8 @@ interface OrderItem {
   selectedColor?: string
 }
 
-export function generateOrderPDF(orderData: OrderData, orderItems: OrderItem[]): string {
+export function generatePdfReceipt(orderData: OrderData, orderItems: OrderItem[]): string {
+  // Renamed function
   const itemsRows = orderItems
     .map(
       (item) => `

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { OTPInput, Slot, type OTPInputProps } from "input-otp"
-import { Dot } from "lucide-react"
+import { MinusIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -18,7 +18,7 @@ const InputOTP = React.forwardRef<React.ElementRef<typeof OTPInput>, OTPInputPro
 )
 InputOTP.displayName = "InputOTP"
 
-const InputOTPGroup = React.forwardRef<React.ElementRef<typeof Slot>, React.ComponentPropsWithoutRef<typeof Slot>>(
+const InputOTPGroup = React.forwardRef<React.ElementRef<"div">, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => <div ref={ref} className={cn("flex items-center", className)} {...props} />,
 )
 InputOTPGroup.displayName = "InputOTPGroup"
@@ -31,7 +31,7 @@ const InputOTPSlot = React.forwardRef<
     ref={ref}
     index={index}
     className={cn(
-      "relative flex h-9 w-9 items-center justify-center border border-input text-sm shadow-sm transition-all focus-within:z-10 group-data-[focus]:border-accent-foreground group-data-[hover]:border-accent-foreground",
+      "relative flex h-9 w-9 items-center justify-center border border-input text-sm shadow-sm transition-all focus-within:z-10 group-data-[focus]:border-accent-foreground group-data-[active]:border-accent-foreground",
       className,
     )}
     {...props}
@@ -39,10 +39,10 @@ const InputOTPSlot = React.forwardRef<
 ))
 InputOTPSlot.displayName = "InputOTPSlot"
 
-const InputOTPSeparator = React.forwardRef<React.ElementRef<typeof Dot>, React.ComponentPropsWithoutRef<typeof Dot>>(
+const InputOTPSeparator = React.forwardRef<React.ElementRef<"div">, React.HTMLAttributes<HTMLDivElement>>(
   ({ ...props }, ref) => (
     <div ref={ref} role="separator" {...props}>
-      <Dot />
+      <MinusIcon />
     </div>
   ),
 )

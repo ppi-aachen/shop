@@ -1,53 +1,68 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { GlobeIcon } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 
-export function CountryRestriction() {
-  const [country, setCountry] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+export function CountryRestriction({ allowedCountry = "DE" }: { allowedCountry?: string }) {
+  const [userCountry, setUserCountry] = useState<string | null>(null)
+  const [isRestricted, setIsRestricted] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     async function fetchCountry() {
       try {
         const response = await fetch("https://ipapi.co/json/")
         const data = await response.json()
-        setCountry(data.country_name)
+        setUserCountry(data.country_code)
+        if (data.country_code !== allowedCountry) {
+          setIsRestricted(true)
+        }
       } catch (error) {
         console.error("Error fetching country:", error)
-        setCountry(null) // Fallback if IP API fails
+        // If API fails, assume no restriction or handle as needed
+        setIsRestricted(false)
       } finally {
-        setLoading(false)
+        setIsLoading(false)
       }
     }
-    fetchCountry()
-  }, [])
 
-  if (loading) {
-    return null // Or a loading spinner
+    fetchCountry()
+  }, [allowedCountry])
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p>Loading country information...</p>
+      </div>
+    )
   }
 
-  if (country && country !== "Germany") {
+  if (isRestricted) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-        <Card className="w-full max-w-md p-6 text-center shadow-lg">
+      <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
+        <Card className="w-full max-w-md text-center">
           <CardHeader>
-            <CardTitle className="flex items-center justify-center gap-2 text-2xl font-bold text-red-600">
-              <GlobeIcon className="h-8 w-8" />
-              Access Restricted
-            </CardTitle>
+            <CardTitle className="text-2xl font-bold text-red-600">Access Denied</CardTitle>
+            <CardDescription>Unfortunately, our shop is currently only available in {allowedCountry}.</CardDescription>
           </CardHeader>
-          <CardContent className="mt-4">
-            <p className="text-lg text-gray-700">
-              We apologize, but our shop is currently only accessible from Germany.
+          <CardContent className="space-y-4">
+            <p className="text-gray-700">
+              We apologize for the inconvenience. We are working to expand our services to more regions.
             </p>
-            <p className="mt-2 text-sm text-gray-500">Thank you for your understanding.</p>
+            {userCountry && (
+              <p className="text-sm text-gray-500">
+                Your detected country: <span className="font-semibold">{userCountry}</span>
+              </p>
+            )}
+            <Button onClick={() => (window.location.href = "https://www.google.com")} className="w-full">
+              Go to Google
+            </Button>
           </CardContent>
         </Card>
       </div>
     )
   }
 
-  return null
+  return null // Render nothing if not restricted
 }

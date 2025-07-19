@@ -1,25 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
-
-const MOBILE_BREAKPOINT = 768
+import { useMediaQuery } from "react-responsive"
 
 export function useMobile() {
-  const [isMobile, setIsMobile] = useState(false)
-
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT) // Tailwind's 'md' breakpoint is 768px
-    }
-
-    checkMobile() // Check on initial render
-
-    window.addEventListener("resize", checkMobile) // Add event listener for window resize
-
-    return () => {
-      window.removeEventListener("resize", checkMobile) // Clean up on component unmount
-    }
-  }, [])
-
+  const isMobile = useMediaQuery({ query: "(max-width: 768px)" })
   return isMobile
 }

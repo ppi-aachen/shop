@@ -1,53 +1,34 @@
 import { google } from "googleapis"
-import { getGoogleAuthClient, GOOGLE_SHEET_ID } from "./google-auth-utils"
+import { getGoogleAuthClient } from "./google-auth-utils"
+import type { Product } from "./types"
 
-if (!GOOGLE_SHEET_ID) {
-  console.warn("GOOGLE_SHEET_ID environment variable is not set. Google Sheets functionality will be limited.")
-}
+const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID
+const PRODUCTS_SHEET_NAME = "Products"
+const ORDERS_SHEET_NAME = "Orders"
 
-interface Product {
-  ID: string
-  Name: string
-  Price: string
-  Image: string
-  "Images (JSON)": string
-  Description: string
-  "Detailed Description": string
-  "Features (JSON)": string
-  "Specifications (JSON)": string
-  "Materials (JSON)": string
-  "Care Instructions (JSON)": string
-  "Sizes (JSON)": string
-  "Colors (JSON)": string
-  Stock: string
-}
-
-interface OrderData {
-  orderId: string
-  customerName: string
-  customerEmail: string
-  customerPhone: string
-  deliveryAddress: string
-  cartItems: string // JSON string of cart items
-  totalAmount: string
-  proofOfPaymentUrl: string
-  pdfReceiptUrl: string
-  orderDate: string
+interface ProductRow {
+  id: string
+  name: string
+  description: string
+  price: number
+  stock: number
+  image: string
+  images: string // JSON string of image URLs
+  specifications: string // JSON string of specifications
 }
 
 export async function getProductsFromSheet(): Promise<Product[]> {
-  if (!GOOGLE_SHEET_ID) {
-    console.error("GOOGLE_SHEET_ID is not set. Cannot fetch products.")
-    return []
-  }
-
   try {
     const auth = getGoogleAuthClient()
     const sheets = google.sheets({ version: "v4", auth })
 
+    if (!SPREADSHEET_ID) {
+      throw new Error("GOOGLE_SHEET_ID environment variable is not set.")
+    }
+
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: GOOGLE_SHEET_ID,
-      range: "Products!A:N", // Assuming products are in columns A to N
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${PRODUCTS_SHEET_NAME}!A:H`, // Assuming columns A-H for product data
     })
 
     const rows = response.data.values
@@ -57,70 +38,107 @@ export async function getProductsFromSheet(): Promise<Product[]> {
 
     const headers = rows[0]
     const products: Product[] = rows.slice(1).map((row) => {
-      const product: Partial<Product> = {}
+      const productData: Partial<ProductRow> = {}
       headers.forEach((header, index) => {
-        // Type assertion to map header string to a key of Product
-        product[header as keyof Product] = row[index]
+        productData[header.toLowerCase() as keyof ProductRow] = row[index]
       })
-      return product as Product
+
+      let parsedSpecifications: { sizes?: string[]; colors?: string[] } = {}
+      try {
+        if (productData.specifications) {
+          parsedSpecifications = JSON.parse(productData.specifications)
+        }
+      } catch (e) {
+        console.warn(`Could not parse specifications for product ${productData.id}:`, productData.specifications)
+      }
+
+      let parsedImages: string[] = []
+      try {
+        if (productData.images) {
+          parsedImages = JSON.parse(productData.images)
+        }
+      } catch (e) {
+        console.warn(`Could not parse images for product ${productData.id}:`, productData.images)
+      }
+
+      return {
+        id: productData.id || "",
+        name: productData.name || "Unknown Product",
+        description: productData.description || "",
+        price: Number.parseFloat(productData.price?.toString() || "0"),
+        stock: Number.parseInt(productData.stock?.toString() || "0"),
+        image: productData.image || "/placeholder.svg",
+        images: parsedImages,
+        specifications: parsedSpecifications,
+      }
     })
 
     return products
   } catch (error) {
-    console.error("Error fetching products from Google Sheet:", error)
-    throw new Error("Failed to fetch products from Google Sheet.")
+    console.error("Error fetching products from Google Sheet:", error.message)
+    throw error
   }
 }
 
-export async function appendOrderToSheet(orderData: OrderData) {
-  if (!GOOGLE_SHEET_ID) {
-    console.error("GOOGLE_SHEET_ID is not set. Cannot append order.")
-    return
-  }
-
+export async function updateProductStockInSheet(
+  updatedProducts: Product[],
+  newOrderRow?: string[], // Optional: for appending new order
+) {
   try {
     const auth = getGoogleAuthClient()
     const sheets = google.sheets({ version: "v4", auth })
 
-    const values = [
-      orderData.orderId,
-      orderData.customerName,
-      orderData.customerEmail,
-      orderData.customerPhone,
-      orderData.deliveryAddress,
-      orderData.cartItems,
-      orderData.totalAmount,
-      orderData.proofOfPaymentUrl,
-      orderData.pdfReceiptUrl,
-      orderData.orderDate,
-    ]
+    if (!SPREADSHEET_ID) {
+      throw new Error("GOOGLE_SHEET_ID environment variable is not set.")
+    }
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: GOOGLE_SHEET_ID,
-      range: "Orders!A:J", // Assuming orders are in columns A to J
-      valueInputOption: "RAW",
-      requestBody: {
-        values: [values],
-      },
-    })
-    console.log("Order appended to Google Sheet successfully.")
-  } catch (error) {
-    console.error("Error appending order to Google Sheet:", error)
-    throw new Error("Failed to append order to Google Sheet.")
-  }
-}
-
-export async function updateProductStockInSheet(productId: string, newStock: number) {
-  if (!GOOGLE_SHEET_ID) {
-    console.error("GOOGLE_SHEET_ID is not set. Cannot update product stock.")
-    return
-  }
-
-  try {
-    const auth = getGoogleAuthClient()
-    const sheets = google.sheets({ version: "v4", auth })
-
-    // First, find the row index of the product
+    // Fetch current products to get their row indices
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: GOOGLE_SHEET_ID,
-      range:\
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${PRODUCTS_SHEET_NAME}!A:A`, // Get only IDs to map rows
+    })
+
+    const existingProductIds = response.data.values?.flat() || []
+    const updates = []
+
+    for (const product of updatedProducts) {
+      const rowIndex = existingProductIds.indexOf(product.id)
+      if (rowIndex !== -1) {
+        // Google Sheets API is 1-indexed, and headers are row 1, so data starts from row 2
+        const sheetRowIndex = rowIndex + 1 // +1 because sheets are 1-indexed
+        updates.push({
+          range: `${PRODUCTS_SHEET_NAME}!F${sheetRowIndex}`, // Assuming 'Stock' is column F
+          values: [[product.stock]],
+        })
+      }
+    }
+
+    if (updates.length > 0) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: {
+          valueInputOption: "RAW",
+          data: updates,
+        },
+      })
+      console.log("Product stock updated in Google Sheet.")
+    }
+
+    // Append new order row if provided
+    if (newOrderRow) {
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${ORDERS_SHEET_NAME}!A:Z`, // Append to Orders sheet, adjust range as needed
+        valueInputOption: "RAW",
+        insertDataOption: "INSERT_ROWS",
+        requestBody: {
+          values: [newOrderRow],
+        },
+      })
+      console.log("New order appended to Google Sheet.")
+    }
+  } catch (error) {
+    console.error("Error updating Google Sheet:", error.message)
+    throw error
+  }
+}

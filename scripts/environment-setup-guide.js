@@ -1,74 +1,140 @@
-console.log("🔧 ENVIRONMENT VARIABLES SETUP GUIDE")
-console.log("=".repeat(50))
-console.log("")
+console.log(`
+================================================================================
+Vercel Shop Template - Environment Variable Setup Guide
+================================================================================
 
-console.log("📍 WHERE TO ADD ENVIRONMENT VARIABLES:")
-console.log("")
+To ensure your shop functions correctly, you need to set up several
+environment variables. These are crucial for connecting to Google Sheets,
+Google Drive, and Resend for email notifications.
 
-console.log("🚀 VERCEL (Recommended):")
-console.log("1. Go to https://vercel.com/dashboard")
-console.log("2. Select your project")
-console.log("3. Settings → Environment Variables")
-console.log("4. Add each variable with Production/Preview/Development selected")
-console.log("")
+--------------------------------------------------------------------------------
+1. Google Sheet Setup (for Products and Orders)
+--------------------------------------------------------------------------------
 
-console.log("🌐 OTHER PLATFORMS:")
-console.log("• Netlify: Site Settings → Environment Variables")
-console.log("• Railway: Project → Variables")
-console.log("• Heroku: Settings → Config Vars")
-console.log("• DigitalOcean: App → Settings → Environment Variables")
-console.log("")
+This template uses Google Sheets as a simple database for products and orders.
 
-console.log("💻 LOCAL DEVELOPMENT:")
-console.log("Create .env.local file in project root with:")
-console.log("")
+Steps:
+  a. Create a new Google Sheet: Go to Google Sheets (sheets.new) and create a new spreadsheet.
+  b. Name your sheets:
+     - Rename the first sheet to "Products".
+     - Create a second sheet and name it "Orders".
+  c. Set up "Products" sheet headers (Row 1):
+     - A1: id
+     - B1: name
+     - C1: description
+     - D1: price
+     - E1: image (URL to product image)
+     - F1: stock
+     - G1: images (JSON array of image URLs, e.g., ["url1", "url2"])
+     - H1: specifications (JSON string, e.g., {"sizes": ["S", "M"], "colors": ["Red", "Blue"]})
+  d. Set up "Orders" sheet headers (Row 1):
+     - A1: orderId
+     - B1: timestamp
+     - C1: customerName
+     - D1: email
+     - E1: phone
+     - F1: address
+     - G1: city
+     - H1: state
+     - I1: zipCode
+     - J1: country
+     - K1: deliveryMethod
+     - L1: totalItems
+     - M1: subtotal
+     - N1: shippingCost
+     - O1: totalAmount
+     - P1: notes
+     - Q1: proofOfPaymentLink
+     - R1: status
+     - S1: itemsSummary
+  e. Populate "Products" sheet: Add some dummy product data following the headers.
+  f. Get your Google Sheet ID: The ID is part of the URL.
+     Example: https://docs.google.com/spreadsheets/d/<YOUR_SHEET_ID_HERE>/edit
+     Copy this ID.
 
-console.log("📋 REQUIRED VARIABLES:")
-console.log("=".repeat(20))
-console.log("GOOGLE_SHEET_ID=your_sheet_id")
-console.log("GOOGLE_SERVICE_ACCOUNT_EMAIL=your_email@project.iam.gserviceaccount.com")
-console.log('GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\\nYour key\\n-----END PRIVATE KEY-----\\n"')
-console.log("RESEND_API_KEY=re_your_key (optional)")
-console.log("")
+--------------------------------------------------------------------------------
+2. Google Service Account Setup (for API Access)
+--------------------------------------------------------------------------------
 
-console.log("⚠️  IMPORTANT NOTES:")
-console.log("• Private key must include \\n for line breaks")
-console.log("• Wrap private key in quotes")
-console.log("• Don't commit .env.local to git")
-console.log("• Redeploy after adding variables")
-console.log("")
+To allow your application to read/write to Google Sheets and upload to Google Drive,
+you need a Google Service Account.
 
-console.log("🔍 HOW TO GET VALUES:")
-console.log("=".repeat(20))
-console.log("1. GOOGLE_SHEET_ID:")
-console.log("   From your Google Sheet URL:")
-console.log("   https://docs.google.com/spreadsheets/d/SHEET_ID_HERE/edit")
-console.log("")
+Steps:
+  a. Go to Google Cloud Console: console.cloud.google.com
+  b. Create a new project (if you don't have one) or select an existing one.
+  c. Enable APIs:
+     - In the search bar, search for "Google Sheets API" and enable it.
+     - Search for "Google Drive API" and enable it.
+  d. Create Service Account Credentials:
+     - Navigate to "APIs & Services" > "Credentials".
+     - Click "CREATE CREDENTIALS" > "Service Account".
+     - Follow the steps to create a new service account.
+     - Grant it the "Editor" role (or more specific roles like "Google Sheets Editor" and "Google Drive Editor" for production).
+     - In step 2, click "CREATE KEY" and choose "JSON". This will download a JSON file.
+       SAVE THIS FILE SECURELY.
+  e. Extract credentials from JSON file:
+     - Open the downloaded JSON file.
+     - Copy the 'client_email' value. This will be your GOOGLE_SERVICE_ACCOUNT_EMAIL.
+     - Copy the 'private_key' value. This will be your GOOGLE_PRIVATE_KEY.
+       (Note: The private key will contain "\\n" characters. You might need to replace them with actual newlines if you're pasting into some environments, but Vercel usually handles this automatically.)
+  f. Share your Google Sheet with the Service Account:
+     - Go back to your Google Sheet.
+     - Click the "Share" button.
+     - Paste the 'client_email' (from step 2.e) into the "Add people and groups" field.
+     - Grant it "Editor" access.
 
-console.log("2. SERVICE ACCOUNT & PRIVATE KEY:")
-console.log("   a) Go to https://console.cloud.google.com")
-console.log("   b) Create/select project")
-console.log("   c) Enable Google Sheets API")
-console.log("   d) Create Service Account")
-console.log("   e) Download JSON key file")
-console.log("   f) Extract email and private_key from JSON")
-console.log("")
+--------------------------------------------------------------------------------
+3. Google Drive Folder Setup (for Proof of Payment Uploads)
+--------------------------------------------------------------------------------
 
-console.log("3. RESEND_API_KEY (Optional):")
-console.log("   a) Go to https://resend.com")
-console.log("   b) Sign up for free")
-console.log("   c) Create API key")
-console.log("   d) Copy key (starts with 're_')")
-console.log("")
+This template uploads proof of payment images/PDFs to a specific Google Drive folder.
 
-console.log("✅ VERIFICATION:")
-console.log("After adding variables:")
-console.log("1. Redeploy your application")
-console.log("2. Check the database status on homepage")
-console.log("3. Should show 'Database Connected' in green")
-console.log("")
+Steps:
+  a. Create a new folder in Google Drive: Go to drive.google.com and create a new folder.
+     Name it something like "Aachen Studio Payments".
+  b. Get the Folder ID: Open the folder. The ID is in the URL.
+     Example: https://drive.google.com/drive/folders/<YOUR_FOLDER_ID_HERE>
+     Copy this ID.
+  c. Share the folder with the Service Account:
+     - Right-click the folder, select "Share" > "Share".
+     - Paste the 'client_email' (from step 2.e) into the "Add people and groups" field.
+     - Grant it "Editor" access.
 
-console.log("🆘 NEED HELP?")
-console.log("Run these scripts for detailed setup:")
-console.log("• scripts/setup-google-sheet-v4.js")
-console.log("• scripts/setup-resend.js")
+--------------------------------------------------------------------------------
+4. Resend API Key Setup (for Email Notifications)
+--------------------------------------------------------------------------------
+
+This template uses Resend to send order confirmation emails.
+
+Steps:
+  a. Go to Resend: resend.com
+  b. Sign up or log in.
+  c. Add a domain: Follow their instructions to add and verify your sending domain
+     (e.g., yourdomain.com or a subdomain like mail.yourdomain.com).
+  d. Create an API Key: Go to "API Keys" and create a new API key.
+     Copy this key.
+
+--------------------------------------------------------------------------------
+5. Set Environment Variables in Vercel
+--------------------------------------------------------------------------------
+
+Finally, add these values as Environment Variables in your Vercel project settings.
+Go to your Vercel project dashboard -> "Settings" -> "Environment Variables".
+
+Add the following variables:
+
+  - GOOGLE_SHEET_ID: Your Google Sheet ID (from step 1.f)
+  - GOOGLE_SERVICE_ACCOUNT_EMAIL: Your service account client_email (from step 2.e)
+  - GOOGLE_PRIVATE_KEY: Your service account private_key (from step 2.e)
+  - GOOGLE_DRIVE_FOLDER_ID: Your Google Drive folder ID (from step 3.b)
+  - RESEND_API_KEY: Your Resend API Key (from step 4.d)
+  - NEXT_PUBLIC_VERCEL_URL: Set this to your Vercel deployment URL (e.g., https://your-project-name.vercel.app).
+    This is used for the link in the confirmation email. For local development, it will be http://localhost:3000.
+
+Make sure these are available for both "Development", "Preview", and "Production" environments.
+
+================================================================================
+Once all variables are set, redeploy your project.
+If you encounter issues, refer to the troubleshooting scripts in the 'scripts' folder.
+================================================================================
+`)
