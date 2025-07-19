@@ -15,6 +15,7 @@ export interface CartItem {
   selectedColor?: string
   sizes?: string[]
   colors?: string[]
+  stock: number
 }
 
 interface CartState {
@@ -59,10 +60,23 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 
       let newItems: CartItem[]
       if (existingItemIndex >= 0) {
+        // Check if adding one more would exceed stock
+        const currentItem = state.items[existingItemIndex]
+        if (currentItem.quantity >= currentItem.stock) {
+          // Don't add more if we're already at stock limit
+          return state
+        }
+        
         newItems = state.items.map((item, index) =>
           index === existingItemIndex ? { ...item, quantity: item.quantity + 1 } : item,
         )
       } else {
+        // Check if product is in stock before adding
+        if (action.payload.stock <= 0) {
+          // Don't add out-of-stock items
+          return state
+        }
+        
         // Include sizes and colors arrays in the cart item
         newItems = [
           ...state.items,
@@ -95,9 +109,15 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 
     case "UPDATE_QUANTITY": {
       const newItems = state.items
-        .map((item, index) =>
-          index === action.payload.id ? { ...item, quantity: Math.max(0, action.payload.quantity) } : item,
-        )
+        .map((item, index) => {
+          if (index === action.payload.id) {
+            // Don't allow quantity to exceed stock
+            const maxQuantity = Math.min(action.payload.quantity, item.stock)
+            const quantity = Math.max(0, maxQuantity)
+            return { ...item, quantity }
+          }
+          return item
+        })
         .filter((item) => item.quantity > 0)
 
       const total = newItems.reduce((sum, item) => sum + item.price * item.quantity, 0)

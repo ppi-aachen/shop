@@ -278,6 +278,90 @@ async function addOrderToGoogleSheet(orderData: OrderData) {
   }
 }
 
+async function validateStockAvailability(cartItems: CartItem[]): Promise<{ valid: boolean; errors: string[] }> {
+  try {
+    const accessToken = await getGoogleSheetsAuth()
+
+    // Get current stock from Google Sheets
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      },
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
+    }
+
+    const productsData = await response.json()
+    const products = productsData.values || []
+
+    if (products.length === 0) {
+      return { valid: false, errors: ["No products found in database"] }
+    }
+
+    // Find the stock and ID column indices
+    const headers = products[0]
+    const stockColumnIndex = headers.findIndex((header: string) => 
+      header.toLowerCase() === "stock"
+    )
+    const idColumnIndex = headers.findIndex((header: string) => 
+      header.toLowerCase() === "id"
+    )
+
+    if (stockColumnIndex === -1 || idColumnIndex === -1) {
+      return { valid: false, errors: ["Stock or ID column not found in database"] }
+    }
+
+    // Create a map of product ID to current stock
+    const productStockMap = new Map<number, { currentStock: number; name: string }>()
+    
+    for (let i = 1; i < products.length; i++) {
+      const row = products[i]
+      const productId = parseInt(row[idColumnIndex])
+      const currentStock = parseInt(row[stockColumnIndex]) || 0
+      const productName = row[headers.findIndex((h: string) => h.toLowerCase() === "name")] || "Unknown Product"
+      
+      if (!isNaN(productId)) {
+        productStockMap.set(productId, { currentStock, name: productName })
+      }
+    }
+
+    // Validate each cart item against current stock
+    const errors: string[] = []
+
+    for (const cartItem of cartItems) {
+      const productStock = productStockMap.get(cartItem.id)
+      
+      if (!productStock) {
+        errors.push(`${cartItem.name}: Product not found in database`)
+        continue
+      }
+
+      if (productStock.currentStock <= 0) {
+        errors.push(`${cartItem.name}: Out of stock`)
+        continue
+      }
+
+      if (cartItem.quantity > productStock.currentStock) {
+        errors.push(`${cartItem.name}: Only ${productStock.currentStock} available, but ${cartItem.quantity} requested`)
+        continue
+      }
+    }
+
+    return { valid: errors.length === 0, errors }
+  } catch (error) {
+    console.error("Error validating stock availability:", error)
+    return { valid: false, errors: ["Failed to validate stock availability"] }
+  }
+}
+
 async function updateProductStock(cartItems: CartItem[]) {
   try {
     const accessToken = await getGoogleSheetsAuth()
@@ -830,6 +914,20 @@ export async function submitOrder(formData: FormData) {
         error: "Required options missing: " + validationErrors.join(", "),
       }
     }
+
+    // Validate stock availability before proceeding with order
+    console.log("Validating stock availability...")
+    const stockValidation = await validateStockAvailability(cartItems)
+    
+    if (!stockValidation.valid) {
+      console.log("Stock validation failed:", stockValidation.errors)
+      return {
+        success: false,
+        error: "Stock validation failed: " + stockValidation.errors.join(", "),
+      }
+    }
+    
+    console.log("Stock validation passed - proceeding with order")
 
     const now = new Date()
     // Generate order ID with format: PU/DL + DDMMYY + random 3-char alphanumeric
