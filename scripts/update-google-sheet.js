@@ -25,6 +25,10 @@ async function updateStockInGoogleSheet(orderItems) {
 
     const sheets = google.sheets({ version: "v4", auth: jwtClient })
     const sheetTitle = "Products"
+    
+    console.log(`Starting stock update for ${orderItems.length} items`)
+    console.log(`Using sheet: ${sheetTitle}`)
+    console.log(`Sheet ID: ${GOOGLE_SHEET_ID}`)
 
     for (const item of orderItems) {
       // Get the current stock value
@@ -32,7 +36,7 @@ async function updateStockInGoogleSheet(orderItems) {
       // We need to find the row index based on the product ID
       const productsResponse = await sheets.spreadsheets.values.get({
         spreadsheetId: GOOGLE_SHEET_ID,
-        range: `${sheetTitle}!A:H`, // Fetch columns A to H to find the product ID and stock
+        range: `${sheetTitle}!A:N`, // Fetch columns A to N to find the product ID and stock
       })
 
       const productRows = productsResponse.data.values
@@ -45,32 +49,45 @@ async function updateStockInGoogleSheet(orderItems) {
       const idColumnIndex = headerRow.indexOf("id")
       const stockColumnIndex = headerRow.indexOf("stock")
 
+      console.log(`Header row: ${headerRow.join(', ')}`)
+      console.log(`ID column index: ${idColumnIndex}, Stock column index: ${stockColumnIndex}`)
+
       if (idColumnIndex === -1 || stockColumnIndex === -1) {
         console.error("Missing 'id' or 'stock' column in Products sheet header.")
+        console.error(`Available columns: ${headerRow.join(', ')}`)
         continue
       }
 
       let rowIndex = -1
+      console.log(`Looking for product with ID: ${item.itemId}`)
       for (let i = 1; i < productRows.length; i++) {
-        if (Number(productRows[i][idColumnIndex]) === item.itemId) {
+        const productId = Number(productRows[i][idColumnIndex])
+        console.log(`Row ${i + 1}: Product ID ${productId}`)
+        if (productId === item.itemId) {
           rowIndex = i + 1 // Google Sheets rows are 1-indexed
+          console.log(`Found product at row ${rowIndex}`)
           break
         }
       }
 
       if (rowIndex === -1) {
         console.warn(`Product with ID ${item.itemId} not found in Google Sheet. Skipping stock update.`)
+        console.log(`Available product IDs: ${productRows.slice(1).map(row => row[idColumnIndex]).join(', ')}`)
         continue
       }
 
       const currentStock = Number.parseInt(productRows[rowIndex - 1][stockColumnIndex], 10)
+      console.log(`Current stock for product ${item.itemId}: ${currentStock}`)
+      console.log(`Ordered quantity: ${item.quantity}`)
 
       if (isNaN(currentStock)) {
         console.warn(`Invalid stock value found for item ID ${item.itemId}. Skipping update.`)
+        console.log(`Raw stock value: "${productRows[rowIndex - 1][stockColumnIndex]}"`)
         continue
       }
 
       const newStock = currentStock - item.quantity
+      console.log(`Calculated new stock: ${currentStock} - ${item.quantity} = ${newStock}`)
 
       if (newStock < 0) {
         console.warn(`Stock is insufficient for item ID ${item.itemId}. Skipping update.`)
