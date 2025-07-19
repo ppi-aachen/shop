@@ -2,17 +2,324 @@
 
 import { Resend } from "resend"
 import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload"
-import {
-  addOrderToGoogleSheet,
-  addOrderItemsToGoogleSheet,
-  updateProductStockInSheet,
-  type OrderData,
-  type OrderItemData,
-} from "@/lib/google-sheets-api"
-import type { CartItem } from "@/lib/cart-context"
+import { updateStockInGoogleSheet } from "@/scripts/update-google-sheet"
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+// Google Sheets configuration
+const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID
+const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
+const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
+
+interface CartItem {
+  id: number
+  name: string
+  price: number
+  quantity: number
+  description?: string
+  selectedSize?: string
+  selectedColor?: string
+  sizes?: string[]
+  colors?: string[]
+}
+
+interface ProductData {
+  id: number
+  name: string
+  price: number
+  image: string
+  images?: string[]
+  description: string
+  detailedDescription?: string
+  features?: string[]
+  specifications?: { [key: string]: string }
+  materials?: string[]
+  careInstructions?: string[]
+  sizes?: string[]
+  colors?: string[]
+  stock: number
+}
+
+interface OrderData {
+  orderId: string
+  date: string
+  time: string
+  customerName: string
+  email: string
+  phone: string
+  address: string
+  city: string
+  state: string
+  zipCode: string
+  country: string
+  deliveryMethod: string
+  totalItems: number
+  subtotal: number
+  shippingCost: number
+  totalAmount: number
+  notes: string
+  proofOfPaymentUrl: string
+  status: string
+}
+
+interface OrderItemData {
+  orderId: string
+  itemId: number
+  productName: string
+  price: number
+  quantity: number
+  subtotal: number
+  description: string
+  selectedSize: string
+  selectedColor: string
+}
+
+async function getGoogleSheetsAuth() {
+  if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
+    throw new Error("Google Sheets credentials not configured")
+  }
+
+  const now = Math.floor(Date.now() / 1000)
+
+  const header = {
+    alg: "RS256",
+    typ: "JWT",
+  }
+
+  const payload = {
+    iss: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    scope: "https://www.googleapis.com/auth/spreadsheets",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now,
+  }
+
+  function base64UrlEncode(str: string): string {
+    return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+  }
+
+  const encodedHeader = base64UrlEncode(JSON.stringify(header))
+  const encodedPayload = base64UrlEncode(JSON.stringify(payload))
+  const unsignedToken = `${encodedHeader}.${encodedPayload}`
+
+  const privateKeyPem = GOOGLE_PRIVATE_KEY
+  const privateKeyDer = pemToDer(privateKeyPem)
+
+  const cryptoKey = await crypto.subtle.importKey(
+    "pkcs8",
+    privateKeyDer,
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      hash: "SHA-256",
+    },
+    false,
+    ["sign"],
+  )
+
+  const encoder = new TextEncoder()
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", cryptoKey, encoder.encode(unsignedToken))
+
+  const encodedSignature = base64UrlEncode(String.fromCharCode(...new Uint8Array(signature)))
+
+  const jwt = `${unsignedToken}.${encodedSignature}`
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt,
+    }),
+  })
+
+  const authData = await response.json()
+
+  if (!response.ok) {
+    throw new Error(`Auth error: ${authData.error_description || authData.error}`)
+  }
+
+  return authData.access_token
+}
+
+function pemToDer(pem: string): ArrayBuffer {
+  const pemContents = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\s/g, "")
+
+  const binaryString = atob(pemContents)
+  const bytes = new Uint8Array(binaryString.length)
+
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i)
+  }
+
+  return bytes.buffer
+}
+
+export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
+  try {
+    const accessToken = await getGoogleSheetsAuth()
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products?valueRenderOption=FORMATTED_VALUE`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
+    }
+
+    const data = await response.json()
+    const rows = data.values as string[][]
+
+    if (!rows || rows.length < 2) {
+      console.warn("No product data found in Google Sheet or only headers present.")
+      return []
+    }
+
+    // Assuming the first row is the header
+    const headers = rows[0]
+    const products = rows.slice(1).map((row) => {
+      const product: any = {}
+      headers.forEach((header, index) => {
+        const value = row[index]
+        // Convert specific fields to numbers or arrays
+        if (header === "id" || header === "price" || header === "stock") {
+          product[header] = Number(value)
+        } else if (
+          header === "sizes" ||
+          header === "colors" ||
+          header === "features" ||
+          header === "materials" ||
+          header === "careInstructions"
+        ) {
+          product[header] = value ? value.split(",").map((s: string) => s.trim()) : []
+        } else if (header === "images") {
+          product[header] = value ? value.split(",").map((s: string) => s.trim()) : []
+        } else if (header === "specifications") {
+          try {
+            product[header] = value ? JSON.parse(value) : {}
+          } catch (e) {
+            console.error(`Error parsing specifications for product: ${product.name}`, e)
+            product[header] = {}
+          }
+        } else {
+          product[header] = value
+        }
+      })
+      return product as ProductData
+    })
+
+    return products
+  } catch (error) {
+    console.error("Error fetching products from Google Sheet:", error)
+    throw error
+  }
+}
+
+async function addOrderToGoogleSheet(orderData: OrderData) {
+  try {
+    const accessToken = await getGoogleSheetsAuth()
+
+    const values = [
+      [
+        orderData.orderId,
+        orderData.date,
+        orderData.time,
+        orderData.customerName,
+        orderData.email,
+        orderData.phone,
+        orderData.address,
+        orderData.city,
+        orderData.state,
+        orderData.zipCode,
+        orderData.country,
+        orderData.deliveryMethod,
+        orderData.totalItems,
+        orderData.subtotal,
+        orderData.shippingCost,
+        orderData.totalAmount,
+        orderData.notes,
+        orderData.proofOfPaymentUrl,
+        orderData.status,
+      ],
+    ]
+
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Orders:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          values,
+        }),
+      },
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error adding order to Google Sheet:", error)
+    throw error
+  }
+}
+
+async function addOrderItemsToGoogleSheet(orderItems: OrderItemData[]) {
+  try {
+    const accessToken = await getGoogleSheetsAuth()
+
+    const values = orderItems.map((item) => [
+      item.orderId,
+      item.itemId,
+      item.productName,
+      item.price,
+      item.quantity,
+      item.subtotal,
+      item.description,
+      item.selectedSize || "",
+      item.selectedColor || "",
+    ])
+
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Order_Items:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          values,
+        }),
+      },
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(`Google Sheets API error: ${response.statusText} - ${JSON.stringify(errorData)}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error adding order items to Google Sheet:", error)
+    throw error
+  }
+}
 
 async function sendCustomerConfirmationEmail(orderData: OrderData, orderItems: OrderItemData[]) {
   try {
@@ -103,7 +410,7 @@ async function sendCustomerConfirmationEmail(orderData: OrderData, orderItems: O
               <table style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td style="padding: 5px 0; font-size: 16px;">Subtotal:</td>
-                  <td style="padding: 5px 0; text-align: right; font-size: 16px;">€${orderData.subtotal.toFixed(2)}</td>
+                  <td style="padding: 5px 0; text-align: right; font-size: 16px;">€${orderData.subtotal.toFixed(2)}</td> 
                 </tr>
                 <tr>
                   <td style="padding: 5px 0; font-size: 16px;">${orderData.deliveryMethod === "pickup" ? "Pickup" : "Delivery"}:</td>
@@ -478,10 +785,10 @@ export async function submitOrder(formData: FormData) {
 
     // Update stock in Google Sheet
     try {
-      await updateProductStockInSheet(orderItemsData)
+      await updateStockInGoogleSheet(orderItemsData)
     } catch (stockError) {
       console.error("Error updating stock in Google Sheet:", stockError)
-      return { success: false, error: "Failed to update stock, but order recorded." }
+      return { success: false, error: "Failed to update stock" }
     }
 
     const emailResults = await Promise.allSettled([
