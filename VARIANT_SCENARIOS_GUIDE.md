@@ -14,11 +14,11 @@ The variant-based stock management system handles all possible combinations of s
 | Keychain | - | - | `1-null-null` | 50 |
 
 **Google Sheets:**
-```
+\`\`\`
 | product_id | size | color | stock | variant_id |
 |------------|------|-------|-------|------------|
 | 1 | null | null | 50 | 1-null-null |
-```
+\`\`\`
 
 ### 2. **Size Only, No Color** (Sized Product)
 **Example:** A t-shirt that comes in different sizes but only one color
@@ -31,14 +31,14 @@ The variant-based stock management system handles all possible combinations of s
 | T-Shirt | XL | - | `2-XL-null` | 5 |
 
 **Google Sheets:**
-```
+\`\`\`
 | product_id | size | color | stock | variant_id |
 |------------|------|-------|-------|------------|
 | 2 | S | null | 10 | 2-S-null |
 | 2 | M | null | 15 | 2-M-null |
 | 2 | L | null | 8 | 2-L-null |
 | 2 | XL | null | 5 | 2-XL-null |
-```
+\`\`\`
 
 ### 3. **Color Only, No Size** (Colored Product)
 **Example:** A phone case that comes in different colors but one size fits all
@@ -50,13 +50,13 @@ The variant-based stock management system handles all possible combinations of s
 | Phone Case | - | Green | `3-null-Green` | 12 |
 
 **Google Sheets:**
-```
+\`\`\`
 | product_id | size | color | stock | variant_id |
 |------------|------|-------|-------|------------|
 | 3 | null | Red | 20 | 3-null-Red |
 | 3 | null | Blue | 15 | 3-null-Blue |
 | 3 | null | Green | 12 | 3-null-Green |
-```
+\`\`\`
 
 ### 4. **Size + Color** (Complex Product)
 **Example:** A t-shirt with multiple sizes and colors
@@ -71,7 +71,7 @@ The variant-based stock management system handles all possible combinations of s
 | T-Shirt | L | Blue | `4-L-Blue` | 7 |
 
 **Google Sheets:**
-```
+\`\`\`
 | product_id | size | color | stock | variant_id |
 |------------|------|-------|-------|------------|
 | 4 | S | Red | 8 | 4-S-Red |
@@ -80,12 +80,12 @@ The variant-based stock management system handles all possible combinations of s
 | 4 | M | Blue | 10 | 4-M-Blue |
 | 4 | L | Red | 5 | 4-L-Red |
 | 4 | L | Blue | 7 | 4-L-Blue |
-```
+\`\`\`
 
 ## 🎯 Real-World Examples
 
 ### Example 1: **Phone Case** (Color Only)
-```typescript
+\`\`\`typescript
 const phoneCase = {
   id: 1,
   name: "iPhone Case",
@@ -99,10 +99,10 @@ const phoneCase = {
 // 1-null-Blue (15 stock) 
 // 1-null-Green (12 stock)
 // 1-null-Black (20 stock)
-```
+\`\`\`
 
 ### Example 2: **Socks** (Size Only)
-```typescript
+\`\`\`typescript
 const socks = {
   id: 2,
   name: "Cotton Socks",
@@ -116,10 +116,10 @@ const socks = {
 // 2-M-null (30 stock)
 // 2-L-null (25 stock)
 // 2-XL-null (20 stock)
-```
+\`\`\`
 
 ### Example 3: **T-Shirt** (Size + Color)
-```typescript
+\`\`\`typescript
 const tshirt = {
   id: 3,
   name: "Cotton T-Shirt",
@@ -138,10 +138,10 @@ const tshirt = {
 // 3-L-White (8 stock)
 // 3-L-Black (7 stock)
 // 3-L-Blue (8 stock)
-```
+\`\`\`
 
 ### Example 4: **Keychain** (No Size, No Color)
-```typescript
+\`\`\`typescript
 const keychain = {
   id: 4,
   name: "Metal Keychain",
@@ -152,13 +152,13 @@ const keychain = {
 
 // Generated variant:
 // 4-null-null (50 stock)
-```
+\`\`\`
 
 ## 🔧 How the System Handles Each Scenario
 
 ### 1. **Variant Generation Logic**
 
-```typescript
+\`\`\`typescript
 function generateProductVariants(product) {
   const variants = []
   
@@ -224,11 +224,11 @@ function generateProductVariants(product) {
   
   return variants
 }
-```
+\`\`\`
 
 ### 2. **Stock Validation Logic**
 
-```typescript
+\`\`\`typescript
 function validateVariantStock(cartItems, variantsData) {
   for (const cartItem of cartItems) {
     // Find the specific variant
@@ -249,7 +249,7 @@ function validateVariantStock(cartItems, variantsData) {
     }
   }
 }
-```
+\`\`\`
 
 ## 📱 User Interface Behavior
 
@@ -291,4 +291,4 @@ function validateVariantStock(cartItems, variantsData) {
 4. **Scalable**: Works with any number of sizes or colors
 5. **User-Friendly**: UI adapts to show only relevant options
 
-The system is designed to be completely flexible and handle any product configuration your business needs! 
+The system is designed to be completely flexible and handle any product configuration your business needs!

@@ -51,10 +51,10 @@ You need to set these environment variables in your **Vercel dashboard**:
 ## 🧪 Testing the Fix
 
 ### Option 1: Test Locally (if you have environment variables)
-```bash
+\`\`\`bash
 cd shop
 node scripts/diagnose-stock-system.js
-```
+\`\`\`
 
 ### Option 2: Test in Production
 1. Deploy to Vercel with the environment variables
@@ -90,9 +90,9 @@ node scripts/diagnose-stock-system.js
    - Verify the spreadsheet has "id" and "stock" columns
 
 3. **Test with diagnostic script**:
-   ```bash
+   \`\`\`bash
    node scripts/diagnose-stock-system.js
-   ```
+   \`\`\`
 
 ### Common Issues:
 
@@ -110,12 +110,12 @@ Your Products sheet must have these columns:
 - Other columns as needed
 
 Example:
-```
+\`\`\`
 | id | name        | price | stock | description |
 |----|-------------|-------|-------|-------------|
 | 1  | T-Shirt     | 25.99 | 10    | Cotton t-shirt |
 | 2  | Hoodie      | 45.99 | 5     | Warm hoodie |
-```
+\`\`\`
 
 ## 🚀 Next Steps
 
@@ -128,4 +128,4 @@ The stock update system should now work correctly! The fix ensures that:
 - ✅ Stock is updated when orders are placed
 - ✅ The system is robust and handles errors gracefully
 - ✅ It works properly in the Vercel environment
-- ✅ It uses the correct Next.js/TypeScript approach 
+- ✅ It uses the correct Next.js/TypeScript approach

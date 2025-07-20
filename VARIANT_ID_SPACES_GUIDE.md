@@ -7,9 +7,9 @@ The variant-based stock management system properly handles color names with spac
 ## 🎯 How Variant IDs Work
 
 ### Basic Format
-```
+\`\`\`
 {productId}-{encodedSize}-{encodedColor}
-```
+\`\`\`
 
 ### Examples with Spaces
 
@@ -39,7 +39,7 @@ The variant-based stock management system properly handles color names with spac
 
 ### Code Implementation
 
-```typescript
+\`\`\`typescript
 function generateVariantId(productId: number, size?: string, color?: string): string {
   const sizePart = size || 'null'
   const colorPart = color || 'null'
@@ -50,11 +50,11 @@ function generateVariantId(productId: number, size?: string, color?: string): st
   
   return `${productId}-${encodedSize}-${encodedColor}`
 }
-```
+\`\`\`
 
 ### Parsing Variant IDs
 
-```typescript
+\`\`\`typescript
 function parseVariantId(variantId: string): { productId: number; size?: string; color?: string } {
   const parts = variantId.split('-')
   if (parts.length < 3) {
@@ -72,12 +72,12 @@ function parseVariantId(variantId: string): { productId: number; size?: string; 
   
   return { productId, size, color }
 }
-```
+\`\`\`
 
 ## 📊 Google Sheets Examples
 
 ### Product_Variants Sheet
-```
+\`\`\`
 | product_id | size | color | stock | variant_id |
 |------------|------|-------|-------|------------|
 | 1 | S | Blue Sky | 5 | 1-S-Blue%20Sky |
@@ -86,7 +86,7 @@ function parseVariantId(variantId: string): { productId: number; size?: string; 
 | 1 | M | Dark Blue | 2 | 1-M-Dark%20Blue |
 | 2 | L | Red & White | 4 | 2-L-Red%20%26%20White |
 | 2 | XL | Blue-Green | 6 | 2-XL-Blue-Green |
-```
+\`\`\`
 
 ## ✅ Benefits
 
@@ -114,9 +114,9 @@ function parseVariantId(variantId: string): { productId: number; size?: string; 
 
 Run the test script to verify functionality:
 
-```bash
+\`\`\`bash
 node scripts/test-variant-ids.js
-```
+\`\`\`
 
 This will show:
 - ✅ All test cases pass
@@ -146,7 +146,7 @@ This will show:
 ## 🔍 Real-World Usage
 
 ### In Product Modal
-```typescript
+\`\`\`typescript
 // Color buttons show stock levels
 {product.colors!.map((color) => {
   const colorStock = product.variants 
@@ -163,24 +163,24 @@ This will show:
     </Button>
   )
 })}
-```
+\`\`\`
 
 ### In Stock Validation
-```typescript
+\`\`\`typescript
 // Find specific variant for validation
 const variant = variantsData.find(v => 
   v.productId === cartItem.id && 
   v.size === cartItem.selectedSize && 
   v.color === cartItem.selectedColor
 )
-```
+\`\`\`
 
 ### In Stock Updates
-```typescript
+\`\`\`typescript
 // Update specific variant stock
 const variantKey = `${cartItem.id}-${encodedSize}-${encodedColor}`
 const variantData = variantMap.get(variantKey)
-```
+\`\`\`
 
 ## 🚀 Conclusion
 
@@ -192,4 +192,4 @@ The variant ID system now fully supports:
 - ✅ **URL-safe format** (database and web friendly)
 - ✅ **Perfect reversibility** (no data loss)
 
-This makes the system robust and ready for any color naming convention your business uses! 
+This makes the system robust and ready for any color naming convention your business uses!

@@ -20,17 +20,17 @@ The most likely causes are:
 1. Open your Google Sheets
 2. Look for a sheet named **"Product_Variants"** (exact spelling)
 3. If it doesn't exist, run the setup script:
-   ```bash
+   \`\`\`bash
    node scripts/setup-variant-stock.js
-   ```
+   \`\`\`
 
 ### Step 2: Verify Product_Variants Sheet Structure
 
 Your Product_Variants sheet should have these exact headers:
-```
+\`\`\`
 | product_id | size | color | stock | variant_id |
 |------------|------|-------|-------|------------|
-```
+\`\`\`
 
 **Check:**
 - ✅ Column names are exactly as shown above
@@ -43,7 +43,7 @@ Your Product_Variants sheet should have these exact headers:
 **Critical:** The `product_id` in Product_Variants must match the `id` in Products sheet.
 
 **Example:**
-```
+\`\`\`
 Products Sheet:
 | id | name | price | ... |
 |----|------|-------|-----|
@@ -56,15 +56,15 @@ Product_Variants Sheet:
 | 1 | S | Red | 5 | 1-S-Red |
 | 1 | S | Blue | 3 | 1-S-Blue |
 | 2 | null | Red | 10 | 2-null-Red |
-```
+\`\`\`
 
 ### Step 4: Check Stock Values
 
 **Stock values must be numeric:**
-```
+\`\`\`
 ✅ Correct: 5, 10, 25, 0
 ❌ Wrong: "5", "ten", "out of stock", ""
-```
+\`\`\`
 
 ### Step 5: Verify Data Format
 
@@ -74,22 +74,22 @@ Product_Variants Sheet:
 - No extra spaces
 
 **Example:**
-```
+\`\`\`
 | product_id | size | color | stock | variant_id |
 |------------|------|-------|-------|------------|
 | 1 | S | Red | 5 | 1-S-Red |
 | 1 | S | null | 3 | 1-S-null |
 | 1 | null | Red | 10 | 1-null-Red |
 | 1 | null | null | 15 | 1-null-null |
-```
+\`\`\`
 
 ## 🔧 Quick Fixes
 
 ### Fix 1: Run Setup Script Again
-```bash
+\`\`\`bash
 cd shop
 node scripts/setup-variant-stock.js
-```
+\`\`\`
 
 ### Fix 2: Manual Product_Variants Creation
 
@@ -112,10 +112,10 @@ node scripts/setup-variant-stock.js
 ## 🧪 Testing Your Setup
 
 ### Test 1: Check Sheet Structure
-```bash
+\`\`\`bash
 # This will show you the current state
 node scripts/debug-variant-stock.js
-```
+\`\`\`
 
 ### Test 2: Manual Verification
 1. Open your Google Sheets
@@ -125,13 +125,13 @@ node scripts/debug-variant-stock.js
 
 ### Test 3: Sample Data Test
 Create this test data in Product_Variants:
-```
+\`\`\`
 | product_id | size | color | stock | variant_id |
 |------------|------|-------|-------|------------|
 | 1 | S | Red | 10 | 1-S-Red |
 | 1 | M | Red | 15 | 1-M-Red |
 | 1 | L | Red | 8 | 1-L-Red |
-```
+\`\`\`
 
 ## 🎯 Common Issues and Solutions
 
@@ -181,4 +181,4 @@ If you're still seeing 0 stock after following these steps:
 3. **Ensure Google Sheets permissions** are correct
 4. **Try the debug script** to see detailed information
 
-The most common cause is a mismatch between product IDs or missing Product_Variants sheet data. 
+The most common cause is a mismatch between product IDs or missing Product_Variants sheet data.

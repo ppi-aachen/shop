@@ -7,14 +7,14 @@ This document outlines the new variant-based stock management system where each 
 ## Google Sheets Structure
 
 ### Products Sheet (Main Product Information)
-```
+\`\`\`
 | id | name | price | image | description | sizes | colors | ... |
 |----|------|-------|-------|-------------|-------|--------|-----|
 | 1  | T-Shirt | 25.99 | image.jpg | Cotton t-shirt | S,M,L | Red,White | ... |
-```
+\`\`\`
 
 ### Product_Variants Sheet (Variant-Specific Stock)
-```
+\`\`\`
 | product_id | size | color | stock | variant_id |
 |------------|------|-------|-------|------------|
 | 1 | S | Red | 5 | 1-S-Red |
@@ -23,7 +23,7 @@ This document outlines the new variant-based stock management system where each 
 | 1 | M | White | 2 | 1-M-White |
 | 1 | L | Red | 0 | 1-L-Red |
 | 1 | L | White | 4 | 1-L-White |
-```
+\`\`\`
 
 ### Variant Generation Rules
 
@@ -101,4 +101,4 @@ The `variant_id` is a unique identifier for each variant:
 2. **Better UX**: Customers see exact availability for their chosen variant
 3. **Prevents Overselling**: Real-time variant-specific stock validation
 4. **Flexible Inventory**: Easy to manage different stock levels per variant
-5. **Scalable**: Easy to add new variants or modify existing ones 
+5. **Scalable**: Easy to add new variants or modify existing ones

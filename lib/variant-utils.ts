@@ -202,4 +202,4 @@ export function createCartItemWithVariant(
     variantStock,
     variantId
   }
-} 
+}

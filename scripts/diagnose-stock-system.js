@@ -209,4 +209,4 @@ async function diagnoseStockSystem() {
 }
 
 // Run the diagnostic
-diagnoseStockSystem() 
+diagnoseStockSystem()

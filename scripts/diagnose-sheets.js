@@ -102,4 +102,4 @@ async function diagnoseGoogleSheets() {
   }
 }
 
-diagnoseGoogleSheets() 
+diagnoseGoogleSheets()

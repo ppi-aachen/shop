@@ -783,7 +783,7 @@ async function addOrderItemsToGoogleSheet(orderItems: OrderItemData[]) {
 
 async function sendCustomerConfirmationEmail(orderData: OrderData, orderItems: OrderItemData[]) {
   try {
-    if (!process.env.RESEND_API_KEY || !process.env.RESEND_API_KEY.startsWith("re_")) {
+    if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === "" || !process.env.RESEND_API_KEY.startsWith("re_")) {
       console.log("Resend API key not configured, skipping customer email")
       return { success: false, error: "Email service not configured" }
     }
@@ -950,7 +950,7 @@ async function sendCustomerConfirmationEmail(orderData: OrderData, orderItems: O
 
 async function sendBusinessNotificationEmail(orderData: OrderData, orderItems: OrderItemData[]) {
   try {
-    if (!process.env.RESEND_API_KEY || !process.env.RESEND_API_KEY.startsWith("re_")) {
+    if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === "" || !process.env.RESEND_API_KEY.startsWith("re_")) {
       console.log("Resend API key not configured, skipping business notification")
       return { success: false, error: "Email service not configured" }
     }
