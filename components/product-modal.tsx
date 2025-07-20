@@ -10,6 +10,14 @@ import { ImageGallery } from "@/components/image-gallery"
 import { getProductImages } from "@/lib/image-utils"
 import { useToast } from "@/hooks/use-toast"
 
+interface ProductVariant {
+  productId: number
+  size?: string
+  color?: string
+  stock: number
+  variantId: string
+}
+
 interface Product {
   id: number
   name: string
@@ -24,6 +32,8 @@ interface Product {
   careInstructions?: string[]
   sizes?: string[]
   colors?: string[]
+  stock: number
+  variants?: ProductVariant[]
 }
 
 interface ProductModalProps {
@@ -64,6 +74,25 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
       return
     }
 
+    // Check if the specific variant is in stock
+    const variantStock = product.variants 
+      ? product.variants.find((v: ProductVariant) => {
+          // Handle both cases: when size/color are selected and when they're not
+          const sizeMatch = requiresSize ? v.size === selectedSize : (v.size === undefined || v.size === null || v.size === "")
+          const colorMatch = requiresColor ? v.color === selectedColor : (v.color === undefined || v.color === null || v.color === "")
+          return sizeMatch && colorMatch
+        })?.stock || 0
+      : product.stock
+
+    if (variantStock <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Out of Stock",
+        description: `This variant (${selectedSize || 'No size'}${selectedColor ? `, ${selectedColor}` : ''}) is currently out of stock.`,
+      })
+      return
+    }
+
     dispatch({
       type: "ADD_ITEM",
       payload: {
@@ -92,7 +121,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
   // Check if all required options are selected
   const requiresSize = product.sizes && product.sizes.length > 0
   const requiresColor = product.colors && product.colors.length > 0
-  const canAddToCart = (!requiresSize || selectedSize) && (!requiresColor || selectedColor)
+  const canAddToCart = (!requiresSize || selectedSize) && (!requiresColor || selectedColor) && product.stock > 0
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -147,17 +176,39 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                   Size <span className="text-red-500">*</span>
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {product.sizes!.map((size) => (
-                    <Button
-                      key={size}
-                      variant={selectedSize === size ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedSize(size)}
-                      className={selectedSize === size ? "bg-green-600 hover:bg-green-700" : ""}
-                    >
-                      {size}
-                    </Button>
-                  ))}
+                  {product.sizes!.map((size) => {
+                    const sizeStock = product.variants 
+                      ? product.variants.find((v: ProductVariant) => {
+                          // Handle both cases: when color is selected and when it's not
+                          if (requiresColor && selectedColor) {
+                            // Color is required and selected - match both size and color
+                            return v.size === size && v.color === selectedColor
+                          } else {
+                            // No color required or not selected - match only size (color should be undefined/null)
+                            return v.size === size && (v.color === undefined || v.color === null || v.color === "")
+                          }
+                        })?.stock || 0
+                      : product.stock
+                    const isOutOfStock = sizeStock <= 0
+                    
+                    return (
+                      <Button
+                        key={size}
+                        variant={selectedSize === size ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSelectedSize(size)}
+                        className={`${selectedSize === size ? "bg-green-600 hover:bg-green-700" : ""} ${isOutOfStock ? "opacity-50 cursor-not-allowed" : ""}`}
+                        disabled={isOutOfStock}
+                      >
+                        {size}
+                        {product.variants && (
+                          <span className="ml-1 text-xs">
+                            ({sizeStock})
+                          </span>
+                        )}
+                      </Button>
+                    )
+                  })}
                 </div>
                 {!selectedSize && (
                   <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -177,17 +228,39 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                   Color <span className="text-red-500">*</span>
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {product.colors!.map((color) => (
-                    <Button
-                      key={color}
-                      variant={selectedColor === color ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setSelectedColor(color)}
-                      className={selectedColor === color ? "bg-green-600 hover:bg-green-700" : ""}
-                    >
-                      {color}
-                    </Button>
-                  ))}
+                  {product.colors!.map((color) => {
+                    const colorStock = product.variants 
+                      ? product.variants.find((v: ProductVariant) => {
+                          // Handle both cases: when size is selected and when it's not
+                          if (requiresSize && selectedSize) {
+                            // Size is required and selected - match both size and color
+                            return v.size === selectedSize && v.color === color
+                          } else {
+                            // No size required or not selected - match only color (size should be undefined/null)
+                            return (v.size === undefined || v.size === null || v.size === "") && v.color === color
+                          }
+                        })?.stock || 0
+                      : product.stock
+                    const isOutOfStock = colorStock <= 0
+                    
+                    return (
+                      <Button
+                        key={color}
+                        variant={selectedColor === color ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setSelectedColor(color)}
+                        className={`${selectedColor === color ? "bg-green-600 hover:bg-green-700" : ""} ${isOutOfStock ? "opacity-50 cursor-not-allowed" : ""}`}
+                        disabled={isOutOfStock}
+                      >
+                        {color}
+                        {product.variants && (
+                          <span className="ml-1 text-xs">
+                            ({colorStock})
+                          </span>
+                        )}
+                      </Button>
+                    )
+                  })}
                 </div>
                 {!selectedColor && (
                   <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -197,6 +270,23 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Stock Information */}
+            {product.variants && ((requiresSize && selectedSize) || !requiresSize) && ((requiresColor && selectedColor) || !requiresColor) && (
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-600 rounded-full" />
+                  <p className="text-sm text-blue-700 font-medium">
+                    Stock: {product.variants.find((v: ProductVariant) => {
+                      // Handle both cases: when size/color are selected and when they're not
+                      const sizeMatch = requiresSize ? v.size === selectedSize : (v.size === undefined || v.size === null || v.size === "")
+                      const colorMatch = requiresColor ? v.color === selectedColor : (v.color === undefined || v.color === null || v.color === "")
+                      return sizeMatch && colorMatch
+                    })?.stock || 0} available
+                  </p>
+                </div>
               </div>
             )}
 
@@ -261,11 +351,9 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             </div>
 
             {/* Add to Cart Button */}
-            <Button onClick={addToCart} className="w-full" size="lg" disabled={!canAddToCart}>
+            <Button onClick={addToCart} className="w-full" size="lg" disabled={!canAddToCart || product.stock === 0}>
               <Plus className="h-4 w-4 mr-2" />
-              {canAddToCart
-                ? `Add to Cart - €${product.price.toFixed(2)}`
-                : `Select ${!selectedSize && requiresSize ? "Size" : ""}${!selectedSize && requiresSize && !selectedColor && requiresColor ? " & " : ""}${!selectedColor && requiresColor ? "Color" : ""} to Continue`}
+              {product.stock > 0 ? `Add to Cart - €${product.price.toFixed(2)}` : "Out of Stock"}
             </Button>
           </div>
         </div>
