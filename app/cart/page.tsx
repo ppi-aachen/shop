@@ -108,9 +108,10 @@ export default function CartPage() {
                         onChange={(e) => updateQuantity(index, Number.parseInt(e.target.value) || 0)}
                         className="w-16 text-center"
                         min="0"
+                        max={item.variantStock ?? item.stock}
                       />
 
-                      <Button variant="outline" size="sm" onClick={() => updateQuantity(index, item.quantity + 1)}>
+                      <Button variant="outline" size="sm" onClick={() => updateQuantity(index, item.quantity + 1)} disabled={item.quantity >= (item.variantStock ?? item.stock)}>
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
