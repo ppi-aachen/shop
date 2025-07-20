@@ -4,6 +4,7 @@ console.log("==================================")
 console.log("")
 
 // Your actual data
+
 const variantHeaders = ["product_id", "size", "color", "stock", "variant_id"]
 const variantRows = [
   variantHeaders,
