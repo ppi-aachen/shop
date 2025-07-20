@@ -99,6 +99,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
         ...product,
         selectedSize,
         selectedColor,
+        variantStock, // <-- add this line
       },
     })
 
