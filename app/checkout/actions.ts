@@ -405,16 +405,11 @@ async function validateVariantStock(cartItems: CartItem[], variantsData: Product
 
   for (const cartItem of cartItems) {
     // Find the specific variant for this cart item
-    const variant = variantsData.find(v => {
-      // Handle both cases: when size/color are selected and when they're not
-      const sizeMatch = cartItem.selectedSize 
-        ? v.size === cartItem.selectedSize 
-        : (v.size === undefined || v.size === null || v.size === "")
-      const colorMatch = cartItem.selectedColor 
-        ? v.color === cartItem.selectedColor 
-        : (v.color === undefined || v.color === null || v.color === "")
-      return v.productId === cartItem.id && sizeMatch && colorMatch
-    })
+    const variant = variantsData.find(v => 
+      v.productId === cartItem.id && 
+      v.size === cartItem.selectedSize && 
+      v.color === cartItem.selectedColor
+    )
 
     if (!variant) {
       errors.push(`${cartItem.name} (${cartItem.selectedSize || 'No size'}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ''}): Variant not found`)
