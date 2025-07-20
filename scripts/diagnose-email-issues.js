@@ -138,4 +138,4 @@ if (!hasResendKey) {
 console.log("")
 console.log("💡 TIP: The shop works without emails!")
 console.log("   Orders are saved to Google Sheets regardless of email status.")
-console.log("   You can manually send emails using the logged templates.") 
+console.log("   You can manually send emails using the logged templates.")
