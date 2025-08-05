@@ -7,7 +7,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useCart } from "@/lib/cart-context"
+<<<<<<< HEAD
 import { Plus, Minus, Trash2, ShoppingCart, Search, Eye, Receipt, CreditCard, Cash, Store, Clock, X } from "lucide-react"
+=======
+import { Plus, Minus, Trash2, ShoppingCart, Search, Eye, Receipt, CreditCard, Cash } from "lucide-react"
+import { ProductModal } from "@/components/product-modal"
+import { POSHeader } from "@/components/pos-header"
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
 import { getProductImage } from "@/lib/image-utils"
 import { useToast } from "@/hooks/use-toast"
 import { getProductsFromGoogleSheet } from "@/app/checkout/actions"
@@ -31,6 +37,11 @@ interface Product {
 
 export default function POSPage() {
   const { state, dispatch } = useCart()
+<<<<<<< HEAD
+=======
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
   const { toast } = useToast()
   const [products, setProducts] = useState<Product[]>([])
   const [loadingProducts, setLoadingProducts] = useState(true)
@@ -40,7 +51,38 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("card")
   const [cashReceived, setCashReceived] = useState("")
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+<<<<<<< HEAD
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+=======
+
+  // Keyboard shortcuts for POS efficiency
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Ctrl/Cmd + K to focus search
+      if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+        event.preventDefault()
+        const searchInput = document.querySelector('input[placeholder="Search products..."]') as HTMLInputElement
+        if (searchInput) {
+          searchInput.focus()
+        }
+      }
+      
+      // Enter to complete sale when cart has items
+      if (event.key === 'Enter' && state.items.length > 0 && !showPaymentModal) {
+        event.preventDefault()
+        handleCheckout()
+      }
+      
+      // Escape to close payment modal
+      if (event.key === 'Escape' && showPaymentModal) {
+        setShowPaymentModal(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyPress)
+    return () => document.removeEventListener('keydown', handleKeyPress)
+  }, [state.items.length, showPaymentModal])
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -65,6 +107,7 @@ export default function POSPage() {
     fetchProducts()
   }, [toast])
 
+<<<<<<< HEAD
   // Keyboard shortcuts for POS efficiency
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
@@ -93,6 +136,8 @@ export default function POSPage() {
     return () => document.removeEventListener('keydown', handleKeyPress)
   }, [state.items.length, showPaymentModal])
 
+=======
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.description.toLowerCase().includes(searchTerm.toLowerCase())
@@ -122,7 +167,11 @@ export default function POSPage() {
         description: `Please select ${missingOptions.join(" and ")} options first.`,
       })
 
+<<<<<<< HEAD
       setSelectedProduct(product)
+=======
+      openProductModal(product)
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
       return
     }
 
@@ -135,6 +184,19 @@ export default function POSPage() {
     })
   }
 
+<<<<<<< HEAD
+=======
+  const openProductModal = (product: Product) => {
+    setSelectedProduct(product)
+    setIsModalOpen(true)
+  }
+
+  const closeProductModal = () => {
+    setIsModalOpen(false)
+    setSelectedProduct(null)
+  }
+
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
   const updateQuantity = (index: number, quantity: number) => {
     dispatch({ type: "UPDATE_QUANTITY", payload: { id: index, quantity } })
   }
@@ -164,6 +226,7 @@ export default function POSPage() {
     setShowPaymentModal(true)
   }
 
+<<<<<<< HEAD
   const quickAddById = () => {
     const productId = parseInt(quickAddId)
     if (isNaN(productId)) {
@@ -191,6 +254,10 @@ export default function POSPage() {
 
   const processPayment = () => {
     if (paymentMethod === "cash" && parseFloat(cashReceived) < (state.total * 1.19)) {
+=======
+  const processPayment = () => {
+    if (paymentMethod === "cash" && parseFloat(cashReceived) < (state.finalTotal * 1.19)) {
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
       toast({
         variant: "destructive",
         title: "Insufficient Payment",
@@ -211,11 +278,19 @@ export default function POSPage() {
       printWindow.close()
     }
 
+<<<<<<< HEAD
     // Process the sale
     toast({
       variant: "success",
       title: "Sale Complete!",
       description: `Payment received: €${paymentMethod === "cash" ? cashReceived : (state.total * 1.19).toFixed(2)}`,
+=======
+    // Process the sale (in a real POS, this would update inventory, create receipt, etc.)
+    toast({
+      variant: "success",
+      title: "Sale Complete!",
+      description: `Payment received: €${paymentMethod === "cash" ? cashReceived : (state.finalTotal * 1.19).toFixed(2)}`,
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
     })
 
     // Clear cart and reset payment modal
@@ -270,7 +345,11 @@ export default function POSPage() {
           </div>
           <div class="item">
             <strong>Total</strong>
+<<<<<<< HEAD
             <strong>€${(state.total * 1.19).toFixed(2)}</strong>
+=======
+            <strong>€${(state.finalTotal * 1.19).toFixed(2)}</strong>
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
           </div>
           <div class="item">
             <span>Payment Method</span>
@@ -283,7 +362,11 @@ export default function POSPage() {
             </div>
             <div class="item">
               <span>Change</span>
+<<<<<<< HEAD
               <span>€${(parseFloat(cashReceived) - (state.total * 1.19)).toFixed(2)}</span>
+=======
+              <span>€${cashChange.toFixed(2)}</span>
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
             </div>
           ` : ''}
         </div>
@@ -298,6 +381,7 @@ export default function POSPage() {
   }
 
   const cashChange = paymentMethod === "cash" && cashReceived 
+<<<<<<< HEAD
     ? parseFloat(cashReceived) - (state.total * 1.19)
     : 0
 
@@ -344,6 +428,39 @@ export default function POSPage() {
           </div>
         </div>
       </header>
+=======
+    ? parseFloat(cashReceived) - state.finalTotal 
+    : 0
+
+  const quickAddById = () => {
+    const productId = parseInt(quickAddId)
+    if (isNaN(productId)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid ID",
+        description: "Please enter a valid product ID.",
+      })
+      return
+    }
+
+    const product = products.find(p => p.id === productId)
+    if (!product) {
+      toast({
+        variant: "destructive",
+        title: "Product Not Found",
+        description: `No product found with ID ${productId}.`,
+      })
+      return
+    }
+
+    addToCart(product)
+    setQuickAddId("")
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-100">
+      <POSHeader onClearCart={clearCart} />
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
 
       <div className="flex h-[calc(100vh-120px)]">
         {/* Left Side - Products */}
@@ -632,7 +749,11 @@ export default function POSPage() {
               <div className="border-t pt-4">
                 <div className="flex justify-between font-semibold text-lg">
                   <span>Total Due</span>
+<<<<<<< HEAD
                   <span>€{(state.total * 1.19).toFixed(2)}</span>
+=======
+                  <span>€{(state.finalTotal * 1.19).toFixed(2)}</span>
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
                 </div>
               </div>
             </div>
@@ -648,7 +769,11 @@ export default function POSPage() {
               <Button
                 onClick={processPayment}
                 className="flex-1"
+<<<<<<< HEAD
                 disabled={paymentMethod === "cash" && parseFloat(cashReceived) < (state.total * 1.19)}
+=======
+                disabled={paymentMethod === "cash" && parseFloat(cashReceived) < (state.finalTotal * 1.19)}
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
               >
                 Complete Payment
               </Button>
@@ -657,6 +782,7 @@ export default function POSPage() {
         </div>
       )}
 
+<<<<<<< HEAD
       {/* Product Details Panel (Inline instead of popup) */}
       {selectedProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -768,3 +894,9 @@ export default function POSPage() {
     </div>
   )
 } 
+=======
+      <ProductModal product={selectedProduct} isOpen={isModalOpen} onClose={closeProductModal} />
+    </div>
+  )
+}
+>>>>>>> 4d6f703f1a1dc4d52927e9196fa25ccae5d61445
