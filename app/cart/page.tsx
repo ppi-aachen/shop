@@ -56,9 +56,9 @@ export default function CartPage() {
             {state.items.map((item, index) => (
               <Card key={`${item.id}-${item.selectedSize}-${item.selectedColor}-${index}`}>
                 <CardContent className="p-6">
-                  <div className="flex flex-col sm:flex-row items-center gap-4 w-full">
+                  <div className="flex items-center gap-4">
                     {/* Product Image with Fallback */}
-                    <div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center border overflow-hidden shrink-0">
+                    <div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center border overflow-hidden">
                       {item.image ? (
                         <img
                           src={getProductImage(item.image) || "/placeholder.svg"}
@@ -82,7 +82,7 @@ export default function CartPage() {
                       )}
                     </div>
 
-                    <div className="flex-1 w-full">
+                    <div className="flex-1">
                       <h3 className="font-semibold text-lg">{item.name}</h3>
                       <p className="text-gray-600 text-sm">{item.description}</p>
                       {/* Show selected options */}
@@ -97,7 +97,7 @@ export default function CartPage() {
                       <p className="text-lg font-bold text-green-600 mt-1">€{item.price.toFixed(2)}</p>
                     </div>
 
-                    <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                    <div className="flex items-center gap-2">
                       <Button variant="outline" size="sm" onClick={() => updateQuantity(index, item.quantity - 1)}>
                         <Minus className="h-4 w-4" />
                       </Button>
@@ -108,15 +108,14 @@ export default function CartPage() {
                         onChange={(e) => updateQuantity(index, Number.parseInt(e.target.value) || 0)}
                         className="w-16 text-center"
                         min="0"
-                        max={item.variantStock ?? item.stock}
                       />
 
-                      <Button variant="outline" size="sm" onClick={() => updateQuantity(index, item.quantity + 1)} disabled={item.quantity >= (item.variantStock ?? item.stock)}>
+                      <Button variant="outline" size="sm" onClick={() => updateQuantity(index, item.quantity + 1)}>
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
 
-                    <div className="text-right mt-2 sm:mt-0">
+                    <div className="text-right">
                       <p className="font-semibold text-lg">€{(item.price * item.quantity).toFixed(2)}</p>
                       <Button
                         variant="ghost"

@@ -99,7 +99,6 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
         ...product,
         selectedSize,
         selectedColor,
-        variantStock, // <-- add this line
       },
     })
 
@@ -129,6 +128,9 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">{product.name}</DialogTitle>
+          <Button variant="ghost" size="sm" className="absolute right-4 top-4" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
         </DialogHeader>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
