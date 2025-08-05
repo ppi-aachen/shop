@@ -1,15 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useCart } from "@/lib/cart-context"
-import { Plus, Minus, Trash2, ShoppingCart, Search, Eye, Receipt, CreditCard, Cash } from "lucide-react"
-import { ProductModal } from "@/components/product-modal"
-import { POSHeader } from "@/components/pos-header"
+import { Plus, Minus, Trash2, ShoppingCart, Search, Receipt, CreditCard, Cash, Store, Clock, X } from "lucide-react"
 import { getProductImage } from "@/lib/image-utils"
 import { useToast } from "@/hooks/use-toast"
 import { getProductsFromGoogleSheet } from "@/app/checkout/actions"
@@ -33,8 +31,6 @@ interface Product {
 
 export default function POSPage() {
   const { state, dispatch } = useCart()
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const { toast } = useToast()
   const [products, setProducts] = useState<Product[]>([])
   const [loadingProducts, setLoadingProducts] = useState(true)
@@ -44,34 +40,7 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("card")
   const [cashReceived, setCashReceived] = useState("")
   const [showPaymentModal, setShowPaymentModal] = useState(false)
-
-  // Keyboard shortcuts for POS efficiency
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      // Ctrl/Cmd + K to focus search
-      if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
-        event.preventDefault()
-        const searchInput = document.querySelector('input[placeholder="Search products..."]') as HTMLInputElement
-        if (searchInput) {
-          searchInput.focus()
-        }
-      }
-      
-      // Enter to complete sale when cart has items
-      if (event.key === 'Enter' && state.items.length > 0 && !showPaymentModal) {
-        event.preventDefault()
-        handleCheckout()
-      }
-      
-      // Escape to close payment modal
-      if (event.key === 'Escape' && showPaymentModal) {
-        setShowPaymentModal(false)
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyPress)
-    return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [state.items.length, showPaymentModal])
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -95,6 +64,34 @@ export default function POSPage() {
 
     fetchProducts()
   }, [toast])
+
+  // Keyboard shortcuts for POS efficiency
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Ctrl/Cmd + K to focus search
+      if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+        event.preventDefault()
+        const searchInput = document.querySelector('input[placeholder*="Search products"]') as HTMLInputElement
+        if (searchInput) {
+          searchInput.focus()
+        }
+      }
+      
+      // Enter to complete sale when cart has items
+      if (event.key === 'Enter' && state.items.length > 0 && !showPaymentModal) {
+        event.preventDefault()
+        handleCheckout()
+      }
+      
+      // Escape to close payment modal
+      if (event.key === 'Escape' && showPaymentModal) {
+        setShowPaymentModal(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyPress)
+    return () => document.removeEventListener('keydown', handleKeyPress)
+  }, [state.items.length, showPaymentModal])
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -125,7 +122,7 @@ export default function POSPage() {
         description: `Please select ${missingOptions.join(" and ")} options first.`,
       })
 
-      openProductModal(product)
+      setSelectedProduct(product)
       return
     }
 
@@ -136,16 +133,6 @@ export default function POSPage() {
       title: "Added to Cart!",
       description: `${product.name} has been added to your cart.`,
     })
-  }
-
-  const openProductModal = (product: Product) => {
-    setSelectedProduct(product)
-    setIsModalOpen(true)
-  }
-
-  const closeProductModal = () => {
-    setIsModalOpen(false)
-    setSelectedProduct(null)
   }
 
   const updateQuantity = (index: number, quantity: number) => {
@@ -177,8 +164,33 @@ export default function POSPage() {
     setShowPaymentModal(true)
   }
 
+  const quickAddById = () => {
+    const productId = parseInt(quickAddId)
+    if (isNaN(productId)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid ID",
+        description: "Please enter a valid product ID.",
+      })
+      return
+    }
+
+    const product = products.find(p => p.id === productId)
+    if (!product) {
+      toast({
+        variant: "destructive",
+        title: "Product Not Found",
+        description: `No product found with ID ${productId}.`,
+      })
+      return
+    }
+
+    addToCart(product)
+    setQuickAddId("")
+  }
+
   const processPayment = () => {
-    if (paymentMethod === "cash" && parseFloat(cashReceived) < (state.finalTotal * 1.19)) {
+    if (paymentMethod === "cash" && parseFloat(cashReceived) < (state.total * 1.19)) {
       toast({
         variant: "destructive",
         title: "Insufficient Payment",
@@ -199,11 +211,11 @@ export default function POSPage() {
       printWindow.close()
     }
 
-    // Process the sale (in a real POS, this would update inventory, create receipt, etc.)
+    // Process the sale
     toast({
       variant: "success",
       title: "Sale Complete!",
-      description: `Payment received: €${paymentMethod === "cash" ? cashReceived : (state.finalTotal * 1.19).toFixed(2)}`,
+      description: `Payment received: €${paymentMethod === "cash" ? cashReceived : (state.total * 1.19).toFixed(2)}`,
     })
 
     // Clear cart and reset payment modal
@@ -258,7 +270,7 @@ export default function POSPage() {
           </div>
           <div class="item">
             <strong>Total</strong>
-            <strong>€${(state.finalTotal * 1.19).toFixed(2)}</strong>
+            <strong>€${(state.total * 1.19).toFixed(2)}</strong>
           </div>
           <div class="item">
             <span>Payment Method</span>
@@ -271,7 +283,7 @@ export default function POSPage() {
             </div>
             <div class="item">
               <span>Change</span>
-              <span>€${cashChange.toFixed(2)}</span>
+              <span>€${(parseFloat(cashReceived) - (state.total * 1.19)).toFixed(2)}</span>
             </div>
           ` : ''}
         </div>
@@ -286,37 +298,53 @@ export default function POSPage() {
   }
 
   const cashChange = paymentMethod === "cash" && cashReceived 
-    ? parseFloat(cashReceived) - state.finalTotal 
+    ? parseFloat(cashReceived) - (state.total * 1.19)
     : 0
 
-  const quickAddById = () => {
-    const productId = parseInt(quickAddId)
-    if (isNaN(productId)) {
-      toast({
-        variant: "destructive",
-        title: "Invalid ID",
-        description: "Please enter a valid product ID.",
-      })
-      return
-    }
-
-    const product = products.find(p => p.id === productId)
-    if (!product) {
-      toast({
-        variant: "destructive",
-        title: "Product Not Found",
-        description: `No product found with ID ${productId}.`,
-      })
-      return
-    }
-
-    addToCart(product)
-    setQuickAddId("")
-  }
-
   return (
-    <div className="min-h-screen bg-gray-100">
-      <POSHeader onClearCart={clearCart} />
+    <Suspense fallback={<div className="min-h-screen bg-gray-100 flex items-center justify-center">Loading POS System...</div>}>
+      <div className="min-h-screen bg-gray-100">
+        {/* POS Header */}
+        <header className="bg-white shadow-lg border-b-4 border-green-600">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <Store className="h-8 w-8 text-green-600" />
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900">Aachen Studio POS</h1>
+                  <p className="text-gray-600">Point of Sale System</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-6">
+              <div className="text-right">
+                <div className="flex items-center space-x-2 text-gray-600">
+                  <Clock className="h-4 w-4" />
+                  <span className="text-sm">Current Time</span>
+                </div>
+                <p className="text-lg font-semibold text-gray-900">{new Date().toLocaleTimeString()}</p>
+              </div>
+              
+              <div className="text-right">
+                <p className="text-sm text-gray-600">Items in Cart</p>
+                <p className="text-lg font-semibold text-green-600">{state.itemCount}</p>
+              </div>
+              
+              <Button 
+                variant="outline" 
+                onClick={clearCart} 
+                disabled={state.items.length === 0}
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+              >
+                <X className="h-5 w-5 mr-2" />
+                Clear Cart
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
 
       <div className="flex h-[calc(100vh-120px)]">
         {/* Left Side - Products */}
@@ -605,7 +633,7 @@ export default function POSPage() {
               <div className="border-t pt-4">
                 <div className="flex justify-between font-semibold text-lg">
                   <span>Total Due</span>
-                  <span>€{(state.finalTotal * 1.19).toFixed(2)}</span>
+                  <span>€{(state.total * 1.19).toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -621,7 +649,7 @@ export default function POSPage() {
               <Button
                 onClick={processPayment}
                 className="flex-1"
-                disabled={paymentMethod === "cash" && parseFloat(cashReceived) < (state.finalTotal * 1.19)}
+                disabled={paymentMethod === "cash" && parseFloat(cashReceived) < (state.total * 1.19)}
               >
                 Complete Payment
               </Button>
@@ -630,7 +658,115 @@ export default function POSPage() {
         </div>
       )}
 
-      <ProductModal product={selectedProduct} isOpen={isModalOpen} onClose={closeProductModal} />
-    </div>
+      {/* Product Details Panel (Inline instead of popup) */}
+      {selectedProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold">{selectedProduct.name}</h3>
+              <Button variant="ghost" onClick={() => setSelectedProduct(null)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <img
+                  src={getProductImage(selectedProduct.image) || "/placeholder.svg"}
+                  alt={selectedProduct.name}
+                  className="w-full h-64 object-cover rounded-lg"
+                />
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <p className="text-3xl font-bold text-green-600">€{selectedProduct.price.toFixed(2)}</p>
+                  <p className="text-gray-600 mt-2">{selectedProduct.description}</p>
+                </div>
+
+                {selectedProduct.sizes && selectedProduct.sizes.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-lg mb-2">Size</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedProduct.sizes.map((size) => (
+                        <Button
+                          key={size}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            dispatch({
+                              type: "ADD_ITEM",
+                              payload: {
+                                ...selectedProduct,
+                                selectedSize: size,
+                              },
+                            })
+                            setSelectedProduct(null)
+                            toast({
+                              variant: "success",
+                              title: "Added to Cart!",
+                              description: `${selectedProduct.name} (Size: ${size}) has been added to your cart.`,
+                            })
+                          }}
+                        >
+                          {size}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedProduct.colors && selectedProduct.colors.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-lg mb-2">Color</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedProduct.colors.map((color) => (
+                        <Button
+                          key={color}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            dispatch({
+                              type: "ADD_ITEM",
+                              payload: {
+                                ...selectedProduct,
+                                selectedColor: color,
+                              },
+                            })
+                            setSelectedProduct(null)
+                            toast({
+                              variant: "success",
+                              title: "Added to Cart!",
+                              description: `${selectedProduct.name} (Color: ${color}) has been added to your cart.`,
+                            })
+                          }}
+                        >
+                          {color}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-4">
+                  <Button 
+                    onClick={() => {
+                      addToCart(selectedProduct)
+                      setSelectedProduct(null)
+                    }}
+                    className="w-full"
+                    disabled={selectedProduct.stock <= 0}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    {selectedProduct.stock > 0 ? `Add to Cart - €${selectedProduct.price.toFixed(2)}` : "Out of Stock"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
+    </Suspense>
   )
-} 
+}
