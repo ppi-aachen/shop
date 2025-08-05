@@ -67,4 +67,4 @@ export function POSHeader({ onClearCart }: POSHeaderProps) {
       </div>
     </header>
   )
-} 
+}

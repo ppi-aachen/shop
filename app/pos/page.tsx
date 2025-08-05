@@ -633,4 +633,4 @@ export default function POSPage() {
       <ProductModal product={selectedProduct} isOpen={isModalOpen} onClose={closeProductModal} />
     </div>
   )
-} 
+}
