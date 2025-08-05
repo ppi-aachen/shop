@@ -64,7 +64,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       if (existingItemIndex >= 0) {
         // Check if adding one more would exceed stock
         const currentItem = state.items[existingItemIndex]
-        if (currentItem.quantity >= currentItem.stock) {
+        const maxStock = currentItem.variantStock ?? currentItem.stock
+        if (currentItem.quantity >= maxStock) {
           // Don't add more if we're already at stock limit
           return state
         }
@@ -74,7 +75,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         )
       } else {
         // Check if product is in stock before adding
-        if (action.payload.stock <= 0) {
+        const maxStock = action.payload.variantStock ?? action.payload.stock
+        if (maxStock <= 0) {
           // Don't add out-of-stock items
           return state
         }
@@ -114,7 +116,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         .map((item, index) => {
           if (index === action.payload.id) {
             // Don't allow quantity to exceed stock
-            const maxQuantity = Math.min(action.payload.quantity, item.stock)
+            const maxStock = item.variantStock ?? item.stock
+            const maxQuantity = Math.min(action.payload.quantity, maxStock)
             const quantity = Math.max(0, maxQuantity)
             return { ...item, quantity }
           }

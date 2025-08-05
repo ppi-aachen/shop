@@ -83,4 +83,4 @@ testEmail().then((success) => {
   }
   console.log("")
   console.log("For more help, run: node scripts/resend-troubleshooting.js")
-}) 
+})
