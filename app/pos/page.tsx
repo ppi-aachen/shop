@@ -12,7 +12,7 @@ import { useCart } from "@/lib/cart-context"
 import { Plus, Minus, Trash2, ShoppingCart, Search, Receipt, X, Upload, User, Phone, MapPin } from "lucide-react"
 import { getProductImage } from "@/lib/image-utils"
 import { useToast } from "@/hooks/use-toast"
-import { getProductsFromGoogleSheet, submitOrderWithProofOfPayment } from "@/app/checkout/actions"
+import { getProductsFromGoogleSheet, submitPOSOrder } from "@/app/checkout/actions" // Changed import for POS action
 import { formatStockDisplay } from "@/lib/utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
@@ -33,10 +33,11 @@ interface Product {
   colors?: string[]
   stock: number
   variants?: {
-    id: string
+    productId: number
     size?: string
     color?: string
     stock: number
+    variantId: string
   }[]
 }
 
@@ -127,24 +128,22 @@ export default function POSPage() {
       return product.stock
     }
 
-    const matchingVariants = product.variants.filter((variant) => {
-      const sizeMatch = size ? variant.size === size : true
-      const colorMatch = color ? variant.color === color : true
-      return sizeMatch && colorMatch
-    })
-
     // If both size and color are selected, find exact match
     if (size && color) {
-      const exactMatch = matchingVariants.find((variant) => variant.size === size && variant.color === color)
+      const exactMatch = product.variants.find((variant) => variant.size === size && variant.color === color)
       return exactMatch ? exactMatch.stock : 0
     }
     // If only size is selected, sum stock of all colors for that size
     else if (size) {
-      return matchingVariants.reduce((sum, variant) => sum + variant.stock, 0)
+      return product.variants
+        .filter((variant) => variant.size === size)
+        .reduce((sum, variant) => sum + variant.stock, 0)
     }
     // If only color is selected, sum stock of all sizes for that color
     else if (color) {
-      return matchingVariants.reduce((sum, variant) => sum + variant.stock, 0)
+      return product.variants
+        .filter((variant) => variant.color === color)
+        .reduce((sum, variant) => sum + variant.stock, 0)
     }
     // If no options selected, sum all variant stock or use base product stock
     return product.variants.reduce((sum, variant) => sum + variant.stock, 0)
@@ -325,7 +324,7 @@ export default function POSPage() {
       formData.append("cartItems", JSON.stringify(state.items))
       formData.append("totalAmount", (state.total * 1.19).toFixed(2)) // Include tax
 
-      const result = await submitOrderWithProofOfPayment(formData)
+      const result = await submitPOSOrder(formData) // Call the new POS specific action
 
       if (result.success) {
         toast({
@@ -531,14 +530,14 @@ export default function POSPage() {
             <div className="p-4 md:p-6 h-full flex flex-col">
               <div className="flex items-center justify-between mb-4 md:mb-6">
                 <h2 className="text-xl md:text-2xl font-bold text-gray-900">Current Sale</h2>
-                <ShoppingCart className="h-5 w-5 md:h-6 md:w-6 text-green-600" />
+                <ShoppingCart className="h-5 w-5 md:h-6 w-6 text-green-600" />
               </div>
 
               {/* Cart Items */}
               <div className="flex-1 overflow-y-auto space-y-3 mb-4 md:mb-6">
                 {state.items.length === 0 ? (
                   <div className="text-center text-gray-500 py-8">
-                    <ShoppingCart className="h-10 w-10 md:h-12 md:w-12 mx-auto mb-4 text-gray-300" />
+                    <ShoppingCart className="h-10 w-10 md:h-12 w-12 mx-auto mb-4 text-gray-300" />
                     <p className="text-sm md:text-base">No items in cart</p>
                     <p className="text-xs md:text-sm">Click on products to add them</p>
                   </div>
@@ -547,7 +546,7 @@ export default function POSPage() {
                     <Card key={`${item.id}-${item.selectedSize}-${item.selectedColor}-${index}`} className="border">
                       <CardContent className="p-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 md:w-12 md:h-12 bg-gray-100 rounded flex items-center justify-center border overflow-hidden shrink-0">
+                          <div className="w-10 h-10 md:w-12 h-12 bg-gray-100 rounded flex items-center justify-center border overflow-hidden shrink-0">
                             <img
                               src={getProductImage(item.image) || "/placeholder.svg"}
                               alt={item.name}
@@ -576,7 +575,7 @@ export default function POSPage() {
                               size="sm"
                               onClick={() => updateQuantity(index, item.quantity - 1)}
                               disabled={item.quantity <= 1}
-                              className="h-7 w-7 md:h-8 md:w-8"
+                              className="h-7 w-7 md:h-8 w-8"
                             >
                               <Minus className="h-3 w-3" />
                             </Button>
@@ -588,7 +587,7 @@ export default function POSPage() {
                               size="sm"
                               onClick={() => updateQuantity(index, item.quantity + 1)}
                               disabled={item.quantity >= (item.variantStock ?? item.stock)}
-                              className="h-7 w-7 md:h-8 md:w-8"
+                              className="h-7 w-7 md:h-8 w-8"
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
@@ -596,7 +595,7 @@ export default function POSPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => removeItem(index)}
-                              className="text-red-600 hover:text-red-700 h-7 w-7 md:h-8 md:w-8"
+                              className="text-red-600 hover:text-red-700 h-7 w-7 md:h-8 w-8"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -635,7 +634,7 @@ export default function POSPage() {
                 className="w-full mt-6 h-12 md:h-14 text-base md:text-lg font-semibold"
                 disabled={state.items.length === 0}
               >
-                <Receipt className="h-4 w-4 md:h-5 md:w-5 mr-2" />
+                <Receipt className="h-4 w-4 md:h-5 w-5 mr-2" />
                 Complete Sale
               </Button>
             </div>

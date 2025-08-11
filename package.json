@@ -44,6 +44,7 @@
     "cmdk": "latest",
     "date-fns": "4.1.0",
     "embla-carousel-react": "latest",
+    "formidable": "latest",
     "google-auth-library": "latest",
     "googleapis": "latest",
     "input-otp": "latest",

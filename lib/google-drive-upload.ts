@@ -1,3 +1,7 @@
+import { google } from "googleapis"
+import type { File } from "formidable"
+import { uploadFileToGoogleDrive } from "./uploadFileToGoogleDrive" // Import the missing function
+
 interface GoogleDriveUploadResult {
   success: boolean
   fileId?: string
@@ -5,10 +9,21 @@ interface GoogleDriveUploadResult {
   error?: string
 }
 
-async function getGoogleDriveAuth(): Promise<string> {
-  const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
-  const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
+// Google Drive API configuration
+const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
+const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
 
+const auth = new google.auth.GoogleAuth({
+  credentials: {
+    client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    private_key: GOOGLE_PRIVATE_KEY,
+  },
+  scopes: ["https://www.googleapis.com/auth/drive.file"],
+})
+
+const drive = google.drive({ version: "v3", auth })
+
+async function getGoogleDriveAuth(): Promise<string> {
   if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
     throw new Error("Google Drive credentials not configured")
   }
@@ -196,77 +211,18 @@ export async function uploadProofOfPaymentToDrive(
 
     console.log("Uploading file:", fileName)
 
-    // Convert file to ArrayBuffer then to base64
+    // Convert file to ArrayBuffer then to Buffer
     const arrayBuffer = await file.arrayBuffer()
     const uint8Array = new Uint8Array(arrayBuffer)
-    const binaryString = Array.from(uint8Array, (byte) => String.fromCharCode(byte)).join("")
-    const base64Data = btoa(binaryString)
+    const fileBuffer = Buffer.from(uint8Array)
 
-    // Create multipart body
-    const boundary = "foo_bar_baz"
-    const delimiter = "\r\n--" + boundary + "\r\n"
-    const close_delim = "\r\n--" + boundary + "--"
-
-    const metadata = {
-      name: fileName,
-      parents: [folderId],
-      description: `Proof of payment for order ${orderId} from ${customerName}`,
-    }
-
-    const multipartRequestBody =
-      delimiter +
-      "Content-Type: application/json\r\n\r\n" +
-      JSON.stringify(metadata) +
-      delimiter +
-      `Content-Type: ${file.type}\r\n` +
-      "Content-Transfer-Encoding: base64\r\n\r\n" +
-      base64Data +
-      close_delim
-
-    // Upload file to Google Drive
-    const uploadResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": `multipart/related; boundary="${boundary}"`,
-      },
-      body: multipartRequestBody,
-    })
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text()
-      throw new Error(`Upload failed: ${uploadResponse.statusText} - ${errorText}`)
-    }
-
-    const uploadData = await uploadResponse.json()
-    console.log("File uploaded successfully:", uploadData.id)
-
-    // Make file publicly readable
-    try {
-      const shareResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${uploadData.id}/permissions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          role: "reader",
-          type: "anyone",
-        }),
-      })
-
-      if (!shareResponse.ok) {
-        console.warn("Failed to make file publicly readable, but upload succeeded")
-      } else {
-        console.log("File made publicly readable")
-      }
-    } catch (shareError) {
-      console.warn("Error making file public:", shareError)
-    }
+    // Upload file to Google Drive using the updated function
+    const fileId = await uploadFileToGoogleDrive(fileName, file.type, fileBuffer, folderId)
+    console.log("File uploaded successfully:", fileId)
 
     // Get file details including web view link
     const fileResponse = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${uploadData.id}?fields=id,name,webViewLink,webContentLink`,
+      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,webViewLink,webContentLink`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -275,13 +231,15 @@ export async function uploadProofOfPaymentToDrive(
     )
 
     const fileData = await fileResponse.json()
-    const webViewLink = fileData.webViewLink || `https://www.googleapis.com/drive/v3/files/${uploadData.id}?fields=id,name,webViewLink,webContentLink&supportsAllDrives=true`
+    const webViewLink =
+      fileData.webViewLink ||
+      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,webViewLink,webContentLink&supportsAllDrives=true`
 
     console.log("Upload completed successfully. File link:", webViewLink)
 
     return {
       success: true,
-      fileId: uploadData.id,
+      fileId: fileId,
       webViewLink: webViewLink,
     }
   } catch (error) {
