@@ -1,10 +1,6 @@
 "use server"
-
-import { google } from "googleapis"
 import { Resend } from "resend"
 import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload" // Corrected import name
-import { getProductImage } from "@/lib/utils"
-import { customerNotificationEmail, businessNotificationEmail } from "@/lib/email-templates"
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -16,13 +12,14 @@ const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
 const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID // Added for POS action
 
 interface CartItem {
-  id: string
-  name: string
-  price: number
-  image: string
-  quantity: number
-  selectedVariants: { [key: string]: string }
+  productId: string
+  productName: string
   variantId: string
+  size?: string
+  color?: string
+  price: number
+  quantity: number
+  image: string
 }
 
 interface ProductVariant {
@@ -85,11 +82,10 @@ interface OrderItemData {
   selectedColor: string
 }
 
-interface CustomerDetails {
-  name: string
-  email: string
-  phone: string
-  address: string
+interface SubmitOrderResult {
+  success: boolean
+  message?: string
+  error?: string
 }
 
 async function getGoogleSheetsAuth() {
@@ -419,32 +415,32 @@ async function validateVariantStock(
     // Find the specific variant for this cart item
     const variant = variantsData.find((v) => {
       // Handle both cases: when size/color are selected and when they're not
-      const sizeMatch = cartItem.selectedSize
-        ? v.size === cartItem.selectedSize
+      const sizeMatch = cartItem.size
+        ? v.size === cartItem.size
         : v.size === undefined || v.size === null || v.size === ""
-      const colorMatch = cartItem.selectedColor
-        ? v.color === cartItem.selectedColor
+      const colorMatch = cartItem.color
+        ? v.color === cartItem.color
         : v.color === undefined || v.color === null || v.color === ""
-      return v.productId === cartItem.id && sizeMatch && colorMatch
+      return v.productId === Number(cartItem.productId) && sizeMatch && colorMatch
     })
 
     if (!variant) {
       errors.push(
-        `${cartItem.name} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""}): Variant not found`,
+        `${cartItem.productName} (${cartItem.size || "No size"}${cartItem.color ? `, ${cartItem.color}` : ""}): Variant not found`,
       )
       continue
     }
 
     if (variant.stock <= 0) {
       errors.push(
-        `${cartItem.name} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""}): Out of stock`,
+        `${cartItem.productName} (${cartItem.size || "No size"}${cartItem.color ? `, ${cartItem.color}` : ""}): Out of stock`,
       )
       continue
     }
 
     if (cartItem.quantity > variant.stock) {
       errors.push(
-        `${cartItem.name} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""}): Only ${variant.stock} available, but ${cartItem.quantity} requested`,
+        `${cartItem.productName} (${cartItem.size || "No size"}${cartItem.color ? `, ${cartItem.color}` : ""}): Only ${variant.stock} available, but ${cartItem.quantity} requested`,
       )
       continue
     }
@@ -505,20 +501,22 @@ async function validateLegacyStock(
   const errors: string[] = []
 
   for (const cartItem of cartItems) {
-    const productStock = productStockMap.get(cartItem.id)
+    const productStock = productStockMap.get(Number(cartItem.productId))
 
     if (!productStock) {
-      errors.push(`${cartItem.name}: Product not found in database`)
+      errors.push(`${cartItem.productName}: Product not found in database`)
       continue
     }
 
     if (productStock.currentStock <= 0) {
-      errors.push(`${cartItem.name}: Out of stock`)
+      errors.push(`${cartItem.productName}: Out of stock`)
       continue
     }
 
     if (cartItem.quantity > productStock.currentStock) {
-      errors.push(`${cartItem.name}: Only ${productStock.currentStock} available, but ${cartItem.quantity} requested`)
+      errors.push(
+        `${cartItem.productName}: Only ${productStock.currentStock} available, but ${cartItem.quantity} requested`,
+      )
       continue
     }
   }
@@ -608,9 +606,9 @@ async function updateVariantStock(
 
     for (const cartItem of cartItems) {
       // Use the same encoding as the variant ID generation
-      const encodedSize = cartItem.selectedSize ? encodeURIComponent(cartItem.selectedSize) : "null"
-      const encodedColor = cartItem.selectedColor ? encodeURIComponent(cartItem.selectedColor) : "null"
-      const variantKey = `${cartItem.id}-${encodedSize}-${encodedColor}`
+      const encodedSize = cartItem.size ? encodeURIComponent(cartItem.size) : "null"
+      const encodedColor = cartItem.color ? encodeURIComponent(cartItem.color) : "null"
+      const variantKey = `${cartItem.productId}-${encodedSize}-${encodedColor}`
       const variantData = variantMap.get(variantKey)
 
       if (variantData) {
@@ -623,11 +621,11 @@ async function updateVariantStock(
         })
 
         console.log(
-          `Updating variant stock for ${cartItem.name} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""}): ${variantData.currentStock} -> ${newStock}`,
+          `Updating variant stock for ${cartItem.productName} (${cartItem.size || "No size"}${cartItem.color ? `, ${cartItem.color}` : ""}): ${variantData.currentStock} -> ${newStock}`,
         )
       } else {
         console.warn(
-          `Variant not found for product ${cartItem.id} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""})`,
+          `Variant not found for product ${cartItem.productId} (${cartItem.size || "No size"}${cartItem.color ? `, ${cartItem.color}` : ""})`,
         )
       }
     }
@@ -716,7 +714,7 @@ async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
   const stockUpdates: { range: string; values: number[][] }[] = []
 
   for (const cartItem of cartItems) {
-    const productStock = productStockMap.get(cartItem.id)
+    const productStock = productStockMap.get(Number(cartItem.productId))
 
     if (productStock) {
       const newStock = Math.max(0, productStock.currentStock - cartItem.quantity)
@@ -728,10 +726,10 @@ async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
       })
 
       console.log(
-        `Updating legacy stock for product ${cartItem.id} (${cartItem.name}): ${productStock.currentStock} -> ${newStock}`,
+        `Updating legacy stock for product ${cartItem.productId} (${cartItem.productName}): ${productStock.currentStock} -> ${newStock}`,
       )
     } else {
-      console.warn(`Product with ID ${cartItem.id} not found in Products sheet`)
+      console.warn(`Product with ID ${cartItem.productId} not found in Products sheet`)
     }
   }
 
@@ -1322,142 +1320,131 @@ export async function submitOrder(formData: FormData) {
 }
 
 // NEW SERVER ACTION FOR POS PAGE
-export async function submitPOSOrder(
-  cart: CartItem[],
-  customerDetails: CustomerDetails,
-  proofOfPayment: File | null,
-  subtotal: number,
-  shipping: number,
-  total: number,
-) {
-  try {
-    if (!process.env.GOOGLE_SHEET_ID) {
-      throw new Error("GOOGLE_SHEET_ID is not set in environment variables.")
-    }
-    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
-      throw new Error("GOOGLE_SERVICE_ACCOUNT_EMAIL is not set in environment variables.")
-    }
-    if (!process.env.GOOGLE_PRIVATE_KEY) {
-      throw new Error("GOOGLE_PRIVATE_KEY is not set in environment variables.")
-    }
+export async function submitPOSOrder(formData: FormData) {
+  if (!GOOGLE_SHEET_ID || !GOOGLE_DRIVE_FOLDER_ID) {
+    return { success: false, message: "Server configuration error: Google Sheet ID or Drive Folder ID missing." }
+  }
 
-    const auth = new google.auth.GoogleAuth({
-      credentials: {
-        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-      },
-      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-    })
+  const customerName = formData.get("customerName") as string
+  const customerContact = formData.get("customerContact") as string
+  const deliveryAddress = formData.get("deliveryAddress") as string
+  const cartItemsJson = formData.get("cartItems") as string
+  const totalAmountStr = formData.get("totalAmount") as string // This will now be the subtotal from POS
+  const proofOfPaymentFile = formData.get("proofOfPayment") as File
 
-    const sheets = google.sheets({ version: "v4", auth })
+  if (
+    !customerName ||
+    !customerContact ||
+    !deliveryAddress ||
+    !cartItemsJson ||
+    !totalAmountStr ||
+    !proofOfPaymentFile
+  ) {
+    return { success: false, message: "Missing required order details or proof of payment file." }
+  }
 
-    const orderId = `POS-${Date.now()}`
-    const orderDate = new Date().toISOString()
+  const cartItems: CartItem[] = JSON.parse(cartItemsJson)
+  const totalAmount = Number.parseFloat(totalAmountStr) // This is now the subtotal from POS
 
-    let proofOfPaymentUrl = "N/A"
-    if (proofOfPayment) {
-      try {
-        proofOfPaymentUrl = await uploadProofOfPaymentToDrive(proofOfPayment, orderId)
-      } catch (uploadError) {
-        console.error("Error uploading proof of payment:", uploadError)
-        // Continue with order submission even if upload fails
-        proofOfPaymentUrl = `Upload Failed: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`
-      }
-    }
+  // Validate stock availability before proceeding with order
+  console.log("Validating stock availability for POS order...")
+  const stockValidation = await validateStockAvailability(cartItems)
 
-    const orderData = cart
-      .map((item) => {
-        const variants = Object.entries(item.selectedVariants)
-          .map(([key, value]) => `${key}: ${value}`)
-          .join(", ")
-        return `${item.name} (${variants}) x${item.quantity} @ $${item.price.toFixed(2)}`
-      })
-      .join("; ")
-
-    const row = [
-      orderId,
-      orderDate,
-      customerDetails.name,
-      customerDetails.email,
-      customerDetails.phone,
-      customerDetails.address,
-      orderData,
-      subtotal.toFixed(2),
-      shipping.toFixed(2),
-      total.toFixed(2), // Total without tax
-      proofOfPaymentUrl,
-      "Pending Payment Verification", // Status
-    ]
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: "Sheet1!A:K", // Adjust range as needed
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [row],
-      },
-    })
-
-    // Send customer notification email
-    if (process.env.RESEND_API_KEY) {
-      const customerEmailHtml = customerNotificationEmail({
-        orderId,
-        customerName: customerDetails.name,
-        cartItems: cart.map((item) => ({
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          image: getProductImage(item.image),
-          variants: Object.entries(item.selectedVariants).map(([key, value]) => ({ type: key, value })),
-        })),
-        subtotal: subtotal.toFixed(2),
-        shipping: shipping.toFixed(2),
-        total: total.toFixed(2), // Total without tax
-        proofOfPaymentUrl,
-        deliveryAddress: customerDetails.address,
-      })
-
-      await resend.emails.send({
-        from: "onboarding@resend.dev", // Replace with your verified sender
-        to: customerDetails.email,
-        subject: `Your Order Confirmation - #${orderId}`,
-        html: customerEmailHtml,
-      })
-
-      // Send business notification email
-      const businessEmailHtml = businessNotificationEmail({
-        orderId,
-        customerName: customerDetails.name,
-        customerEmail: customerDetails.email,
-        customerPhone: customerDetails.phone,
-        deliveryAddress: customerDetails.address,
-        cartItems: cart.map((item) => ({
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          image: getProductImage(item.image),
-          variants: Object.entries(item.selectedVariants).map(([key, value]) => ({ type: key, value })),
-        })),
-        subtotal: subtotal.toFixed(2),
-        shipping: shipping.toFixed(2),
-        total: total.toFixed(2), // Total without tax
-        proofOfPaymentUrl,
-      })
-
-      await resend.emails.send({
-        from: "onboarding@resend.dev", // Replace with your verified sender
-        to: process.env.BUSINESS_EMAIL || "your-business-email@example.com", // Replace with your business email
-        subject: `New POS Order - #${orderId}`,
-        html: businessEmailHtml,
-      })
-    }
-
-    return { success: true, orderId, proofOfPaymentUrl }
-  } catch (error) {
-    console.error("Error submitting POS order:", error)
+  if (!stockValidation.valid) {
+    console.log("Stock validation failed for POS order:", stockValidation.errors)
     return {
       success: false,
-      error: error instanceof Error ? error.message : "An unknown error occurred",
+      message: "Stock validation failed: " + stockValidation.errors.join(", "),
     }
+  }
+  console.log("Stock validation passed for POS order.")
+
+  let proofOfPaymentUrl = ""
+  try {
+    const uploadResult = await uploadProofOfPaymentToDrive(proofOfPaymentFile, "POS_Order", customerName) // Use a generic order ID for upload if not yet generated
+    if (!uploadResult.success || !uploadResult.webViewLink) {
+      throw new Error(uploadResult.error || "Unknown upload error")
+    }
+    proofOfPaymentUrl = uploadResult.webViewLink
+  } catch (error) {
+    console.error("Error uploading proof of payment to Google Drive for POS order:", error)
+    return { success: false, message: "Failed to upload proof of payment. Please try again." }
+  }
+
+  const now = new Date()
+  // Generate order ID with format: POS + DDMMYY + random 3-char alphanumeric
+  const dateStr = now
+    .toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+    })
+    .replace(/\//g, "")
+  const randomSuffix = Math.random().toString(36).substr(2, 3).toUpperCase()
+  const orderId = `POS${dateStr}-${randomSuffix}`
+
+  const date = now.toLocaleDateString("en-GB")
+  const time = now.toLocaleTimeString("en-GB", { hour12: false })
+
+  // For POS orders, simplify delivery method and costs
+  const deliveryMethod = "POS Sale"
+  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const shippingCost = 0 // No shipping cost for POS sales
+  const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
+
+  const orderData: OrderData = {
+    orderId,
+    date,
+    time,
+    customerName,
+    email: customerContact, // Using customerContact for email/primary contact
+    phone: "", // Phone might be part of customerContact, or left empty
+    address: deliveryAddress, // Using deliveryAddress for full address
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "", // These might be parsed from deliveryAddress if needed
+    deliveryMethod,
+    totalItems: itemCount,
+    subtotal, // Subtotal is the total without tax
+    shippingCost,
+    totalAmount: totalAmount, // Total amount is now the same as subtotal for POS
+    notes: "POS Sale - Customer details collected at point of sale.",
+    proofOfPaymentUrl: proofOfPaymentUrl,
+    status: "Completed (POS)", // Directly mark as completed for POS
+  }
+
+  const orderItemsData: OrderItemData[] = cartItems.map((item) => ({
+    orderId,
+    itemId: item.id,
+    productName: item.name,
+    price: item.price,
+    quantity: item.quantity,
+    subtotal: item.price * item.quantity,
+    description: item.description || "",
+    selectedSize: item.selectedSize || "",
+    selectedColor: item.selectedColor || "",
+  }))
+
+  try {
+    await Promise.all([
+      addOrderToGoogleSheet(orderData),
+      addOrderItemsToGoogleSheet(orderItemsData),
+      updateProductStock(cartItems), // Update stock after successful order
+    ])
+
+    // Optionally send confirmation emails for POS sales if desired, but typically not needed for in-person
+    // The email templates below are for the main checkout, not POS specific.
+    // If POS needs emails, a separate, tax-free template would be ideal.
+    // For now, I'll modify the existing ones to remove tax display.
+    // const emailResults = await Promise.allSettled([
+    //   sendCustomerConfirmationEmail(orderData, orderItemsData),
+    //   sendBusinessNotificationEmail(orderData, orderItemsData),
+    // ])
+
+    return { success: true, message: `Order ${orderId} successfully processed!` }
+  } catch (error: any) {
+    console.error("Error submitting POS order:", error.message, error.stack)
+    return { success: false, message: `Failed to process POS order: ${error.message}` }
   }
 }
