@@ -1,9 +1,7 @@
 "use server"
 
 import { Resend } from "resend"
-import { uploadFileToGoogleDrive } from "@/lib/google-drive-upload" // Corrected import name
-import { google } from "googleapis" // Added googleapis import for new action
-import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload"
+import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload" // Corrected import name
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -13,16 +11,6 @@ const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID
 const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
 const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
 const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID // Added for POS action
-
-const auth = new google.auth.GoogleAuth({
-  credentials: {
-    client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    private_key: GOOGLE_PRIVATE_KEY,
-  },
-  scopes: ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"],
-})
-
-const sheets = google.sheets({ version: "v4", auth })
 
 interface CartItem {
   id: number
@@ -991,7 +979,7 @@ async function sendBusinessNotificationEmail(orderData: OrderData, orderItems: O
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${item.productName}</td>
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
             ${item.selectedSize ? `Size: ${item.selectedSize}` : ""}
-            ${item.selectedColor ? `${item.selectedSize ? ", " : ""}Color: ${item.selectedColor}` : ""}
+            ${item.selectedColor ? `${item.selectedColor ? ", " : ""}Color: ${item.selectedColor}` : ""}
             ${!item.selectedSize && !item.selectedColor ? "-" : ""}
           </td>
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
@@ -1370,14 +1358,11 @@ export async function submitPOSOrder(formData: FormData) {
 
   let proofOfPaymentUrl = ""
   try {
-    const buffer = Buffer.from(await proofOfPaymentFile.arrayBuffer())
-    const fileId = await uploadFileToGoogleDrive(
-      proofOfPaymentFile.name,
-      proofOfPaymentFile.type,
-      buffer,
-      GOOGLE_DRIVE_FOLDER_ID,
-    )
-    proofOfPaymentUrl = `https://drive.google.com/file/d/${fileId}/view?usp=sharing`
+    const uploadResult = await uploadProofOfPaymentToDrive(proofOfPaymentFile, "POS_Order", customerName) // Use a generic order ID for upload if not yet generated
+    if (!uploadResult.success || !uploadResult.webViewLink) {
+      throw new Error(uploadResult.error || "Unknown upload error")
+    }
+    proofOfPaymentUrl = uploadResult.webViewLink
   } catch (error) {
     console.error("Error uploading proof of payment to Google Drive for POS order:", error)
     return { success: false, message: "Failed to upload proof of payment. Please try again." }
