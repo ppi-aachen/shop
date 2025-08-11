@@ -217,9 +217,6 @@ export default function HomePage() {
 
                   <p className="text-2xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
                   {product.stock <= 0 && <p className="text-red-500 font-semibold">Out of Stock</p>}
-                  {product.stock > 0 && (
-                    <p className="text-blue-500 font-semibold">Stock: {getStockDisplay(product.stock)}</p>
-                  )}
                 </CardContent>
                 <CardFooter className="p-4 pt-0 flex gap-2">
                   <Button onClick={() => addToCart(product)} className="flex-1" disabled={product.stock <= 0}>
