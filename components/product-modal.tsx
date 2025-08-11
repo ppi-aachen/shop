@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, X, Truck, Shield, RotateCcw, AlertTriangle } from "lucide-react"
+import { Plus, Truck, Shield, RotateCcw, AlertTriangle } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import { ImageGallery } from "@/components/image-gallery"
 import { getProductImages } from "@/lib/image-utils"
@@ -75,11 +75,15 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
     }
 
     // Check if the specific variant is in stock
-    const variantStock = product.variants 
+    const variantStock = product.variants
       ? product.variants.find((v: ProductVariant) => {
           // Handle both cases: when size/color are selected and when they're not
-          const sizeMatch = requiresSize ? v.size === selectedSize : (v.size === undefined || v.size === null || v.size === "")
-          const colorMatch = requiresColor ? v.color === selectedColor : (v.color === undefined || v.color === null || v.color === "")
+          const sizeMatch = requiresSize
+            ? v.size === selectedSize
+            : v.size === undefined || v.size === null || v.size === ""
+          const colorMatch = requiresColor
+            ? v.color === selectedColor
+            : v.color === undefined || v.color === null || v.color === ""
           return sizeMatch && colorMatch
         })?.stock || 0
       : product.stock
@@ -88,7 +92,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
       toast({
         variant: "destructive",
         title: "Out of Stock",
-        description: `This variant (${selectedSize || 'No size'}${selectedColor ? `, ${selectedColor}` : ''}) is currently out of stock.`,
+        description: `This variant (${selectedSize || "No size"}${selectedColor ? `, ${selectedColor}` : ""}) is currently out of stock.`,
       })
       return
     }
@@ -123,6 +127,18 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
   const requiresSize = product.sizes && product.sizes.length > 0
   const requiresColor = product.colors && product.colors.length > 0
   const canAddToCart = (!requiresSize || selectedSize) && (!requiresColor || selectedColor) && product.stock > 0
+
+  const getStockDisplay = (stock: number): string => {
+    if (stock >= 5) {
+      return ">5"
+    } else if (stock >= 2 && stock <= 4) {
+      return "<5"
+    } else if (stock === 1) {
+      return "1"
+    } else {
+      return "Out of Stock"
+    }
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -175,7 +191,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {product.sizes!.map((size) => {
-                    const sizeStock = product.variants 
+                    const sizeStock = product.variants
                       ? product.variants.find((v: ProductVariant) => {
                           // Handle both cases: when color is selected and when it's not
                           if (requiresColor && selectedColor) {
@@ -188,7 +204,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                         })?.stock || 0
                       : product.stock
                     const isOutOfStock = sizeStock <= 0
-                    
+
                     return (
                       <Button
                         key={size}
@@ -199,11 +215,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                         disabled={isOutOfStock}
                       >
                         {size}
-                        {product.variants && (
-                          <span className="ml-1 text-xs">
-                            ({sizeStock})
-                          </span>
-                        )}
+                        {product.variants && <span className="ml-1 text-xs">({sizeStock})</span>}
                       </Button>
                     )
                   })}
@@ -227,7 +239,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {product.colors!.map((color) => {
-                    const colorStock = product.variants 
+                    const colorStock = product.variants
                       ? product.variants.find((v: ProductVariant) => {
                           // Handle both cases: when size is selected and when it's not
                           if (requiresSize && selectedSize) {
@@ -240,7 +252,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                         })?.stock || 0
                       : product.stock
                     const isOutOfStock = colorStock <= 0
-                    
+
                     return (
                       <Button
                         key={color}
@@ -251,11 +263,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                         disabled={isOutOfStock}
                       >
                         {color}
-                        {product.variants && (
-                          <span className="ml-1 text-xs">
-                            ({colorStock})
-                          </span>
-                        )}
+                        {product.variants && <span className="ml-1 text-xs">({colorStock})</span>}
                       </Button>
                     )
                   })}
@@ -272,21 +280,31 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             )}
 
             {/* Stock Information */}
-            {product.variants && ((requiresSize && selectedSize) || !requiresSize) && ((requiresColor && selectedColor) || !requiresColor) && (
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full" />
-                  <p className="text-sm text-blue-700 font-medium">
-                    Stock: {product.variants.find((v: ProductVariant) => {
-                      // Handle both cases: when size/color are selected and when they're not
-                      const sizeMatch = requiresSize ? v.size === selectedSize : (v.size === undefined || v.size === null || v.size === "")
-                      const colorMatch = requiresColor ? v.color === selectedColor : (v.color === undefined || v.color === null || v.color === "")
-                      return sizeMatch && colorMatch
-                    })?.stock || 0} available
-                  </p>
+            {product.variants &&
+              ((requiresSize && selectedSize) || !requiresSize) &&
+              ((requiresColor && selectedColor) || !requiresColor) && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full" />
+                    <p className="text-sm text-blue-700 font-medium">
+                      Stock:{" "}
+                      {getStockDisplay(
+                        product.variants.find((v: ProductVariant) => {
+                          // Handle both cases: when size/color are selected and when they're not
+                          const sizeMatch = requiresSize
+                            ? v.size === selectedSize
+                            : v.size === undefined || v.size === null || v.size === ""
+                          const colorMatch = requiresColor
+                            ? v.color === selectedColor
+                            : v.color === undefined || v.color === null || v.color === ""
+                          return sizeMatch && colorMatch
+                        })?.stock || 0,
+                      )}{" "}
+                      available
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {/* Materials */}
             {product.materials && product.materials.length > 0 && (
