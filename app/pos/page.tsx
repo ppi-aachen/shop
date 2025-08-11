@@ -322,7 +322,7 @@ export default function POSPage() {
       formData.append("customerContact", customerContact)
       formData.append("deliveryAddress", deliveryAddress)
       formData.append("cartItems", JSON.stringify(state.items))
-      formData.append("totalAmount", (state.total * 1.19).toFixed(2)) // Include tax
+      formData.append("totalAmount", state.total.toFixed(2)) // Pass subtotal as total, no tax
 
       const result = await submitPOSOrder(formData) // Call the new POS specific action
 
@@ -616,14 +616,11 @@ export default function POSPage() {
                   <span>Subtotal ({state.itemCount} items)</span>
                   <span>€{state.total.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-base md:text-lg">
-                  <span>Tax (19%)</span>
-                  <span>€{(state.total * 0.19).toFixed(2)}</span>
-                </div>
+                {/* Removed Tax Line */}
                 <div className="border-t pt-2">
                   <div className="flex justify-between text-xl md:text-2xl font-bold">
                     <span>Total</span>
-                    <span>€{(state.total * 1.19).toFixed(2)}</span>
+                    <span>€{state.total.toFixed(2)}</span> {/* Total is now just subtotal */}
                   </div>
                 </div>
               </div>
@@ -791,7 +788,7 @@ export default function POSPage() {
               <div className="border-t pt-4">
                 <div className="flex justify-between font-semibold text-lg">
                   <span>Total Due</span>
-                  <span>€{(state.total * 1.19).toFixed(2)}</span>
+                  <span>€{state.total.toFixed(2)}</span> {/* Total is now just subtotal */}
                 </div>
               </div>
             </div>

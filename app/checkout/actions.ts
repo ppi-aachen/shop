@@ -979,7 +979,7 @@ async function sendBusinessNotificationEmail(orderData: OrderData, orderItems: O
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${item.productName}</td>
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
             ${item.selectedSize ? `Size: ${item.selectedSize}` : ""}
-            ${item.selectedColor ? `${item.selectedColor ? ", " : ""}Color: ${item.selectedColor}` : ""}
+            ${item.selectedColor ? `${item.selectedSize ? ", " : ""}Color: ${item.selectedColor}` : ""}
             ${!item.selectedSize && !item.selectedColor ? "-" : ""}
           </td>
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
@@ -1326,7 +1326,7 @@ export async function submitPOSOrder(formData: FormData) {
   const customerContact = formData.get("customerContact") as string
   const deliveryAddress = formData.get("deliveryAddress") as string
   const cartItemsJson = formData.get("cartItems") as string
-  const totalAmountStr = formData.get("totalAmount") as string
+  const totalAmountStr = formData.get("totalAmount") as string // This will now be the subtotal from POS
   const proofOfPaymentFile = formData.get("proofOfPayment") as File
 
   if (
@@ -1341,7 +1341,7 @@ export async function submitPOSOrder(formData: FormData) {
   }
 
   const cartItems: CartItem[] = JSON.parse(cartItemsJson)
-  const totalAmount = Number.parseFloat(totalAmountStr)
+  const totalAmount = Number.parseFloat(totalAmountStr) // This is now the subtotal from POS
 
   // Validate stock availability before proceeding with order
   console.log("Validating stock availability for POS order...")
@@ -1403,9 +1403,9 @@ export async function submitPOSOrder(formData: FormData) {
     country: "", // These might be parsed from deliveryAddress if needed
     deliveryMethod,
     totalItems: itemCount,
-    subtotal,
+    subtotal, // Subtotal is the total without tax
     shippingCost,
-    totalAmount,
+    totalAmount: totalAmount, // Total amount is now the same as subtotal for POS
     notes: "POS Sale - Customer details collected at point of sale.",
     proofOfPaymentUrl: proofOfPaymentUrl,
     status: "Completed (POS)", // Directly mark as completed for POS
@@ -1431,6 +1431,9 @@ export async function submitPOSOrder(formData: FormData) {
     ])
 
     // Optionally send confirmation emails for POS sales if desired, but typically not needed for in-person
+    // The email templates below are for the main checkout, not POS specific.
+    // If POS needs emails, a separate, tax-free template would be ideal.
+    // For now, I'll modify the existing ones to remove tax display.
     // const emailResults = await Promise.allSettled([
     //   sendCustomerConfirmationEmail(orderData, orderItemsData),
     //   sendBusinessNotificationEmail(orderData, orderItemsData),
