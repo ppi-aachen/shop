@@ -14,7 +14,7 @@ import { Package, Minus, Plus, Trash2, Search, X, ShoppingBag, MapPin, Truck } f
 import { getProductImage } from "@/lib/image-utils"
 import { submitPOSOrder } from "@/app/checkout/actions"
 import { useToast } from "@/hooks/use-toast"
-import LoadingOverlay from "@/components/loading-overlay"
+import { LoadingOverlay } from "@/components/loading-overlay" // Corrected import
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -26,7 +26,11 @@ const MOCK_PRODUCTS = [
     description: "Classic leather jacket with a distressed finish.",
     price: 120.0,
     image: "/vintage-leather-jacket.png",
-    images: ["/vintage-leather-jacket-front.png", "/vintage-leather-jacket-back.png", "/vintage-leather-jacket-detail.png"],
+    images: [
+      "/vintage-leather-jacket-front.png",
+      "/vintage-leather-jacket-back.png",
+      "/vintage-leather-jacket-detail.png",
+    ],
     stock: 10,
     sizes: ["S", "M", "L", "XL"],
     colors: ["Black", "Brown"],

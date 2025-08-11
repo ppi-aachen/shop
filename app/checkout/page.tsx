@@ -1,46 +1,135 @@
 "use client"
 
-import { useEffect } from "react"
+import type React from "react"
+
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Header } from "@/components/header"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useCart } from "@/lib/cart-context"
+import { submitOrder } from "@/app/checkout/actions"
+import { useToast } from "@/hooks/use-toast"
 import { Package, MapPin, Truck } from "lucide-react"
-import CheckoutForm from "./checkout-form"
 import { getProductImage } from "@/lib/image-utils" // Import getProductImage
 
 export default function CheckoutPage() {
-  const { state } = useCart()
+  const { state, dispatch } = useCart()
   const router = useRouter()
+  const { toast } = useToast()
+
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [address, setAddress] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (state.items.length === 0) {
-      router.push("/cart")
+      toast({
+        title: "Cart Empty",
+        description: "Your cart is empty. Please add items before checking out.",
+        variant: "destructive",
+      })
+      router.push("/")
     }
-  }, [state.items.length, router])
+  }, [state.items.length, router, toast])
 
-  if (state.items.length === 0) {
-    return null // Will redirect
+  const handleDeliveryMethodChange = (method: "pickup" | "delivery") => {
+    dispatch({ type: "SET_DELIVERY_METHOD", payload: method })
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      const formData = new FormData()
+      formData.append("name", name)
+      formData.append("email", email)
+      formData.append("address", address)
+      formData.append("cartItems", JSON.stringify(state.items))
+      formData.append("totalAmount", state.finalTotal.toFixed(2))
+      formData.append("deliveryMethod", state.deliveryMethod)
+      formData.append("shippingCost", state.shippingCost.toFixed(2))
+      formData.append("itemCount", state.itemCount.toString())
+
+      const result = await submitOrder(formData)
+
+      if (result.success) {
+        // Redirection handled by server action
+      } else {
+        toast({
+          title: "Order Failed",
+          description: result.error || "There was an error processing your order.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error submitting order:", error)
+      toast({
+        title: "Order Failed",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const totalItemsPrice = useMemo(() => {
+    return state.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  }, [state.items])
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
+    <div className="container mx-auto px-4 py-8 md:py-12">
+      <h1 className="text-3xl md:text-4xl font-bold text-center mb-8 md:mb-12">Checkout</h1>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Customer Information */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-2xl">Customer Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4">
+              <div>
+                <Label htmlFor="name">Full Name</Label>
+                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              </div>
+              <div>
+                <Label htmlFor="address">Delivery Address</Label>
+                <Textarea
+                  id="address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  rows={3}
+                  placeholder="Street, City, Postal Code, Country"
+                  required
+                />
+              </div>
+            </form>
+          </CardContent>
+        </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Order Summary */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-semibold mb-6">Order Summary</h2>
-
-            <div className="space-y-4 mb-6">
+        {/* Order Summary */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="text-2xl">Order Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
               {state.items.map((item, index) => (
                 <div
                   key={`${item.id}-${item.selectedSize}-${item.selectedColor}-${index}`}
-                  className="flex items-center gap-4 pb-4 border-b"
+                  className="flex items-center gap-4"
                 >
-                  <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center border overflow-hidden">
+                  <div className="w-16 h-16 bg-gray-100 rounded-md flex items-center justify-center overflow-hidden shrink-0">
                     {item.image ? (
                       <img
                         src={getProductImage(item.image) || "/placeholder.svg"} // Use getProductImage
@@ -60,88 +149,85 @@ export default function CheckoutPage() {
                         }}
                       />
                     ) : (
-                      <Package className="h-6 w-6 text-gray-400" />
+                      <Package className="h-8 w-8 text-gray-400" />
                     )}
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-medium">{item.name}</h3>
-                    <div className="flex gap-2 mt-1">
-                      {item.selectedSize && (
-                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">Size: {item.selectedSize}</span>
-                      )}
-                      {item.selectedColor && (
-                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">Color: {item.selectedColor}</span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
-                    <p className="font-semibold text-green-600">
-                      €{item.price.toFixed(2)} × {item.quantity} = €{(item.price * item.quantity).toFixed(2)}
+                    <h3 className="font-medium text-base">{item.name}</h3>
+                    <p className="text-sm text-gray-600">
+                      Qty: {item.quantity}
+                      {item.selectedSize && `, Size: ${item.selectedSize}`}
+                      {item.selectedColor && `, Color: ${item.selectedColor}`}
                     </p>
                   </div>
+                  <p className="font-semibold text-base">€{(item.price * item.quantity).toFixed(2)}</p>
                 </div>
               ))}
             </div>
 
-            {/* Delivery Method Display */}
-            <div className="border-t pt-4 mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                {state.deliveryMethod === "pickup" ? (
-                  <MapPin className="h-4 w-4 text-green-600" />
-                ) : (
-                  <Truck className="h-4 w-4 text-green-600" />
-                )}
-                <span className="font-medium">
-                  {state.deliveryMethod === "pickup" ? "Pickup in Aachen" : "Delivery"}
-                </span>
+            <div className="mt-6 pt-4 border-t space-y-2">
+              <div className="flex justify-between text-base">
+                <span>Subtotal ({state.itemCount} items)</span>
+                <span>€{totalItemsPrice.toFixed(2)}</span>
               </div>
-              {state.deliveryMethod === "pickup" && (
-                <p className="text-sm text-gray-600 ml-6">We'll contact you to arrange pickup location and time</p>
-              )}
-            </div>
 
-            <div className="border-t pt-4">
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span>Items ({state.itemCount})</span>
-                  <span>€{state.total.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>{state.deliveryMethod === "pickup" ? "Pickup" : "Delivery"}</span>
-                  <span>€{state.shippingCost.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center text-xl font-bold border-t pt-2">
-                  <span>Total</span>
-                  <span className="text-green-600">€{state.finalTotal.toFixed(2)}</span>
+              <div className="mt-4">
+                <Label className="text-base font-medium">Delivery Method</Label>
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="pickup"
+                      name="delivery"
+                      checked={state.deliveryMethod === "pickup"}
+                      onChange={() => handleDeliveryMethodChange("pickup")}
+                      className="text-green-600"
+                    />
+                    <label htmlFor="pickup" className="flex items-center gap-2 cursor-pointer">
+                      <MapPin className="h-4 w-4" />
+                      <span>Pickup in Aachen (Free)</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="delivery"
+                      name="delivery"
+                      checked={state.deliveryMethod === "delivery"}
+                      onChange={() => handleDeliveryMethodChange("delivery")}
+                      className="text-green-600"
+                    />
+                    <label htmlFor="delivery" className="flex items-center gap-2 cursor-pointer">
+                      <Truck className="h-4 w-4" />
+                      <span>Delivery</span>
+                    </label>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">Payment Instructions</h4>
-              <p className="text-blue-800 text-sm">
-                Please transfer €{state.finalTotal.toFixed(2)} to our account and upload the proof of payment:
-              </p>
-              <div className="mt-2 text-sm text-blue-700">
-                <p>
-                  <strong>PayPal:</strong> Friends & Family
-                </p>
-                <p>
-                  <strong>Name:</strong> PPI Aachen
-                </p>
-                <p>
-                  <strong>Account:</strong> macariozachary@gmail.com
-                </p>
-                <p>
-                  <strong>Note:</strong> Aachen Studio-"Your name here"
-                </p>
+              <div className="flex justify-between text-base">
+                <span>{state.deliveryMethod === "pickup" ? "Pickup" : "Delivery"} Cost</span>
+                <span>€{state.shippingCost.toFixed(2)}</span>
+              </div>
+
+              <div className="flex justify-between font-bold text-xl border-t pt-2">
+                <span>Total</span>
+                <span>€{state.finalTotal.toFixed(2)}</span>
               </div>
             </div>
-          </div>
-
-          {/* Checkout Form */}
-          <CheckoutForm />
-        </div>
-      </main>
+          </CardContent>
+          <CardFooter>
+            <Button
+              onClick={handleSubmit}
+              className="w-full"
+              size="lg"
+              disabled={isSubmitting || state.items.length === 0 || !name || !email || !address}
+            >
+              {isSubmitting ? "Processing Order..." : "Proceed to Payment"}
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
     </div>
   )
 }

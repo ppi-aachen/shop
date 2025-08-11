@@ -1,29 +1,68 @@
 "use server"
 
-import { Resend } from "resend"
 import { google } from "googleapis"
+import { JWT } from "google-auth-library"
+import { Resend } from "resend"
 import type { CartItem } from "@/lib/cart-context"
-import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload" // Corrected import name
 
-// Initialize Resend
-const resend = new Resend(process.env.RESEND_API_KEY)
-
-// Google Sheets and Drive configuration
-const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID
-const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
-const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
-const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID // Added for POS action
-
-// Initialize Google Auth
-const auth = new google.auth.GoogleAuth({
-  credentials: {
-    client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    private_key: GOOGLE_PRIVATE_KEY,
-  },
+// Initialize Google Sheets API
+const auth = new JWT({
+  email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+  key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
   scopes: ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"],
 })
 
 const sheets = google.sheets({ version: "v4", auth })
+const drive = google.drive({ version: "v3", auth })
+
+const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID
+const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID
+
+// Initialize Resend
+const resend = new Resend(process.env.RESEND_API_KEY)
+
+interface SubmitOrderResult {
+  success: boolean
+  message?: string
+  error?: string
+}
+
+// Helper function to upload file to Google Drive
+async function uploadProofOfPaymentToDrive(file: File): Promise<{ success: boolean; fileId?: string; error?: string }> {
+  if (!GOOGLE_DRIVE_FOLDER_ID) {
+    console.error("GOOGLE_DRIVE_FOLDER_ID is not set.")
+    return { success: false, error: "Google Drive folder ID is not configured." }
+  }
+
+  try {
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    const response = await drive.files.create({
+      requestBody: {
+        name: file.name,
+        parents: [GOOGLE_DRIVE_FOLDER_ID],
+        mimeType: file.type,
+      },
+      media: {
+        mimeType: file.type,
+        body: buffer,
+      },
+      fields: "id, webViewLink",
+    })
+
+    if (response.status === 200 && response.data.id) {
+      console.log(`File uploaded: ${response.data.id}, View Link: ${response.data.webViewLink}`)
+      return { success: true, fileId: response.data.id, webViewLink: response.data.webViewLink }
+    } else {
+      console.error("Failed to upload file to Google Drive:", response.statusText)
+      return { success: false, error: `Failed to upload file: ${response.statusText}` }
+    }
+  } catch (error: any) {
+    console.error("Error uploading file to Google Drive:", error.message)
+    return { success: false, error: `Error uploading file: ${error.message}` }
+  }
+}
 
 interface ProductVariant {
   productId: number
@@ -86,7 +125,7 @@ interface OrderItemData {
 }
 
 async function getGoogleSheetsAuth() {
-  if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
+  if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
     throw new Error("Google Sheets credentials not configured")
   }
 
@@ -98,7 +137,7 @@ async function getGoogleSheetsAuth() {
   }
 
   const payload = {
-    iss: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    iss: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
     scope: "https://www.googleapis.com/auth/spreadsheets",
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
@@ -113,7 +152,7 @@ async function getGoogleSheetsAuth() {
   const encodedPayload = base64UrlEncode(JSON.stringify(payload))
   const unsignedToken = `${encodedHeader}.${encodedPayload}`
 
-  const privateKeyPem = GOOGLE_PRIVATE_KEY
+  const privateKeyPem = process.env.GOOGLE_PRIVATE_KEY
   const privateKeyDer = pemToDer(privateKeyPem)
 
   const cryptoKey = await crypto.subtle.importKey(
@@ -176,7 +215,7 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
 
     // Fetch products
     const productsResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products?valueRenderOption=FORMATTED_VALUE`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Products?valueRenderOption=FORMATTED_VALUE`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -201,7 +240,7 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
     let variantsData: ProductVariant[] = []
     try {
       const variantsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Product_Variants?valueRenderOption=FORMATTED_VALUE`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Product_Variants?valueRenderOption=FORMATTED_VALUE`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -320,7 +359,7 @@ async function addOrderToGoogleSheet(orderData: OrderData) {
     ]
 
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Orders:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Orders:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
       {
         method: "POST",
         headers: {
@@ -353,7 +392,7 @@ async function validateStockAvailability(cartItems: CartItem[]): Promise<{ valid
     let variantsData: ProductVariant[] = []
     try {
       const variantsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Product_Variants`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Product_Variants`,
         {
           method: "GET",
           headers: {
@@ -451,13 +490,16 @@ async function validateLegacyStock(
   accessToken: string,
 ): Promise<{ valid: boolean; errors: string[] }> {
   // Get the current Products sheet data
-  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
+  const response = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Products`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
     },
-  })
+  )
 
   if (!response.ok) {
     const errorData = await response.json()
@@ -527,7 +569,7 @@ async function updateProductStock(cartItems: CartItem[]) {
     let variantsUpdated = false
     try {
       const variantsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Product_Variants`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Product_Variants`,
         {
           method: "GET",
           headers: {
@@ -628,7 +670,7 @@ async function updateVariantStock(
     // Update variant stock values in batch
     if (variantUpdates.length > 0) {
       const batchUpdateResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values:batchUpdate`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values:batchUpdate`,
         {
           method: "POST",
           headers: {
@@ -660,13 +702,16 @@ async function updateVariantStock(
 
 async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
   // Get the current Products sheet data
-  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
+  const response = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Products`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
     },
-  })
+  )
 
   if (!response.ok) {
     const errorData = await response.json()
@@ -731,7 +776,7 @@ async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
   // Update all stock values in batch
   if (stockUpdates.length > 0) {
     const batchUpdateResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values:batchUpdate`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values:batchUpdate`,
       {
         method: "POST",
         headers: {
@@ -771,7 +816,7 @@ async function addOrderItemsToGoogleSheet(orderItems: OrderItemData[]) {
     ])
 
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Order_Items:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Order_Items:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
       {
         method: "POST",
         headers: {
@@ -1316,7 +1361,7 @@ export async function submitOrder(formData: FormData) {
 
 // NEW SERVER ACTION FOR POS PAGE
 export async function submitPOSOrder(formData: FormData) {
-  if (!GOOGLE_SHEET_ID || !GOOGLE_DRIVE_FOLDER_ID) {
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_DRIVE_FOLDER_ID) {
     return { success: false, message: "Server configuration error: Google Sheet ID or Drive Folder ID missing." }
   }
 
