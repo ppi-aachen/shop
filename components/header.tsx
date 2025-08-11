@@ -1,37 +1,43 @@
-"use client"
-
 import Link from "next/link"
-import { ShoppingCart } from "lucide-react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
+import { ShoppingCart } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 
-export function Header() {
-  const { state } = useCart()
+export default function Header() {
+  const { cart } = useCart()
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
 
   return (
-    <header className="bg-white shadow-sm border-b">
-      <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center space-x-2">
-            <h1 className="text-2xl font-bold text-gray-900">Aachen Studio by PPI Aachen</h1>
+    <header className="flex items-center justify-between px-4 py-3 bg-white shadow-sm dark:bg-gray-800">
+      <Link className="flex items-center gap-2" href="/">
+        <Image
+          src="/aachen-studio-logo.png" // Updated to new logo
+          alt="Aachen Studio Logo"
+          width={120}
+          height={40}
+          className="object-contain"
+        />
+      </Link>
+      <nav className="flex items-center gap-4">
+        <Link className="text-sm font-medium hover:underline" href="/pos">
+          POS
+        </Link>
+        <Link className="text-sm font-medium hover:underline" href="/cart">
+          Cart
+        </Link>
+        <Button className="relative" size="icon" variant="ghost" asChild>
+          <Link href="/cart">
+            <ShoppingCart className="w-5 h-5" />
+            {totalItems > 0 && (
+              <span className="absolute top-0 right-0 flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-red-500 rounded-full">
+                {totalItems}
+              </span>
+            )}
+            <span className="sr-only">View cart</span>
           </Link>
-
-          <div className="flex items-center space-x-4">
-            <p className="text-sm text-gray-600"></p>
-            <Link href="/cart">
-              <Button variant="outline" className="relative">
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                Cart
-                {state.itemCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-6 w-6 flex items-center justify-center">
-                    {state.itemCount}
-                  </span>
-                )}
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
+        </Button>
+      </nav>
     </header>
   )
 }

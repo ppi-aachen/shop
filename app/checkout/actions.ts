@@ -1,67 +1,28 @@
 "use server"
 
 import { google } from "googleapis"
-import { JWT } from "google-auth-library"
 import { Resend } from "resend"
-import type { CartItem } from "@/lib/cart-context"
-
-// Initialize Google Sheets API
-const auth = new JWT({
-  email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-  key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-  scopes: ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"],
-})
-
-const sheets = google.sheets({ version: "v4", auth })
-const drive = google.drive({ version: "v3", auth })
-
-const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID
-const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID
+import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload" // Corrected import name
+import { getProductImage } from "@/lib/utils"
+import { customerNotificationEmail, businessNotificationEmail } from "@/lib/email-templates"
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-interface SubmitOrderResult {
-  success: boolean
-  message?: string
-  error?: string
-}
+// Google Sheets configuration
+const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID
+const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
+const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
+const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID // Added for POS action
 
-// Helper function to upload file to Google Drive
-async function uploadProofOfPaymentToDrive(file: File): Promise<{ success: boolean; fileId?: string; error?: string }> {
-  if (!GOOGLE_DRIVE_FOLDER_ID) {
-    console.error("GOOGLE_DRIVE_FOLDER_ID is not set.")
-    return { success: false, error: "Google Drive folder ID is not configured." }
-  }
-
-  try {
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    const response = await drive.files.create({
-      requestBody: {
-        name: file.name,
-        parents: [GOOGLE_DRIVE_FOLDER_ID],
-        mimeType: file.type,
-      },
-      media: {
-        mimeType: file.type,
-        body: buffer,
-      },
-      fields: "id, webViewLink",
-    })
-
-    if (response.status === 200 && response.data.id) {
-      console.log(`File uploaded: ${response.data.id}, View Link: ${response.data.webViewLink}`)
-      return { success: true, fileId: response.data.id, webViewLink: response.data.webViewLink }
-    } else {
-      console.error("Failed to upload file to Google Drive:", response.statusText)
-      return { success: false, error: `Failed to upload file: ${response.statusText}` }
-    }
-  } catch (error: any) {
-    console.error("Error uploading file to Google Drive:", error.message)
-    return { success: false, error: `Error uploading file: ${error.message}` }
-  }
+interface CartItem {
+  id: string
+  name: string
+  price: number
+  image: string
+  quantity: number
+  selectedVariants: { [key: string]: string }
+  variantId: string
 }
 
 interface ProductVariant {
@@ -124,8 +85,15 @@ interface OrderItemData {
   selectedColor: string
 }
 
+interface CustomerDetails {
+  name: string
+  email: string
+  phone: string
+  address: string
+}
+
 async function getGoogleSheetsAuth() {
-  if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+  if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_PRIVATE_KEY) {
     throw new Error("Google Sheets credentials not configured")
   }
 
@@ -137,7 +105,7 @@ async function getGoogleSheetsAuth() {
   }
 
   const payload = {
-    iss: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    iss: GOOGLE_SERVICE_ACCOUNT_EMAIL,
     scope: "https://www.googleapis.com/auth/spreadsheets",
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
@@ -152,7 +120,7 @@ async function getGoogleSheetsAuth() {
   const encodedPayload = base64UrlEncode(JSON.stringify(payload))
   const unsignedToken = `${encodedHeader}.${encodedPayload}`
 
-  const privateKeyPem = process.env.GOOGLE_PRIVATE_KEY
+  const privateKeyPem = GOOGLE_PRIVATE_KEY
   const privateKeyDer = pemToDer(privateKeyPem)
 
   const cryptoKey = await crypto.subtle.importKey(
@@ -215,7 +183,7 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
 
     // Fetch products
     const productsResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Products?valueRenderOption=FORMATTED_VALUE`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products?valueRenderOption=FORMATTED_VALUE`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -240,7 +208,7 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
     let variantsData: ProductVariant[] = []
     try {
       const variantsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Product_Variants?valueRenderOption=FORMATTED_VALUE`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Product_Variants?valueRenderOption=FORMATTED_VALUE`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -359,7 +327,7 @@ async function addOrderToGoogleSheet(orderData: OrderData) {
     ]
 
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Orders:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Orders:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
       {
         method: "POST",
         headers: {
@@ -392,7 +360,7 @@ async function validateStockAvailability(cartItems: CartItem[]): Promise<{ valid
     let variantsData: ProductVariant[] = []
     try {
       const variantsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Product_Variants`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Product_Variants`,
         {
           method: "GET",
           headers: {
@@ -490,16 +458,13 @@ async function validateLegacyStock(
   accessToken: string,
 ): Promise<{ valid: boolean; errors: string[] }> {
   // Get the current Products sheet data
-  const response = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Products`,
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
     },
-  )
+  })
 
   if (!response.ok) {
     const errorData = await response.json()
@@ -569,7 +534,7 @@ async function updateProductStock(cartItems: CartItem[]) {
     let variantsUpdated = false
     try {
       const variantsResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Product_Variants`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Product_Variants`,
         {
           method: "GET",
           headers: {
@@ -670,7 +635,7 @@ async function updateVariantStock(
     // Update variant stock values in batch
     if (variantUpdates.length > 0) {
       const batchUpdateResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values:batchUpdate`,
+        `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values:batchUpdate`,
         {
           method: "POST",
           headers: {
@@ -702,16 +667,13 @@ async function updateVariantStock(
 
 async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
   // Get the current Products sheet data
-  const response = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Products`,
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
     },
-  )
+  })
 
   if (!response.ok) {
     const errorData = await response.json()
@@ -776,7 +738,7 @@ async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
   // Update all stock values in batch
   if (stockUpdates.length > 0) {
     const batchUpdateResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values:batchUpdate`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values:batchUpdate`,
       {
         method: "POST",
         headers: {
@@ -816,7 +778,7 @@ async function addOrderItemsToGoogleSheet(orderItems: OrderItemData[]) {
     ])
 
     const response = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${process.env.GOOGLE_SHEET_ID}/values/Order_Items:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Order_Items:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
       {
         method: "POST",
         headers: {
@@ -1360,131 +1322,142 @@ export async function submitOrder(formData: FormData) {
 }
 
 // NEW SERVER ACTION FOR POS PAGE
-export async function submitPOSOrder(formData: FormData) {
-  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_DRIVE_FOLDER_ID) {
-    return { success: false, message: "Server configuration error: Google Sheet ID or Drive Folder ID missing." }
-  }
+export async function submitPOSOrder(
+  cart: CartItem[],
+  customerDetails: CustomerDetails,
+  proofOfPayment: File | null,
+  subtotal: number,
+  shipping: number,
+  total: number,
+) {
+  try {
+    if (!process.env.GOOGLE_SHEET_ID) {
+      throw new Error("GOOGLE_SHEET_ID is not set in environment variables.")
+    }
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
+      throw new Error("GOOGLE_SERVICE_ACCOUNT_EMAIL is not set in environment variables.")
+    }
+    if (!process.env.GOOGLE_PRIVATE_KEY) {
+      throw new Error("GOOGLE_PRIVATE_KEY is not set in environment variables.")
+    }
 
-  const customerName = formData.get("customerName") as string
-  const customerContact = formData.get("customerContact") as string
-  const deliveryAddress = formData.get("deliveryAddress") as string
-  const cartItemsJson = formData.get("cartItems") as string
-  const totalAmountStr = formData.get("totalAmount") as string // This will now be the subtotal from POS
-  const proofOfPaymentFile = formData.get("proofOfPayment") as File
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      },
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    })
 
-  if (
-    !customerName ||
-    !customerContact ||
-    !deliveryAddress ||
-    !cartItemsJson ||
-    !totalAmountStr ||
-    !proofOfPaymentFile
-  ) {
-    return { success: false, message: "Missing required order details or proof of payment file." }
-  }
+    const sheets = google.sheets({ version: "v4", auth })
 
-  const cartItems: CartItem[] = JSON.parse(cartItemsJson)
-  const totalAmount = Number.parseFloat(totalAmountStr) // This is now the subtotal from POS
+    const orderId = `POS-${Date.now()}`
+    const orderDate = new Date().toISOString()
 
-  // Validate stock availability before proceeding with order
-  console.log("Validating stock availability for POS order...")
-  const stockValidation = await validateStockAvailability(cartItems)
+    let proofOfPaymentUrl = "N/A"
+    if (proofOfPayment) {
+      try {
+        proofOfPaymentUrl = await uploadProofOfPaymentToDrive(proofOfPayment, orderId)
+      } catch (uploadError) {
+        console.error("Error uploading proof of payment:", uploadError)
+        // Continue with order submission even if upload fails
+        proofOfPaymentUrl = `Upload Failed: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`
+      }
+    }
 
-  if (!stockValidation.valid) {
-    console.log("Stock validation failed for POS order:", stockValidation.errors)
+    const orderData = cart
+      .map((item) => {
+        const variants = Object.entries(item.selectedVariants)
+          .map(([key, value]) => `${key}: ${value}`)
+          .join(", ")
+        return `${item.name} (${variants}) x${item.quantity} @ $${item.price.toFixed(2)}`
+      })
+      .join("; ")
+
+    const row = [
+      orderId,
+      orderDate,
+      customerDetails.name,
+      customerDetails.email,
+      customerDetails.phone,
+      customerDetails.address,
+      orderData,
+      subtotal.toFixed(2),
+      shipping.toFixed(2),
+      total.toFixed(2), // Total without tax
+      proofOfPaymentUrl,
+      "Pending Payment Verification", // Status
+    ]
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: "Sheet1!A:K", // Adjust range as needed
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [row],
+      },
+    })
+
+    // Send customer notification email
+    if (process.env.RESEND_API_KEY) {
+      const customerEmailHtml = customerNotificationEmail({
+        orderId,
+        customerName: customerDetails.name,
+        cartItems: cart.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          image: getProductImage(item.image),
+          variants: Object.entries(item.selectedVariants).map(([key, value]) => ({ type: key, value })),
+        })),
+        subtotal: subtotal.toFixed(2),
+        shipping: shipping.toFixed(2),
+        total: total.toFixed(2), // Total without tax
+        proofOfPaymentUrl,
+        deliveryAddress: customerDetails.address,
+      })
+
+      await resend.emails.send({
+        from: "onboarding@resend.dev", // Replace with your verified sender
+        to: customerDetails.email,
+        subject: `Your Order Confirmation - #${orderId}`,
+        html: customerEmailHtml,
+      })
+
+      // Send business notification email
+      const businessEmailHtml = businessNotificationEmail({
+        orderId,
+        customerName: customerDetails.name,
+        customerEmail: customerDetails.email,
+        customerPhone: customerDetails.phone,
+        deliveryAddress: customerDetails.address,
+        cartItems: cart.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          image: getProductImage(item.image),
+          variants: Object.entries(item.selectedVariants).map(([key, value]) => ({ type: key, value })),
+        })),
+        subtotal: subtotal.toFixed(2),
+        shipping: shipping.toFixed(2),
+        total: total.toFixed(2), // Total without tax
+        proofOfPaymentUrl,
+      })
+
+      await resend.emails.send({
+        from: "onboarding@resend.dev", // Replace with your verified sender
+        to: process.env.BUSINESS_EMAIL || "your-business-email@example.com", // Replace with your business email
+        subject: `New POS Order - #${orderId}`,
+        html: businessEmailHtml,
+      })
+    }
+
+    return { success: true, orderId, proofOfPaymentUrl }
+  } catch (error) {
+    console.error("Error submitting POS order:", error)
     return {
       success: false,
-      message: "Stock validation failed: " + stockValidation.errors.join(", "),
+      error: error instanceof Error ? error.message : "An unknown error occurred",
     }
-  }
-  console.log("Stock validation passed for POS order.")
-
-  let proofOfPaymentUrl = ""
-  try {
-    const uploadResult = await uploadProofOfPaymentToDrive(proofOfPaymentFile, "POS_Order", customerName) // Use a generic order ID for upload if not yet generated
-    if (!uploadResult.success || !uploadResult.webViewLink) {
-      throw new Error(uploadResult.error || "Unknown upload error")
-    }
-    proofOfPaymentUrl = uploadResult.webViewLink
-  } catch (error) {
-    console.error("Error uploading proof of payment to Google Drive for POS order:", error)
-    return { success: false, message: "Failed to upload proof of payment. Please try again." }
-  }
-
-  const now = new Date()
-  // Generate order ID with format: POS + DDMMYY + random 3-char alphanumeric
-  const dateStr = now
-    .toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-    })
-    .replace(/\//g, "")
-  const randomSuffix = Math.random().toString(36).substr(2, 3).toUpperCase()
-  const orderId = `POS${dateStr}-${randomSuffix}`
-
-  const date = now.toLocaleDateString("en-GB")
-  const time = now.toLocaleTimeString("en-GB", { hour12: false })
-
-  // For POS orders, simplify delivery method and costs
-  const deliveryMethod = "POS Sale"
-  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const shippingCost = 0 // No shipping cost for POS sales
-  const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
-
-  const orderData: OrderData = {
-    orderId,
-    date,
-    time,
-    customerName,
-    email: customerContact, // Using customerContact for email/primary contact
-    phone: "", // Phone might be part of customerContact, or left empty
-    address: deliveryAddress, // Using deliveryAddress for full address
-    city: "",
-    state: "",
-    zipCode: "",
-    country: "", // These might be parsed from deliveryAddress if needed
-    deliveryMethod,
-    totalItems: itemCount,
-    subtotal, // Subtotal is the total without tax
-    shippingCost,
-    totalAmount: totalAmount, // Total amount is now the same as subtotal for POS
-    notes: "POS Sale - Customer details collected at point of sale.",
-    proofOfPaymentUrl: proofOfPaymentUrl,
-    status: "Completed (POS)", // Directly mark as completed for POS
-  }
-
-  const orderItemsData: OrderItemData[] = cartItems.map((item) => ({
-    orderId,
-    itemId: item.id,
-    productName: item.name,
-    price: item.price,
-    quantity: item.quantity,
-    subtotal: item.price * item.quantity,
-    description: item.description || "",
-    selectedSize: item.selectedSize || "",
-    selectedColor: item.selectedColor || "",
-  }))
-
-  try {
-    await Promise.all([
-      addOrderToGoogleSheet(orderData),
-      addOrderItemsToGoogleSheet(orderItemsData),
-      updateProductStock(cartItems), // Update stock after successful order
-    ])
-
-    // Optionally send confirmation emails for POS sales if desired, but typically not needed for in-person
-    // The email templates below are for the main checkout, not POS specific.
-    // If POS needs emails, a separate, tax-free template would be ideal.
-    // For now, I'll modify the existing ones to remove tax display.
-    // const emailResults = await Promise.allSettled([
-    //   sendCustomerConfirmationEmail(orderData, orderItemsData),
-    //   sendBusinessNotificationEmail(orderData, orderItemsData),
-    // ])
-
-    return { success: true, message: `Order ${orderId} successfully processed!` }
-  } catch (error: any) {
-    console.error("Error submitting POS order:", error.message, error.stack)
-    return { success: false, message: `Failed to process POS order: ${error.message}` }
   }
 }
