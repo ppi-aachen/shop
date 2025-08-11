@@ -283,9 +283,6 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                         disabled={isOutOfStock}
                       >
                         {color}
-                        {selectedColor === color && product.variants && (
-                          <span className="ml-1 text-xs">({getStockDisplay(colorStock)})</span>
-                        )}
                       </Button>
                     )
                   })}
