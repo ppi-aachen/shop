@@ -6,6 +6,7 @@ import { Header } from "@/components/header"
 import { useCart } from "@/lib/cart-context"
 import { Package, MapPin, Truck } from "lucide-react"
 import CheckoutForm from "./checkout-form"
+import { getProductImage } from "@/lib/image-utils" // Import getProductImage
 
 export default function CheckoutPage() {
   const { state } = useCart()
@@ -39,8 +40,28 @@ export default function CheckoutPage() {
                   key={`${item.id}-${item.selectedSize}-${item.selectedColor}-${index}`}
                   className="flex items-center gap-4 pb-4 border-b"
                 >
-                  <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center border">
-                    <Package className="h-6 w-6 text-gray-400" />
+                  <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center border overflow-hidden">
+                    {item.image ? (
+                      <img
+                        src={getProductImage(item.image) || "/placeholder.svg"} // Use getProductImage
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.style.display = "none"
+                          const parent = target.parentElement
+                          if (parent) {
+                            const iconDiv = document.createElement("div")
+                            iconDiv.className = "flex items-center justify-center w-full h-full"
+                            iconDiv.innerHTML =
+                              '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class="text-gray-400"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="M10 4v4"></path><path d="M2 8h20"></path><path d="M6 12h.01"></path><path d="M6 16h.01"></path><path d="M10 12h8"></path><path d="M10 16h8"></path></svg>'
+                            parent.appendChild(iconDiv)
+                          }
+                        }}
+                      />
+                    ) : (
+                      <Package className="h-6 w-6 text-gray-400" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <h3 className="font-medium">{item.name}</h3>

@@ -1,31 +1,29 @@
 "use server"
 
 import { Resend } from "resend"
+import { google } from "googleapis"
+import type { CartItem } from "@/lib/cart-context"
 import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload" // Corrected import name
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-// Google Sheets configuration
+// Google Sheets and Drive configuration
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID
 const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
 const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
 const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID // Added for POS action
 
-interface CartItem {
-  id: number
-  name: string
-  price: number
-  quantity: number
-  description?: string
-  selectedSize?: string
-  selectedColor?: string
-  sizes?: string[]
-  colors?: string[]
-  stock: number // Total stock (for backward compatibility)
-  variantStock?: number // Stock for the specific variant
-  variantId?: string // Unique variant identifier
-}
+// Initialize Google Auth
+const auth = new google.auth.GoogleAuth({
+  credentials: {
+    client_email: GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    private_key: GOOGLE_PRIVATE_KEY,
+  },
+  scopes: ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"],
+})
+
+const sheets = google.sheets({ version: "v4", auth })
 
 interface ProductVariant {
   productId: number
