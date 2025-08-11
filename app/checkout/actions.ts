@@ -1,4 +1,5 @@
 "use server"
+
 import { Resend } from "resend"
 import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload" // Corrected import name
 
@@ -12,14 +13,18 @@ const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
 const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID // Added for POS action
 
 interface CartItem {
-  productId: string
-  productName: string
-  variantId: string
-  size?: string
-  color?: string
+  id: number
+  name: string
   price: number
   quantity: number
-  image: string
+  description?: string
+  selectedSize?: string
+  selectedColor?: string
+  sizes?: string[]
+  colors?: string[]
+  stock: number // Total stock (for backward compatibility)
+  variantStock?: number // Stock for the specific variant
+  variantId?: string // Unique variant identifier
 }
 
 interface ProductVariant {
@@ -80,12 +85,6 @@ interface OrderItemData {
   description: string
   selectedSize: string
   selectedColor: string
-}
-
-interface SubmitOrderResult {
-  success: boolean
-  message?: string
-  error?: string
 }
 
 async function getGoogleSheetsAuth() {
@@ -415,32 +414,32 @@ async function validateVariantStock(
     // Find the specific variant for this cart item
     const variant = variantsData.find((v) => {
       // Handle both cases: when size/color are selected and when they're not
-      const sizeMatch = cartItem.size
-        ? v.size === cartItem.size
+      const sizeMatch = cartItem.selectedSize
+        ? v.size === cartItem.selectedSize
         : v.size === undefined || v.size === null || v.size === ""
-      const colorMatch = cartItem.color
-        ? v.color === cartItem.color
+      const colorMatch = cartItem.selectedColor
+        ? v.color === cartItem.selectedColor
         : v.color === undefined || v.color === null || v.color === ""
-      return v.productId === Number(cartItem.productId) && sizeMatch && colorMatch
+      return v.productId === cartItem.id && sizeMatch && colorMatch
     })
 
     if (!variant) {
       errors.push(
-        `${cartItem.productName} (${cartItem.size || "No size"}${cartItem.color ? `, ${cartItem.color}` : ""}): Variant not found`,
+        `${cartItem.name} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""}): Variant not found`,
       )
       continue
     }
 
     if (variant.stock <= 0) {
       errors.push(
-        `${cartItem.productName} (${cartItem.size || "No size"}${cartItem.color ? `, ${cartItem.color}` : ""}): Out of stock`,
+        `${cartItem.name} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""}): Out of stock`,
       )
       continue
     }
 
     if (cartItem.quantity > variant.stock) {
       errors.push(
-        `${cartItem.productName} (${cartItem.size || "No size"}${cartItem.color ? `, ${cartItem.color}` : ""}): Only ${variant.stock} available, but ${cartItem.quantity} requested`,
+        `${cartItem.name} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""}): Only ${variant.stock} available, but ${cartItem.quantity} requested`,
       )
       continue
     }
@@ -501,22 +500,20 @@ async function validateLegacyStock(
   const errors: string[] = []
 
   for (const cartItem of cartItems) {
-    const productStock = productStockMap.get(Number(cartItem.productId))
+    const productStock = productStockMap.get(cartItem.id)
 
     if (!productStock) {
-      errors.push(`${cartItem.productName}: Product not found in database`)
+      errors.push(`${cartItem.name}: Product not found in database`)
       continue
     }
 
     if (productStock.currentStock <= 0) {
-      errors.push(`${cartItem.productName}: Out of stock`)
+      errors.push(`${cartItem.name}: Out of stock`)
       continue
     }
 
     if (cartItem.quantity > productStock.currentStock) {
-      errors.push(
-        `${cartItem.productName}: Only ${productStock.currentStock} available, but ${cartItem.quantity} requested`,
-      )
+      errors.push(`${cartItem.name}: Only ${productStock.currentStock} available, but ${cartItem.quantity} requested`)
       continue
     }
   }
@@ -606,9 +603,9 @@ async function updateVariantStock(
 
     for (const cartItem of cartItems) {
       // Use the same encoding as the variant ID generation
-      const encodedSize = cartItem.size ? encodeURIComponent(cartItem.size) : "null"
-      const encodedColor = cartItem.color ? encodeURIComponent(cartItem.color) : "null"
-      const variantKey = `${cartItem.productId}-${encodedSize}-${encodedColor}`
+      const encodedSize = cartItem.selectedSize ? encodeURIComponent(cartItem.selectedSize) : "null"
+      const encodedColor = cartItem.selectedColor ? encodeURIComponent(cartItem.selectedColor) : "null"
+      const variantKey = `${cartItem.id}-${encodedSize}-${encodedColor}`
       const variantData = variantMap.get(variantKey)
 
       if (variantData) {
@@ -621,11 +618,11 @@ async function updateVariantStock(
         })
 
         console.log(
-          `Updating variant stock for ${cartItem.productName} (${cartItem.size || "No size"}${cartItem.color ? `, ${cartItem.color}` : ""}): ${variantData.currentStock} -> ${newStock}`,
+          `Updating variant stock for ${cartItem.name} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""}): ${variantData.currentStock} -> ${newStock}`,
         )
       } else {
         console.warn(
-          `Variant not found for product ${cartItem.productId} (${cartItem.size || "No size"}${cartItem.color ? `, ${cartItem.color}` : ""})`,
+          `Variant not found for product ${cartItem.id} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""})`,
         )
       }
     }
@@ -714,7 +711,7 @@ async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
   const stockUpdates: { range: string; values: number[][] }[] = []
 
   for (const cartItem of cartItems) {
-    const productStock = productStockMap.get(Number(cartItem.productId))
+    const productStock = productStockMap.get(cartItem.id)
 
     if (productStock) {
       const newStock = Math.max(0, productStock.currentStock - cartItem.quantity)
@@ -726,10 +723,10 @@ async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
       })
 
       console.log(
-        `Updating legacy stock for product ${cartItem.productId} (${cartItem.productName}): ${productStock.currentStock} -> ${newStock}`,
+        `Updating legacy stock for product ${cartItem.id} (${cartItem.name}): ${productStock.currentStock} -> ${newStock}`,
       )
     } else {
-      console.warn(`Product with ID ${cartItem.productId} not found in Products sheet`)
+      console.warn(`Product with ID ${cartItem.id} not found in Products sheet`)
     }
   }
 

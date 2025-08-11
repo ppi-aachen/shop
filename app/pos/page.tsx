@@ -2,527 +2,819 @@
 
 import type React from "react"
 
-import { useState, useEffect, useMemo, Suspense } from "react"
-import { useSearchParams } from "next/navigation"
-import Image from "next/image"
+import { useState, useEffect, Suspense, useRef } from "react"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { useCart } from "@/lib/cart-context"
-import { getProductImage, getProductStock } from "@/lib/utils"
-import { submitPOSOrder } from "@/app/checkout/actions"
+import { Plus, Minus, Trash2, ShoppingCart, Search, Receipt, X, Upload, User, Phone, MapPin } from "lucide-react"
+import { getProductImage } from "@/lib/image-utils"
 import { useToast } from "@/hooks/use-toast"
-import { LoadingOverlay } from "@/components/loading-overlay" // Corrected import
-
-// Mock product data (replace with actual data fetching)
-const products = [
-  {
-    id: "1",
-    name: "Vintage Leather Jacket",
-    description: "A classic leather jacket with a timeless design.",
-    price: 120.0,
-    images: [
-      "/vintage-leather-jacket.png",
-      "/vintage-leather-jacket-front.png",
-      "/vintage-leather-jacket-back.png",
-      "/vintage-leather-jacket-detail.png",
-    ],
-    variants: [
-      { id: "1-S-Black", size: "S", color: "Black", stock: 5 },
-      { id: "1-M-Black", size: "M", color: "Black", stock: 8 },
-      { id: "1-L-Black", size: "L", color: "Black", stock: 3 },
-      { id: "1-S-Brown", size: "S", color: "Brown", stock: 2 },
-      { id: "1-M-Brown", size: "M", color: "Brown", stock: 6 },
-    ],
-  },
-  {
-    id: "2",
-    name: "Cozy Knit Sweater",
-    description: "Soft and warm, perfect for chilly evenings.",
-    price: 65.0,
-    images: ["/cozy-knit-sweater.png", "/cozy-knit-sweater-front.png"],
-    variants: [
-      { id: "2-S-Red", size: "S", color: "Red", stock: 10 },
-      { id: "2-M-Red", size: "M", color: "Red", stock: 12 },
-      { id: "2-L-Red", size: "L", color: "Red", stock: 7 },
-      { id: "2-S-Blue", size: "S", color: "Blue", stock: 5 },
-      { id: "2-M-Blue", size: "M", color: "Blue", stock: 8 },
-    ],
-  },
-  {
-    id: "3",
-    name: "Denim Jeans",
-    description: "Durable and stylish, a wardrobe essential.",
-    price: 80.0,
-    images: ["/denim-jeans.png", "/denim-jeans-front.png", "/denim-jeans-back.png"],
-    variants: [
-      { id: "3-30-Blue", size: "30", color: "Blue", stock: 15 },
-      { id: "3-32-Blue", size: "32", color: "Blue", stock: 20 },
-      { id: "3-34-Blue", size: "34", color: "Blue", stock: 10 },
-      { id: "3-30-Black", size: "30", color: "Black", stock: 8 },
-      { id: "3-32-Black", size: "32", color: "Black", stock: 12 },
-    ],
-  },
-  {
-    id: "4",
-    name: "Running Shoes",
-    description: "Lightweight and comfortable for your daily runs.",
-    price: 95.0,
-    images: ["/running-shoes-on-track.png", "/running-shoes-side.png", "/running-shoes-top.png"],
-    variants: [
-      { id: "4-7-White", size: "7", color: "White", stock: 6 },
-      { id: "4-8-White", size: "8", color: "White", stock: 9 },
-      { id: "4-9-White", size: "9", color: "White", stock: 4 },
-      { id: "4-7-Black", size: "7", color: "Black", stock: 3 },
-      { id: "4-8-Black", color: "Black", stock: 7 },
-    ],
-  },
-  {
-    id: "5",
-    name: "Classic T-Shirt",
-    description: "A soft cotton t-shirt for everyday wear.",
-    price: 25.0,
-    images: ["/classic-t-shirt-front.png", "/folded-classic-tee.png"],
-    variants: [
-      { id: "5-S-White", size: "S", color: "White", stock: 20 },
-      { id: "5-M-White", size: "M", color: "White", stock: 25 },
-      { id: "5-L-White", size: "L", color: "White", stock: 18 },
-      { id: "5-S-Black", size: "S", color: "Black", stock: 15 },
-      { id: "5-M-Black", size: "M", color: "Black", stock: 22 },
-    ],
-  },
-]
+import { getProductsFromGoogleSheet, submitPOSOrder } from "@/app/checkout/actions" // Changed import for POS action
+import { formatStockDisplay } from "@/lib/utils"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 
 interface Product {
-  id: string
+  id: number
   name: string
-  description: string
   price: number
-  images: string[]
-  variants: { id: string; size?: string; color?: string; stock: number }[]
-}
-
-interface CartItem {
-  productId: string
-  productName: string
-  variantId: string
-  size?: string
-  color?: string
-  price: number
-  quantity: number
   image: string
+  images?: string[]
+  description: string
+  detailedDescription?: string
+  features?: string[]
+  specifications?: { [key: string]: string }
+  materials?: string[]
+  careInstructions?: string[]
+  sizes?: string[]
+  colors?: string[]
+  stock: number
+  variants?: {
+    productId: number
+    size?: string
+    color?: string
+    stock: number
+    variantId: string
+  }[]
 }
 
-function POSPageContent() {
-  const { cart, addToCart, removeFromCart, updateQuantity, clearCart } = useCart()
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const [selectedSize, setSelectedSize] = useState<string | undefined>(undefined)
-  const [selectedColor, setSelectedColor] = useState<string | undefined>(undefined)
-  const [quantity, setQuantity] = useState(1)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [customerName, setCustomerName] = useState("")
-  const [customerEmail, setCustomerEmail] = useState("")
-  const [customerPhone, setCustomerPhone] = useState("")
-  const [deliveryAddress, setDeliveryAddress] = useState("")
-  const [proofOfPayment, setProofOfPayment] = useState<File | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+export default function POSPage() {
+  const { state, dispatch } = useCart()
   const { toast } = useToast()
+  const [products, setProducts] = useState<Product[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(true)
+  const [errorLoadingProducts, setErrorLoadingProducts] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [quickAddId, setQuickAddId] = useState("")
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [selectedSize, setSelectedSize] = useState<string | null>(null)
+  const [selectedColor, setSelectedColor] = useState<string | null>(null)
 
-  const searchParams = useSearchParams()
-  const initialProductId = searchParams.get("productId")
+  // Customer details for checkout
+  const [customerName, setCustomerName] = useState("")
+  const [customerContact, setCustomerContact] = useState("")
+  const [deliveryAddress, setDeliveryAddress] = useState("")
+  const [proofOfPaymentFile, setProofOfPaymentFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
 
   useEffect(() => {
-    if (initialProductId) {
-      const product = products.find((p) => p.id === initialProductId)
-      if (product) {
-        setSelectedProduct(product)
-        setIsModalOpen(true)
+    const fetchProducts = async () => {
+      setLoadingProducts(true)
+      setErrorLoadingProducts(false)
+      try {
+        const fetchedProducts = await getProductsFromGoogleSheet()
+        setProducts(fetchedProducts)
+      } catch (error) {
+        console.error("Could not fetch products from Google Sheet:", error)
+        setErrorLoadingProducts(true)
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load products from Google Sheet. Please check your configuration.",
+        })
+      } finally {
+        setLoadingProducts(false)
       }
     }
-  }, [initialProductId])
 
-  const subtotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  }, [cart])
+    fetchProducts()
+  }, [toast])
 
-  const shippingCost = 5.0 // Example fixed shipping cost
+  // Keyboard shortcuts for POS efficiency
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Ctrl/Cmd + K to focus search
+      if ((event.ctrlKey || event.metaKey) && event.key === "k") {
+        event.preventDefault()
+        const searchInput = document.querySelector('input[placeholder*="Search products"]') as HTMLInputElement
+        if (searchInput) {
+          searchInput.focus()
+        }
+      }
 
-  const total = useMemo(() => {
-    return subtotal + shippingCost
-  }, [subtotal, shippingCost])
+      // Enter to complete sale when cart has items
+      if (event.key === "Enter" && state.items.length > 0 && !showCheckoutModal) {
+        event.preventDefault()
+        handleCheckout()
+      }
 
-  const handleAddToCart = () => {
-    if (!selectedProduct) return
+      // Escape to close modals
+      if (event.key === "Escape" && (showCheckoutModal || selectedProduct)) {
+        setShowCheckoutModal(false)
+        setSelectedProduct(null)
+        setSelectedSize(null)
+        setSelectedColor(null)
+      }
+    }
 
-    const variant = selectedProduct.variants.find(
-      (v) => (v.size === selectedSize || !v.size) && (v.color === selectedColor || !v.color),
-    )
+    document.addEventListener("keydown", handleKeyPress)
+    return () => document.removeEventListener("keydown", handleKeyPress)
+  }, [state.items.length, showCheckoutModal, selectedProduct])
 
-    if (!variant || variant.stock < quantity) {
+  const filteredProducts = products.filter(
+    (product) =>
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.id.toString().includes(searchTerm),
+  )
+
+  const getVariantStock = (product: Product, size: string | null, color: string | null) => {
+    if (!product.variants || product.variants.length === 0) {
+      return product.stock
+    }
+
+    // If both size and color are selected, find exact match
+    if (size && color) {
+      const exactMatch = product.variants.find((variant) => variant.size === size && variant.color === color)
+      return exactMatch ? exactMatch.stock : 0
+    }
+    // If only size is selected, sum stock of all colors for that size
+    else if (size) {
+      return product.variants
+        .filter((variant) => variant.size === size)
+        .reduce((sum, variant) => sum + variant.stock, 0)
+    }
+    // If only color is selected, sum stock of all sizes for that color
+    else if (color) {
+      return product.variants
+        .filter((variant) => variant.color === color)
+        .reduce((sum, variant) => sum + variant.stock, 0)
+    }
+    // If no options selected, sum all variant stock or use base product stock
+    return product.variants.reduce((sum, variant) => sum + variant.stock, 0)
+  }
+
+  const handleAddToCart = (product: Product) => {
+    const requiresSize = product.sizes && product.sizes.length > 0
+    const requiresColor = product.colors && product.colors.length > 0
+
+    if (product.stock <= 0 && (!product.variants || product.variants.every((v) => v.stock <= 0))) {
       toast({
-        title: "Error",
-        description: "Selected variant is out of stock or quantity exceeds available stock.",
         variant: "destructive",
+        title: "Out of Stock",
+        description: `${product.name} is currently out of stock.`,
       })
       return
     }
 
-    const itemToAdd: CartItem = {
-      productId: selectedProduct.id,
-      productName: selectedProduct.name,
-      variantId: variant.id,
-      size: selectedSize,
-      color: selectedColor,
-      price: selectedProduct.price,
-      quantity: quantity,
-      image: getProductImage(selectedProduct.id),
+    if (requiresSize || requiresColor) {
+      setSelectedProduct(product)
+      setSelectedSize(null)
+      setSelectedColor(null)
+      return // Open modal for options
     }
-    addToCart(itemToAdd)
-    setIsModalOpen(false)
-    setSelectedSize(undefined)
-    setSelectedColor(undefined)
-    setQuantity(1)
+
+    // Add simple product directly
+    dispatch({ type: "ADD_ITEM", payload: product })
     toast({
-      title: "Success",
-      description: `${quantity} x ${selectedProduct.name} added to cart.`,
+      variant: "success",
+      title: "Added to Cart!",
+      description: `${product.name} has been added to your cart.`,
     })
+  }
+
+  const handleAddVariantToCart = () => {
+    if (!selectedProduct) return
+
+    const requiresSize = selectedProduct.sizes && selectedProduct.sizes.length > 0
+    const requiresColor = selectedProduct.colors && selectedProduct.colors.length > 0
+
+    if (requiresSize && !selectedSize) {
+      toast({
+        variant: "warning",
+        title: "Option Required",
+        description: "Please select a size.",
+      })
+      return
+    }
+    if (requiresColor && !selectedColor) {
+      toast({
+        variant: "warning",
+        title: "Option Required",
+        description: "Please select a color.",
+      })
+      return
+    }
+
+    const variantStock = getVariantStock(selectedProduct, selectedSize, selectedColor)
+    if (variantStock <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Out of Stock",
+        description: `The selected variant is out of stock.`,
+      })
+      return
+    }
+
+    const variantId = `${selectedProduct.id}-${selectedSize || "no-size"}-${selectedColor || "no-color"}`
+
+    dispatch({
+      type: "ADD_ITEM",
+      payload: {
+        ...selectedProduct,
+        selectedSize: selectedSize || undefined,
+        selectedColor: selectedColor || undefined,
+        variantStock: variantStock,
+        variantId: variantId,
+      },
+    })
+    toast({
+      variant: "success",
+      title: "Added to Cart!",
+      description: `${selectedProduct.name} (${selectedSize || ""} ${selectedColor || ""}) has been added to your cart.`,
+    })
+    setSelectedProduct(null) // Close modal
+    setSelectedSize(null)
+    setSelectedColor(null)
+  }
+
+  const updateQuantity = (index: number, quantity: number) => {
+    dispatch({ type: "UPDATE_QUANTITY", payload: { id: index, quantity } })
+  }
+
+  const removeItem = (index: number) => {
+    dispatch({ type: "REMOVE_ITEM", payload: index })
+  }
+
+  const clearCart = () => {
+    dispatch({ type: "CLEAR_CART" })
+    toast({
+      variant: "success",
+      title: "Cart Cleared",
+      description: "All items have been removed from the cart.",
+    })
+  }
+
+  const handleCheckout = () => {
+    if (state.items.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Empty Cart",
+        description: "Please add items to the cart before checkout.",
+      })
+      return
+    }
+    setShowCheckoutModal(true)
+  }
+
+  const quickAddById = () => {
+    const productId = Number.parseInt(quickAddId)
+    if (isNaN(productId)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid ID",
+        description: "Please enter a valid product ID.",
+      })
+      return
+    }
+
+    const product = products.find((p) => p.id === productId)
+    if (!product) {
+      toast({
+        variant: "destructive",
+        title: "Product Not Found",
+        description: `No product found with ID ${productId}.`,
+      })
+      return
+    }
+
+    handleAddToCart(product)
+    setQuickAddId("")
   }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
-      setProofOfPayment(event.target.files[0])
+      setProofOfPaymentFile(event.target.files[0])
+    } else {
+      setProofOfPaymentFile(null)
     }
   }
 
-  const handleSubmitOrder = async (event: React.FormEvent) => {
-    event.preventDefault()
-    if (cart.length === 0) {
+  const handleSubmitOrder = async () => {
+    if (!proofOfPaymentFile) {
       toast({
-        title: "Error",
-        description: "Your cart is empty.",
         variant: "destructive",
-      })
-      return
-    }
-    if (!proofOfPayment) {
-      toast({
-        title: "Error",
-        description: "Please upload proof of payment.",
-        variant: "destructive",
+        title: "Proof of Payment Required",
+        description: "Please upload a proof of payment image or PDF.",
       })
       return
     }
 
-    setIsSubmitting(true)
+    if (!customerName || !customerContact || !deliveryAddress) {
+      toast({
+        variant: "destructive",
+        title: "Customer Details Required",
+        description: "Please fill in all customer details.",
+      })
+      return
+    }
+
+    setIsSubmittingOrder(true)
     try {
       const formData = new FormData()
+      formData.append("proofOfPayment", proofOfPaymentFile)
       formData.append("customerName", customerName)
-      formData.append("customerEmail", customerEmail)
-      formData.append("customerPhone", customerPhone)
+      formData.append("customerContact", customerContact)
       formData.append("deliveryAddress", deliveryAddress)
-      formData.append("proofOfPayment", proofOfPayment)
-      formData.append("cartItems", JSON.stringify(cart))
-      formData.append("totalAmount", total.toFixed(2))
+      formData.append("cartItems", JSON.stringify(state.items))
+      formData.append("totalAmount", state.total.toFixed(2)) // Pass subtotal as total, no tax
 
-      const result = await submitPOSOrder(formData)
+      const result = await submitPOSOrder(formData) // Call the new POS specific action
 
       if (result.success) {
         toast({
-          title: "Order Submitted",
-          description: "Your order has been successfully placed and proof of payment uploaded.",
+          variant: "success",
+          title: "Order Submitted!",
+          description: result.message,
         })
         clearCart()
+        setShowCheckoutModal(false)
         setCustomerName("")
-        setCustomerEmail("")
-        setCustomerPhone("")
+        setCustomerContact("")
         setDeliveryAddress("")
-        setProofOfPayment(null)
+        setProofOfPaymentFile(null)
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "" // Clear file input
+        }
       } else {
         toast({
-          title: "Submission Failed",
-          description: result.error || "There was an error submitting your order.",
           variant: "destructive",
+          title: "Order Submission Failed",
+          description: result.message || "An unknown error occurred.",
         })
       }
     } catch (error) {
       console.error("Error submitting order:", error)
       toast({
-        title: "Submission Failed",
-        description: "An unexpected error occurred.",
         variant: "destructive",
+        title: "Order Submission Failed",
+        description: "An unexpected error occurred while submitting the order.",
       })
     } finally {
-      setIsSubmitting(false)
+      setIsSubmittingOrder(false)
     }
   }
 
-  const availableSizes = useMemo(() => {
-    if (!selectedProduct) return []
-    const sizes = new Set<string>()
-    selectedProduct.variants.forEach((v) => {
-      if (v.size) sizes.add(v.size)
-    })
-    return Array.from(sizes)
-  }, [selectedProduct])
-
-  const availableColors = useMemo(() => {
-    if (!selectedProduct) return []
-    const colors = new Set<string>()
-    selectedProduct.variants.forEach((v) => {
-      if (v.color) colors.add(v.color)
-    })
-    return Array.from(colors)
-  }, [selectedProduct])
-
-  const currentStock = useMemo(() => {
-    if (!selectedProduct) return 0
-    return getProductStock(selectedProduct, selectedSize, selectedColor)
-  }, [selectedProduct, selectedSize, selectedColor])
+  const currentVariantStock = selectedProduct ? getVariantStock(selectedProduct, selectedSize, selectedColor) : 0
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen bg-gray-100 p-4 gap-4">
-      {isSubmitting && <LoadingOverlay />}
+    <Suspense
+      fallback={<div className="min-h-screen bg-gray-100 flex items-center justify-center">Loading POS System...</div>}
+    >
+      <div className="min-h-screen bg-gray-100 flex flex-col">
+        {/* POS Header */}
+        <header className="bg-white shadow-lg border-b-4 border-green-600 p-4 md:p-6">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between">
+            <div className="flex items-center space-x-2 md:space-x-4 mb-4 md:mb-0">
+              <img src="/placeholder-logo.svg" alt="Aachen Studio Logo" className="h-10 w-10 md:h-12 md:w-12" />
+              <div>
+                <h1 className="text-xl md:text-3xl font-bold text-gray-900">Aachen Studio POS</h1>
+                <p className="text-sm md:text-base text-gray-600">Point of Sale System</p>
+              </div>
+            </div>
 
-      {/* Product List */}
-      <Card className="flex-1 p-4">
-        <CardHeader>
-          <CardTitle>Products</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {products.map((product) => (
-            <Card key={product.id} className="flex flex-col items-center text-center p-4">
-              <Image
-                src={getProductImage(product.id) || "/placeholder.svg"}
-                alt={product.name}
-                width={150}
-                height={150}
-                className="object-cover mb-2 rounded-md"
-              />
-              <h3 className="font-semibold text-lg">{product.name}</h3>
-              <p className="text-gray-600">${product.price.toFixed(2)}</p>
-              <Dialog open={isModalOpen && selectedProduct?.id === product.id} onOpenChange={setIsModalOpen}>
-                <DialogTrigger asChild>
-                  <Button
-                    className="mt-2"
-                    onClick={() => {
-                      setSelectedProduct(product)
-                      setSelectedSize(undefined)
-                      setSelectedColor(undefined)
-                      setQuantity(1)
-                      setIsModalOpen(true)
-                    }}
-                  >
-                    Select
-                  </Button>
-                </DialogTrigger>
-                {selectedProduct && (
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>{selectedProduct.name}</DialogTitle>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                      <Image
-                        src={getProductImage(selectedProduct.id) || "/placeholder.svg"}
-                        alt={selectedProduct.name}
-                        width={200}
-                        height={200}
-                        className="object-cover mx-auto rounded-md"
-                      />
-                      <p className="text-gray-700">{selectedProduct.description}</p>
-                      <p className="text-2xl font-bold">${selectedProduct.price.toFixed(2)}</p>
+            <div className="flex items-center space-x-4 md:space-x-6">
+              <div className="text-right">
+                <p className="text-xs md:text-sm text-gray-600">Items in Cart</p>
+                <p className="text-lg md:text-xl font-semibold text-green-600">{state.itemCount}</p>
+              </div>
 
-                      {availableSizes.length > 0 && (
-                        <div>
-                          <Label htmlFor="size">Size</Label>
-                          <div className="flex gap-2 mt-1">
-                            {availableSizes.map((size) => (
-                              <Badge
-                                key={size}
-                                variant={selectedSize === size ? "default" : "outline"}
-                                onClick={() => setSelectedSize(size)}
-                                className="cursor-pointer"
-                              >
-                                {size}
-                              </Badge>
-                            ))}
-                          </div>
+              <Button
+                variant="outline"
+                onClick={clearCart}
+                disabled={state.items.length === 0}
+                className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 text-sm md:text-base px-3 py-2 md:px-4 md:py-2 bg-transparent"
+              >
+                <X className="h-4 w-4 mr-1 md:mr-2" />
+                Clear Cart
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex flex-1 flex-col md:flex-row overflow-hidden">
+          {/* Left Side - Products */}
+          <div className="flex-1 p-4 md:p-6 overflow-hidden flex flex-col">
+            {/* Search and Quick Add Bar */}
+            <div className="mb-4 md:mb-6 space-y-2 md:space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 md:h-5 md:w-5" />
+                <Input
+                  type="text"
+                  placeholder="Search products... (Ctrl+K)"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 md:pl-10 h-10 md:h-12 text-sm md:text-lg"
+                />
+              </div>
+
+              {/* Quick Add by ID */}
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  placeholder="Quick add by ID"
+                  value={quickAddId}
+                  onChange={(e) => setQuickAddId(e.target.value)}
+                  className="flex-1 text-sm md:text-base"
+                  onKeyPress={(e) => e.key === "Enter" && quickAddById()}
+                />
+                <Button
+                  onClick={quickAddById}
+                  disabled={!quickAddId}
+                  className="text-sm md:text-base px-3 py-2 md:px-4 md:py-2"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add
+                </Button>
+              </div>
+
+              <div className="text-xs text-gray-500">
+                💡 Shortcuts: Ctrl+K (search) | Enter (checkout) | Esc (close modal)
+              </div>
+            </div>
+
+            {/* Products Grid */}
+            <div className="flex-1 overflow-y-auto pb-4 md:pb-0">
+              {loadingProducts && (
+                <div className="text-center text-gray-600 text-base md:text-xl py-10 md:py-20">Loading products...</div>
+              )}
+
+              {errorLoadingProducts && (
+                <div className="text-center text-red-600 text-base md:text-xl py-10 md:py-20">
+                  Failed to load products. Please check your configuration.
+                </div>
+              )}
+
+              {!loadingProducts && !errorLoadingProducts && filteredProducts.length === 0 && (
+                <div className="text-center text-gray-600 text-base md:text-xl py-10 md:py-20">
+                  {searchTerm ? "No products found matching your search." : "No products available."}
+                </div>
+              )}
+
+              {!loadingProducts && !errorLoadingProducts && filteredProducts.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
+                  {filteredProducts.map((product) => (
+                    <Card
+                      key={product.id}
+                      className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+                      onClick={() => handleAddToCart(product)}
+                    >
+                      <CardHeader className="p-0 relative">
+                        <div className="relative w-full h-24 sm:h-32 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
+                          <img
+                            src={getProductImage(product.image) || "/placeholder.svg"}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement
+                              target.style.display = "none"
+                              const parent = target.parentElement
+                              if (parent) {
+                                const iconDiv = document.createElement("div")
+                                iconDiv.className = "flex items-center justify-center w-full h-full"
+                                iconDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class="text-gray-400"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="M10 4v4"></path><path d="M2 8h20"></path><path d="M6 12h.01"></path><path d="M6 16h.01"></path><path d="M10 12h8"></path><path d="M10 16h8"></path></svg>`
+                                parent.appendChild(iconDiv)
+                              }
+                            }}
+                          />
+                          {product.stock === 0 &&
+                            (!product.variants || product.variants.every((v) => v.stock <= 0)) && (
+                              <div className="absolute inset-0 bg-red-600 bg-opacity-75 flex items-center justify-center">
+                                <span className="text-white font-bold text-sm md:text-lg">OUT OF STOCK</span>
+                              </div>
+                            )}
                         </div>
-                      )}
-
-                      {availableColors.length > 0 && (
-                        <div>
-                          <Label htmlFor="color">Color</Label>
-                          <div className="flex gap-2 mt-1">
-                            {availableColors.map((color) => (
-                              <Badge
-                                key={color}
-                                variant={selectedColor === color ? "default" : "outline"}
-                                onClick={() => setSelectedColor(color)}
-                                className="cursor-pointer"
-                              >
-                                {color}
-                              </Badge>
-                            ))}
-                          </div>
+                      </CardHeader>
+                      <CardContent className="p-2 md:p-3">
+                        <CardTitle className="text-xs md:text-sm font-semibold mb-1 line-clamp-2">
+                          {product.name}
+                        </CardTitle>
+                        <p className="text-xs text-gray-600 mb-2 line-clamp-1">{product.description}</p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-base md:text-lg font-bold text-green-600">€{product.price.toFixed(2)}</p>
+                          <Badge variant={product.stock > 0 ? "default" : "destructive"} className="text-xs">
+                            {formatStockDisplay(product.stock)}
+                          </Badge>
                         </div>
-                      )}
+                      </CardContent>
+                      <CardFooter className="p-2 pt-0 md:p-3 md:pt-0">
+                        <Button
+                          className="w-full text-xs md:text-sm"
+                          size="sm"
+                          disabled={
+                            product.stock <= 0 && (!product.variants || product.variants.every((v) => v.stock <= 0))
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleAddToCart(product)
+                          }}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
-                      <div>
-                        <Label htmlFor="quantity">Quantity (Stock: {currentStock})</Label>
-                        <Input
-                          id="quantity"
-                          type="number"
-                          min="1"
-                          max={currentStock}
-                          value={quantity}
-                          onChange={(e) => setQuantity(Math.max(1, Math.min(currentStock, Number(e.target.value))))}
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
-                    <Button onClick={handleAddToCart} disabled={currentStock === 0 || quantity === 0}>
-                      Add to Cart
-                    </Button>
-                  </DialogContent>
-                )}
-              </Dialog>
-            </Card>
-          ))}
-        </CardContent>
-      </Card>
+          {/* Right Side - Cart */}
+          <div className="w-full md:w-96 bg-white shadow-lg md:border-l flex flex-col">
+            <div className="p-4 md:p-6 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-4 md:mb-6">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-900">Current Sale</h2>
+                <ShoppingCart className="h-5 w-5 md:h-6 w-6 text-green-600" />
+              </div>
 
-      {/* Cart and Checkout */}
-      <Card className="w-full lg:w-1/3 p-4 flex flex-col">
-        <CardHeader>
-          <CardTitle>Cart</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 overflow-auto">
-          {cart.length === 0 ? (
-            <p className="text-gray-500">Cart is empty.</p>
-          ) : (
-            <div className="space-y-4">
-              {cart.map((item) => (
-                <div key={item.variantId} className="flex items-center gap-4 border-b pb-2">
-                  <Image
-                    src={item.image || "/placeholder.svg"}
-                    alt={item.productName}
-                    width={60}
-                    height={60}
-                    className="object-cover rounded-md"
-                  />
-                  <div className="flex-1">
-                    <h4 className="font-medium">{item.productName}</h4>
-                    <p className="text-sm text-gray-600">
-                      {item.size && `Size: ${item.size}`} {item.color && `Color: ${item.color}`}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      ${item.price.toFixed(2)} x {item.quantity}
-                    </p>
+              {/* Cart Items */}
+              <div className="flex-1 overflow-y-auto space-y-3 mb-4 md:mb-6">
+                {state.items.length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">
+                    <ShoppingCart className="h-10 w-10 md:h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p className="text-sm md:text-base">No items in cart</p>
+                    <p className="text-xs md:text-sm">Click on products to add them</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
-                      disabled={item.quantity <= 1}
-                    >
-                      -
-                    </Button>
-                    <span>{item.quantity}</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
-                    >
-                      +
-                    </Button>
-                    <Button variant="destructive" size="sm" onClick={() => removeFromCart(item.variantId)}>
-                      Remove
-                    </Button>
+                ) : (
+                  state.items.map((item, index) => (
+                    <Card key={`${item.id}-${item.selectedSize}-${item.selectedColor}-${index}`} className="border">
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 md:w-12 h-12 bg-gray-100 rounded flex items-center justify-center border overflow-hidden shrink-0">
+                            <img
+                              src={getProductImage(item.image) || "/placeholder.svg"}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-sm truncate">{item.name}</h4>
+                            <div className="flex gap-1 mt-1">
+                              {item.selectedSize && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Size: {item.selectedSize}
+                                </Badge>
+                              )}
+                              {item.selectedColor && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Color: {item.selectedColor}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs md:text-sm text-gray-600">€{item.price.toFixed(2)} each</p>
+                          </div>
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => updateQuantity(index, item.quantity - 1)}
+                              disabled={item.quantity <= 1}
+                              className="h-7 w-7 md:h-8 w-8"
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="text-base md:text-lg font-semibold min-w-[1.5rem] text-center">
+                              {item.quantity}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => updateQuantity(index, item.quantity + 1)}
+                              disabled={item.quantity >= (item.variantStock ?? item.stock)}
+                              className="h-7 w-7 md:h-8 w-8"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeItem(index)}
+                              className="text-red-600 hover:text-red-700 h-7 w-7 md:h-8 w-8"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="mt-2 text-right">
+                          <p className="font-bold text-base md:text-lg">€{(item.price * item.quantity).toFixed(2)}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+
+              {/* Order Summary */}
+              <div className="border-t pt-4 space-y-3">
+                <div className="flex justify-between text-base md:text-lg">
+                  <span>Subtotal ({state.itemCount} items)</span>
+                  <span>€{state.total.toFixed(2)}</span>
+                </div>
+                {/* Removed Tax Line */}
+                <div className="border-t pt-2">
+                  <div className="flex justify-between text-xl md:text-2xl font-bold">
+                    <span>Total</span>
+                    <span>€{state.total.toFixed(2)}</span> {/* Total is now just subtotal */}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
+              </div>
 
-        <div className="mt-4 border-t pt-4">
-          <div className="flex justify-between text-lg font-semibold">
-            <span>Subtotal:</span>
-            <span>${subtotal.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-lg font-semibold">
-            <span>Shipping:</span>
-            <span>${shippingCost.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-xl font-bold mt-2">
-            <span>Total:</span>
-            <span>${total.toFixed(2)}</span>
+              {/* Checkout Button */}
+              <Button
+                onClick={handleCheckout}
+                className="w-full mt-6 h-12 md:h-14 text-base md:text-lg font-semibold"
+                disabled={state.items.length === 0}
+              >
+                <Receipt className="h-4 w-4 md:h-5 w-5 mr-2" />
+                Complete Sale
+              </Button>
+            </div>
           </div>
         </div>
 
-        <form onSubmit={handleSubmitOrder} className="mt-4 space-y-4">
-          <div>
-            <Label htmlFor="customerName">Customer Name</Label>
-            <Input id="customerName" value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
-          </div>
-          <div>
-            <Label htmlFor="customerEmail">Customer Email</Label>
-            <Input
-              id="customerEmail"
-              type="email"
-              value={customerEmail}
-              onChange={(e) => setCustomerEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="customerPhone">Customer Phone</Label>
-            <Input
-              id="customerPhone"
-              type="tel"
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="deliveryAddress">Delivery Address</Label>
-            <Textarea
-              id="deliveryAddress"
-              value={deliveryAddress}
-              onChange={(e) => setDeliveryAddress(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="proofOfPayment">Proof of Payment (Image/PDF)</Label>
-            <Input
-              id="proofOfPayment"
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={handleFileChange}
-              required
-            />
-            {proofOfPayment && <p className="text-sm text-gray-500 mt-1">File selected: {proofOfPayment.name}</p>}
-          </div>
-          <Button type="submit" className="w-full" disabled={isSubmitting || cart.length === 0 || !proofOfPayment}>
-            {isSubmitting ? "Submitting Order..." : "Complete POS Order"}
-          </Button>
-        </form>
-      </Card>
-    </div>
-  )
-}
+        {/* Product Details Modal */}
+        {selectedProduct && (
+          <Dialog open={!!selectedProduct} onOpenChange={() => setSelectedProduct(null)}>
+            <DialogContent className="sm:max-w-[425px] md:max-w-2xl p-6">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-bold">{selectedProduct.name}</DialogTitle>
+              </DialogHeader>
 
-export default function POSPage() {
-  return (
-    <Suspense fallback={<LoadingOverlay />}>
-      <POSPageContent />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                <div>
+                  <img
+                    src={getProductImage(selectedProduct.image) || "/placeholder.svg"}
+                    alt={selectedProduct.name}
+                    className="w-full h-48 md:h-64 object-cover rounded-lg"
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-2xl md:text-3xl font-bold text-green-600">€{selectedProduct.price.toFixed(2)}</p>
+                    <p className="text-gray-600 mt-2 text-sm md:text-base">{selectedProduct.description}</p>
+                  </div>
+
+                  {selectedProduct.sizes && selectedProduct.sizes.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-base md:text-lg mb-2">Size</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedProduct.sizes.map((size) => {
+                          const stock = getVariantStock(selectedProduct, size, selectedColor)
+                          return (
+                            <Button
+                              key={size}
+                              variant={selectedSize === size ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setSelectedSize(size)}
+                              disabled={stock <= 0}
+                            >
+                              {size} {stock > 0 && selectedSize === size && `(${formatStockDisplay(stock)})`}
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedProduct.colors && selectedProduct.colors.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-base md:text-lg mb-2">Color</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedProduct.colors.map((color) => {
+                          const stock = getVariantStock(selectedProduct, selectedSize, color)
+                          return (
+                            <Button
+                              key={color}
+                              variant={selectedColor === color ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setSelectedColor(color)}
+                              disabled={stock <= 0}
+                            >
+                              {color}
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-4">
+                    <Button
+                      onClick={handleAddVariantToCart}
+                      className="w-full h-10 md:h-12 text-base md:text-lg"
+                      disabled={
+                        currentVariantStock <= 0 ||
+                        (selectedProduct.sizes?.length > 0 && !selectedSize) ||
+                        (selectedProduct.colors?.length > 0 && !selectedColor)
+                      }
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      {currentVariantStock > 0 ? `Add to Cart - €${selectedProduct.price.toFixed(2)}` : "Out of Stock"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Checkout Modal */}
+        <Dialog open={showCheckoutModal} onOpenChange={() => setShowCheckoutModal(false)}>
+          <DialogContent className="sm:max-w-[425px] p-6">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold">Complete Sale</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div>
+                <Label htmlFor="customerName" className="text-base font-medium flex items-center gap-2 mb-1">
+                  <User className="h-4 w-4" /> Customer Name
+                </Label>
+                <Input
+                  id="customerName"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Enter customer's full name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="customerContact" className="text-base font-medium flex items-center gap-2 mb-1">
+                  <Phone className="h-4 w-4" /> Contact Data (Email/Phone)
+                </Label>
+                <Input
+                  id="customerContact"
+                  value={customerContact}
+                  onChange={(e) => setCustomerContact(e.target.value)}
+                  placeholder="e.g., email@example.com or +1234567890"
+                />
+              </div>
+              <div>
+                <Label htmlFor="deliveryAddress" className="text-base font-medium flex items-center gap-2 mb-1">
+                  <MapPin className="h-4 w-4" /> Delivery Address
+                </Label>
+                <Textarea
+                  id="deliveryAddress"
+                  value={deliveryAddress}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
+                  placeholder="Street, City, Postal Code, Country"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="proofOfPayment" className="text-base font-medium flex items-center gap-2 mb-1">
+                  <Upload className="h-4 w-4" /> Proof of Payment (Image/PDF)
+                </Label>
+                <Input
+                  id="proofOfPayment"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleFileChange}
+                  ref={fileInputRef}
+                  className="file:text-primary file:bg-primary-foreground file:border-0 file:rounded-md file:px-3 file:py-1 file:text-sm file:font-medium"
+                />
+                {proofOfPaymentFile && (
+                  <p className="text-sm text-gray-500 mt-2">Selected file: {proofOfPaymentFile.name}</p>
+                )}
+              </div>
+
+              <div className="border-t pt-4">
+                <div className="flex justify-between font-semibold text-lg">
+                  <span>Total Due</span>
+                  <span>€{state.total.toFixed(2)}</span> {/* Total is now just subtotal */}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-col sm:flex-row gap-3 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setShowCheckoutModal(false)}
+                className="flex-1"
+                disabled={isSubmittingOrder}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmitOrder}
+                className="flex-1"
+                disabled={
+                  isSubmittingOrder || !customerName || !customerContact || !deliveryAddress || !proofOfPaymentFile
+                }
+              >
+                {isSubmittingOrder ? "Submitting..." : "Submit Order"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </Suspense>
   )
 }
