@@ -6,7 +6,7 @@ import { ShoppingCart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useCart } from "@/lib/cart-context"
 
-export default function Header() {
+function HeaderComponent() {
   const { state } = useCart()
 
   return (
@@ -43,3 +43,7 @@ export default function Header() {
     </header>
   )
 }
+
+// Export both named and default exports for compatibility
+export { HeaderComponent as Header }
+export default HeaderComponent
