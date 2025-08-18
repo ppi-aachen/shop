@@ -278,9 +278,7 @@ export async function uploadProofOfPaymentToDrive(
     )
 
     const fileData = await fileResponse.json()
-    const webViewLink =
-      fileData.webViewLink ||
-      `https://drive.google.com/file/d/${uploadData.id}/view?usp=drivesdk`
+    const webViewLink = `https://drive.google.com/file/d/${uploadData.id}/view?usp=drivesdk`
 
     console.log("Upload completed successfully. File link:", webViewLink)
 
