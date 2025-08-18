@@ -269,7 +269,7 @@ export async function uploadProofOfPaymentToDrive(
 
     // Get file details including web view link
     const fileResponse = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,webViewLink,webContentLink`,
+      `https://www.googleapis.com/drive/v3/files/${uploadData.id}?fields=id,name,webViewLink,webContentLink`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
