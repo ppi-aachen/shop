@@ -1,7 +1,7 @@
 "use server"
 
 import { Resend } from "resend"
-import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload"
+import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload" // Corrected import name
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -10,6 +10,7 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID
 const GOOGLE_SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
 const GOOGLE_PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n")
+const GOOGLE_DRIVE_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID // Added for POS action
 
 interface CartItem {
   id: number
@@ -21,6 +22,9 @@ interface CartItem {
   selectedColor?: string
   sizes?: string[]
   colors?: string[]
+  stock: number // Total stock (for backward compatibility)
+  variantStock?: number // Stock for the specific variant
+  variantId?: string // Unique variant identifier
 }
 
 interface ProductVariant {
@@ -171,7 +175,7 @@ function pemToDer(pem: string): ArrayBuffer {
 export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
   try {
     const accessToken = await getGoogleSheetsAuth()
-    
+
     // Fetch products
     const productsResponse = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products?valueRenderOption=FORMATTED_VALUE`,
@@ -210,7 +214,7 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
       if (variantsResponse.ok) {
         const variantsJson = await variantsResponse.json()
         const variantRows = variantsJson.values as string[][]
-        
+
         if (variantRows && variantRows.length > 1) {
           const variantHeaders = variantRows[0]
           variantsData = variantRows.slice(1).map((row) => {
@@ -269,7 +273,7 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
       })
 
       // Add variants for this product
-      const productVariants = variantsData.filter(v => v.productId === product.id)
+      const productVariants = variantsData.filter((v) => v.productId === product.id)
       if (productVariants.length > 0) {
         product.variants = productVariants
         // Calculate total stock from variants
@@ -364,7 +368,7 @@ async function validateStockAvailability(cartItems: CartItem[]): Promise<{ valid
       if (variantsResponse.ok) {
         const variantsJson = await variantsResponse.json()
         const variantRows = variantsJson.values || []
-        
+
         if (variantRows.length > 1) {
           const variantHeaders = variantRows[0]
           variantsData = variantRows.slice(1).map((row: string[]) => {
@@ -400,34 +404,43 @@ async function validateStockAvailability(cartItems: CartItem[]): Promise<{ valid
   }
 }
 
-async function validateVariantStock(cartItems: CartItem[], variantsData: ProductVariant[]): Promise<{ valid: boolean; errors: string[] }> {
+async function validateVariantStock(
+  cartItems: CartItem[],
+  variantsData: ProductVariant[],
+): Promise<{ valid: boolean; errors: string[] }> {
   const errors: string[] = []
 
   for (const cartItem of cartItems) {
     // Find the specific variant for this cart item
-    const variant = variantsData.find(v => {
+    const variant = variantsData.find((v) => {
       // Handle both cases: when size/color are selected and when they're not
-      const sizeMatch = cartItem.selectedSize 
-        ? v.size === cartItem.selectedSize 
-        : (v.size === undefined || v.size === null || v.size === "")
-      const colorMatch = cartItem.selectedColor 
-        ? v.color === cartItem.selectedColor 
-        : (v.color === undefined || v.color === null || v.color === "")
+      const sizeMatch = cartItem.selectedSize
+        ? v.size === cartItem.selectedSize
+        : v.size === undefined || v.size === null || v.size === ""
+      const colorMatch = cartItem.selectedColor
+        ? v.color === cartItem.selectedColor
+        : v.color === undefined || v.color === null || v.color === ""
       return v.productId === cartItem.id && sizeMatch && colorMatch
     })
 
     if (!variant) {
-      errors.push(`${cartItem.name} (${cartItem.selectedSize || 'No size'}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ''}): Variant not found`)
+      errors.push(
+        `${cartItem.name} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""}): Variant not found`,
+      )
       continue
     }
 
     if (variant.stock <= 0) {
-      errors.push(`${cartItem.name} (${cartItem.selectedSize || 'No size'}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ''}): Out of stock`)
+      errors.push(
+        `${cartItem.name} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""}): Out of stock`,
+      )
       continue
     }
 
     if (cartItem.quantity > variant.stock) {
-      errors.push(`${cartItem.name} (${cartItem.selectedSize || 'No size'}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ''}): Only ${variant.stock} available, but ${cartItem.quantity} requested`)
+      errors.push(
+        `${cartItem.name} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""}): Only ${variant.stock} available, but ${cartItem.quantity} requested`,
+      )
       continue
     }
   }
@@ -435,18 +448,18 @@ async function validateVariantStock(cartItems: CartItem[], variantsData: Product
   return { valid: errors.length === 0, errors }
 }
 
-async function validateLegacyStock(cartItems: CartItem[], accessToken: string): Promise<{ valid: boolean; errors: string[] }> {
+async function validateLegacyStock(
+  cartItems: CartItem[],
+  accessToken: string,
+): Promise<{ valid: boolean; errors: string[] }> {
   // Get the current Products sheet data
-  const response = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`,
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
     },
-  )
+  })
 
   if (!response.ok) {
     const errorData = await response.json()
@@ -462,26 +475,22 @@ async function validateLegacyStock(cartItems: CartItem[], accessToken: string): 
 
   // Find the stock column index
   const headers = products[0]
-  const stockColumnIndex = headers.findIndex((header: string) => 
-    header.toLowerCase() === "stock"
-  )
-  const idColumnIndex = headers.findIndex((header: string) => 
-    header.toLowerCase() === "id"
-  )
+  const stockColumnIndex = headers.findIndex((header: string) => header.toLowerCase() === "stock")
+  const idColumnIndex = headers.findIndex((header: string) => header.toLowerCase() === "id")
 
   if (stockColumnIndex === -1 || idColumnIndex === -1) {
     return { valid: false, errors: ["Stock or ID column not found in Products sheet"] }
   }
 
   // Create a map of product ID to current stock
-  const productStockMap = new Map<number, { currentStock: number; name: string }>()
-  
+  const productStockMap = new Map<number, { rowIndex: number; currentStock: number }>()
+
   for (let i = 1; i < products.length; i++) {
     const row = products[i]
-    const productId = parseInt(row[idColumnIndex])
-    const currentStock = parseInt(row[stockColumnIndex]) || 0
+    const productId = Number.parseInt(row[idColumnIndex])
+    const currentStock = Number.parseInt(row[stockColumnIndex]) || 0
     const productName = row[headers.findIndex((h: string) => h.toLowerCase() === "name")] || "Unknown Product"
-    
+
     if (!isNaN(productId)) {
       productStockMap.set(productId, { currentStock, name: productName })
     }
@@ -492,7 +501,7 @@ async function validateLegacyStock(cartItems: CartItem[], accessToken: string): 
 
   for (const cartItem of cartItems) {
     const productStock = productStockMap.get(cartItem.id)
-    
+
     if (!productStock) {
       errors.push(`${cartItem.name}: Product not found in database`)
       continue
@@ -533,7 +542,7 @@ async function updateProductStock(cartItems: CartItem[]) {
       if (variantsResponse.ok) {
         const variantsJson = await variantsResponse.json()
         const variantRows = variantsJson.values || []
-        
+
         if (variantRows.length > 1) {
           variantsUpdated = await updateVariantStock(cartItems, variantRows, accessToken)
         }
@@ -546,7 +555,6 @@ async function updateProductStock(cartItems: CartItem[]) {
     if (!variantsUpdated) {
       await updateLegacyStock(cartItems, accessToken)
     }
-
   } catch (error) {
     console.error("Error updating product stock:", error)
     // Don't throw error here to avoid breaking the order process
@@ -554,13 +562,17 @@ async function updateProductStock(cartItems: CartItem[]) {
   }
 }
 
-async function updateVariantStock(cartItems: CartItem[], variantRows: string[][], accessToken: string): Promise<boolean> {
+async function updateVariantStock(
+  cartItems: CartItem[],
+  variantRows: string[][],
+  accessToken: string,
+): Promise<boolean> {
   try {
     const variantHeaders = variantRows[0]
-    const productIdIndex = variantHeaders.findIndex(h => h === "product_id")
-    const sizeIndex = variantHeaders.findIndex(h => h === "size")
-    const colorIndex = variantHeaders.findIndex(h => h === "color")
-    const stockIndex = variantHeaders.findIndex(h => h === "stock")
+    const productIdIndex = variantHeaders.findIndex((h) => h === "product_id")
+    const sizeIndex = variantHeaders.findIndex((h) => h === "size")
+    const colorIndex = variantHeaders.findIndex((h) => h === "color")
+    const stockIndex = variantHeaders.findIndex((h) => h === "stock")
 
     if (productIdIndex === -1 || stockIndex === -1) {
       console.warn("Required columns not found in Product_Variants sheet")
@@ -569,18 +581,18 @@ async function updateVariantStock(cartItems: CartItem[], variantRows: string[][]
 
     // Create a map of variant identifiers to row index and current stock
     const variantMap = new Map<string, { rowIndex: number; currentStock: number }>()
-    
+
     for (let i = 1; i < variantRows.length; i++) {
       const row = variantRows[i]
-      const productId = parseInt(row[productIdIndex])
+      const productId = Number.parseInt(row[productIdIndex])
       const size = row[sizeIndex] === "null" || row[sizeIndex] === "" ? undefined : row[sizeIndex]
       const color = row[colorIndex] === "null" || row[colorIndex] === "" ? undefined : row[colorIndex]
-      const currentStock = parseInt(row[stockIndex]) || 0
-      
+      const currentStock = Number.parseInt(row[stockIndex]) || 0
+
       if (!isNaN(productId)) {
         // Use the same encoding as the variant ID generation
-        const encodedSize = size ? encodeURIComponent(size) : 'null'
-        const encodedColor = color ? encodeURIComponent(color) : 'null'
+        const encodedSize = size ? encodeURIComponent(size) : "null"
+        const encodedColor = color ? encodeURIComponent(color) : "null"
         const variantKey = `${productId}-${encodedSize}-${encodedColor}`
         variantMap.set(variantKey, { rowIndex: i + 1, currentStock }) // +1 because sheets are 1-indexed
       }
@@ -591,23 +603,27 @@ async function updateVariantStock(cartItems: CartItem[], variantRows: string[][]
 
     for (const cartItem of cartItems) {
       // Use the same encoding as the variant ID generation
-      const encodedSize = cartItem.selectedSize ? encodeURIComponent(cartItem.selectedSize) : 'null'
-      const encodedColor = cartItem.selectedColor ? encodeURIComponent(cartItem.selectedColor) : 'null'
+      const encodedSize = cartItem.selectedSize ? encodeURIComponent(cartItem.selectedSize) : "null"
+      const encodedColor = cartItem.selectedColor ? encodeURIComponent(cartItem.selectedColor) : "null"
       const variantKey = `${cartItem.id}-${encodedSize}-${encodedColor}`
       const variantData = variantMap.get(variantKey)
-      
+
       if (variantData) {
         const newStock = Math.max(0, variantData.currentStock - cartItem.quantity)
         const range = `Product_Variants!${String.fromCharCode(65 + stockIndex)}${variantData.rowIndex}`
-        
+
         variantUpdates.push({
           range,
-          values: [[newStock]]
+          values: [[newStock]],
         })
-        
-        console.log(`Updating variant stock for ${cartItem.name} (${cartItem.selectedSize || 'No size'}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ''}): ${variantData.currentStock} -> ${newStock}`)
+
+        console.log(
+          `Updating variant stock for ${cartItem.name} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""}): ${variantData.currentStock} -> ${newStock}`,
+        )
       } else {
-        console.warn(`Variant not found for product ${cartItem.id} (${cartItem.selectedSize || 'No size'}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ''})`)
+        console.warn(
+          `Variant not found for product ${cartItem.id} (${cartItem.selectedSize || "No size"}${cartItem.selectedColor ? `, ${cartItem.selectedColor}` : ""})`,
+        )
       }
     }
 
@@ -623,7 +639,7 @@ async function updateVariantStock(cartItems: CartItem[], variantRows: string[][]
           },
           body: JSON.stringify({
             valueInputOption: "RAW",
-            data: variantUpdates
+            data: variantUpdates,
           }),
         },
       )
@@ -646,16 +662,13 @@ async function updateVariantStock(cartItems: CartItem[], variantRows: string[][]
 
 async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
   // Get the current Products sheet data
-  const response = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`,
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/Products`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
     },
-  )
+  })
 
   if (!response.ok) {
     const errorData = await response.json()
@@ -672,12 +685,8 @@ async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
 
   // Find the stock column index
   const headers = products[0]
-  const stockColumnIndex = headers.findIndex((header: string) => 
-    header.toLowerCase() === "stock"
-  )
-  const idColumnIndex = headers.findIndex((header: string) => 
-    header.toLowerCase() === "id"
-  )
+  const stockColumnIndex = headers.findIndex((header: string) => header.toLowerCase() === "stock")
+  const idColumnIndex = headers.findIndex((header: string) => header.toLowerCase() === "id")
 
   if (stockColumnIndex === -1 || idColumnIndex === -1) {
     console.warn("Stock or ID column not found in Products sheet")
@@ -686,12 +695,13 @@ async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
 
   // Create a map of product ID to current stock
   const productStockMap = new Map<number, { rowIndex: number; currentStock: number }>()
-  
+
   for (let i = 1; i < products.length; i++) {
     const row = products[i]
-    const productId = parseInt(row[idColumnIndex])
-    const currentStock = parseInt(row[stockColumnIndex]) || 0
-    
+    const productId = Number.parseInt(row[idColumnIndex])
+    const currentStock = Number.parseInt(row[stockColumnIndex]) || 0
+    const productName = row[headers.findIndex((h: string) => h.toLowerCase() === "name")] || "Unknown Product"
+
     if (!isNaN(productId)) {
       productStockMap.set(productId, { rowIndex: i + 1, currentStock }) // +1 because sheets are 1-indexed
     }
@@ -702,17 +712,19 @@ async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
 
   for (const cartItem of cartItems) {
     const productStock = productStockMap.get(cartItem.id)
-    
+
     if (productStock) {
       const newStock = Math.max(0, productStock.currentStock - cartItem.quantity)
       const range = `Products!${String.fromCharCode(65 + stockColumnIndex)}${productStock.rowIndex}`
-      
+
       stockUpdates.push({
         range,
-        values: [[newStock]]
+        values: [[newStock]],
       })
-      
-      console.log(`Updating legacy stock for product ${cartItem.id} (${cartItem.name}): ${productStock.currentStock} -> ${newStock}`)
+
+      console.log(
+        `Updating legacy stock for product ${cartItem.id} (${cartItem.name}): ${productStock.currentStock} -> ${newStock}`,
+      )
     } else {
       console.warn(`Product with ID ${cartItem.id} not found in Products sheet`)
     }
@@ -730,7 +742,7 @@ async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
         },
         body: JSON.stringify({
           valueInputOption: "RAW",
-          data: stockUpdates
+          data: stockUpdates,
         }),
       },
     )
@@ -1186,7 +1198,7 @@ export async function submitOrder(formData: FormData) {
     // Validate stock availability before proceeding with order
     console.log("Validating stock availability...")
     const stockValidation = await validateStockAvailability(cartItems)
-    
+
     if (!stockValidation.valid) {
       console.log("Stock validation failed:", stockValidation.errors)
       return {
@@ -1194,7 +1206,7 @@ export async function submitOrder(formData: FormData) {
         error: "Stock validation failed: " + stockValidation.errors.join(", "),
       }
     }
-    
+
     console.log("Stock validation passed - proceeding with order")
 
     const now = new Date()
@@ -1301,5 +1313,135 @@ export async function submitOrder(formData: FormData) {
   } catch (error) {
     console.error("Error submitting order:", error)
     return { success: false, error: "Failed to submit order" }
+  }
+}
+
+// NEW SERVER ACTION FOR POS PAGE
+export async function submitPOSOrder(formData: FormData) {
+  if (!GOOGLE_SHEET_ID || !GOOGLE_DRIVE_FOLDER_ID) {
+    return { success: false, message: "Server configuration error: Google Sheet ID or Drive Folder ID missing." }
+  }
+
+  const customerName = formData.get("customerName") as string
+  const customerContact = formData.get("customerContact") as string
+  const deliveryAddress = formData.get("deliveryAddress") as string
+  const cartItemsJson = formData.get("cartItems") as string
+  const totalAmountStr = formData.get("totalAmount") as string // This will now be the subtotal from POS
+  const proofOfPaymentFile = formData.get("proofOfPayment") as File
+
+  if (
+    !customerName ||
+    !customerContact ||
+    !deliveryAddress ||
+    !cartItemsJson ||
+    !totalAmountStr ||
+    !proofOfPaymentFile
+  ) {
+    return { success: false, message: "Missing required order details or proof of payment file." }
+  }
+
+  const cartItems: CartItem[] = JSON.parse(cartItemsJson)
+  const totalAmount = Number.parseFloat(totalAmountStr) // This is now the subtotal from POS
+
+  // Validate stock availability before proceeding with order
+  console.log("Validating stock availability for POS order...")
+  const stockValidation = await validateStockAvailability(cartItems)
+
+  if (!stockValidation.valid) {
+    console.log("Stock validation failed for POS order:", stockValidation.errors)
+    return {
+      success: false,
+      message: "Stock validation failed: " + stockValidation.errors.join(", "),
+    }
+  }
+  console.log("Stock validation passed for POS order.")
+
+  let proofOfPaymentUrl = ""
+  try {
+    const uploadResult = await uploadProofOfPaymentToDrive(proofOfPaymentFile, "POS_Order", customerName) // Use a generic order ID for upload if not yet generated
+    if (!uploadResult.success || !uploadResult.webViewLink) {
+      throw new Error(uploadResult.error || "Unknown upload error")
+    }
+    proofOfPaymentUrl = uploadResult.webViewLink
+  } catch (error) {
+    console.error("Error uploading proof of payment to Google Drive for POS order:", error)
+    return { success: false, message: "Failed to upload proof of payment. Please try again." }
+  }
+
+  const now = new Date()
+  // Generate order ID with format: POS + DDMMYY + random 3-char alphanumeric
+  const dateStr = now
+    .toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+    })
+    .replace(/\//g, "")
+  const randomSuffix = Math.random().toString(36).substr(2, 3).toUpperCase()
+  const orderId = `POS${dateStr}-${randomSuffix}`
+
+  const date = now.toLocaleDateString("en-GB")
+  const time = now.toLocaleTimeString("en-GB", { hour12: false })
+
+  // For POS orders, simplify delivery method and costs
+  const deliveryMethod = "POS Sale"
+  const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const shippingCost = 0 // No shipping cost for POS sales
+  const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
+
+  const orderData: OrderData = {
+    orderId,
+    date,
+    time,
+    customerName,
+    email: customerContact, // Using customerContact for email/primary contact
+    phone: "", // Phone might be part of customerContact, or left empty
+    address: deliveryAddress, // Using deliveryAddress for full address
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "", // These might be parsed from deliveryAddress if needed
+    deliveryMethod,
+    totalItems: itemCount,
+    subtotal, // Subtotal is the total without tax
+    shippingCost,
+    totalAmount: totalAmount, // Total amount is now the same as subtotal for POS
+    notes: "POS Sale - Customer details collected at point of sale.",
+    proofOfPaymentUrl: proofOfPaymentUrl,
+    status: "Completed (POS)", // Directly mark as completed for POS
+  }
+
+  const orderItemsData: OrderItemData[] = cartItems.map((item) => ({
+    orderId,
+    itemId: item.id,
+    productName: item.name,
+    price: item.price,
+    quantity: item.quantity,
+    subtotal: item.price * item.quantity,
+    description: item.description || "",
+    selectedSize: item.selectedSize || "",
+    selectedColor: item.selectedColor || "",
+  }))
+
+  try {
+    await Promise.all([
+      addOrderToGoogleSheet(orderData),
+      addOrderItemsToGoogleSheet(orderItemsData),
+      updateProductStock(cartItems), // Update stock after successful order
+    ])
+
+    // Optionally send confirmation emails for POS sales if desired, but typically not needed for in-person
+    // The email templates below are for the main checkout, not POS specific.
+    // If POS needs emails, a separate, tax-free template would be ideal.
+    // For now, I'll modify the existing ones to remove tax display.
+    // const emailResults = await Promise.allSettled([
+    //   sendCustomerConfirmationEmail(orderData, orderItemsData),
+    //   sendBusinessNotificationEmail(orderData, orderItemsData),
+    // ])
+
+    return { success: true, message: `Order ${orderId} successfully processed!` }
+  } catch (error: any) {
+    console.error("Error submitting POS order:", error.message, error.stack)
+    return { success: false, message: `Failed to process POS order: ${error.message}` }
   }
 }

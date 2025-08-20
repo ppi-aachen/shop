@@ -224,14 +224,17 @@ export async function uploadProofOfPaymentToDrive(
       close_delim
 
     // Upload file to Google Drive
-    const uploadResponse = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": `multipart/related; boundary="${boundary}"`,
+    const uploadResponse = await fetch(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": `multipart/related; boundary="${boundary}"`,
+        },
+        body: multipartRequestBody,
       },
-      body: multipartRequestBody,
-    })
+    )
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text()
@@ -275,7 +278,7 @@ export async function uploadProofOfPaymentToDrive(
     )
 
     const fileData = await fileResponse.json()
-    const webViewLink = fileData.webViewLink || `https://www.googleapis.com/drive/v3/files/${uploadData.id}?fields=id,name,webViewLink,webContentLink&supportsAllDrives=true`
+    const webViewLink = `https://drive.google.com/file/d/${uploadData.id}/view?usp=drivesdk`
 
     console.log("Upload completed successfully. File link:", webViewLink)
 
