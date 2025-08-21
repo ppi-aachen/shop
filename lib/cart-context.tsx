@@ -7,6 +7,8 @@ export interface CartItem {
   id: number
   name: string
   price: number
+  originalPrice?: number // Store original price for display
+  discount?: number // Store discount percentage
   image: string
   images?: string[]
   description: string
@@ -50,6 +52,12 @@ function calculateShippingCost(itemCount: number, deliveryMethod: "pickup" | "de
   return 10.49
 }
 
+// Helper function to calculate discounted price
+function calculateDiscountedPrice(originalPrice: number, discount?: number): number {
+  if (!discount || discount <= 0) return originalPrice
+  return originalPrice * (1 - discount / 100)
+}
+
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case "ADD_ITEM": {
@@ -60,6 +68,12 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           item.selectedColor === action.payload.selectedColor,
       )
 
+      // Calculate the actual price to use (discounted if applicable)
+      const originalPrice = action.payload.price
+      const discountedPrice = action.payload.discount
+        ? calculateDiscountedPrice(originalPrice, action.payload.discount)
+        : originalPrice
+
       let newItems: CartItem[]
       if (existingItemIndex >= 0) {
         // Check if adding one more would exceed stock
@@ -69,7 +83,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           // Don't add more if we're already at stock limit
           return state
         }
-        
+
         newItems = state.items.map((item, index) =>
           index === existingItemIndex ? { ...item, quantity: item.quantity + 1 } : item,
         )
@@ -80,12 +94,14 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           // Don't add out-of-stock items
           return state
         }
-        
+
         // Include sizes and colors arrays in the cart item
         newItems = [
           ...state.items,
           {
             ...action.payload,
+            price: discountedPrice, // Use discounted price
+            originalPrice: action.payload.discount ? originalPrice : undefined, // Store original price if there's a discount
             quantity: 1,
             sizes: action.payload.sizes || [],
             colors: action.payload.colors || [],

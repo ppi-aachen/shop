@@ -51,6 +51,11 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
 
   if (!product) return null
 
+  // Calculate discounted price
+  const originalPrice = product.price
+  const discountedPrice =
+    product.discount && product.discount > 0 ? originalPrice * (1 - product.discount / 100) : originalPrice
+
   const addToCart = () => {
     // Check for required options
     const requiresSize = product.sizes && product.sizes.length > 0
@@ -160,13 +165,14 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
               <div className="flex items-center">
                 {product.discount && product.discount > 0 ? (
                   <>
-                    <p className="text-gray-500 text-sm line-through mr-2">€{product.price.toFixed(2)}</p>
-                    <p className="text-3xl font-bold text-red-600">
-                      €{(product.price * (1 - product.discount / 100)).toFixed(2)}
-                    </p>
+                    <p className="text-gray-500 text-sm line-through mr-2">€{originalPrice.toFixed(2)}</p>
+                    <p className="text-3xl font-bold text-red-600">€{discountedPrice.toFixed(2)}</p>
+                    <span className="text-sm bg-red-100 text-red-800 px-2 py-1 rounded ml-2">
+                      {product.discount}% OFF
+                    </span>
                   </>
                 ) : (
-                  <p className="text-3xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-green-600">€{originalPrice.toFixed(2)}</p>
                 )}
               </div>
               <p className="text-gray-600 mt-2">{product.description}</p>
@@ -400,7 +406,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             {/* Add to Cart Button */}
             <Button onClick={addToCart} className="w-full" size="lg" disabled={!canAddToCart || product.stock === 0}>
               <Plus className="h-4 w-4 mr-2" />
-              {product.stock > 0 ? `Add to Cart - €${product.price.toFixed(2)}` : "Out of Stock"}
+              {product.stock > 0 ? `Add to Cart - €${discountedPrice.toFixed(2)}` : "Out of Stock"}
             </Button>
           </div>
         </div>
