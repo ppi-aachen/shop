@@ -26,6 +26,7 @@ interface Product {
   sizes?: string[]
   colors?: string[]
   stock: number
+  discount?: number // NEW: Discount percentage
 }
 
 export default function HomePage() {
@@ -203,7 +204,18 @@ export default function HomePage() {
                     </div>
                   )}
 
-                  <p className="text-2xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
+                  <div className="flex items-center">
+                    {product.discount && product.discount > 0 ? (
+                      <>
+                        <p className="text-gray-500 text-sm line-through mr-2">€{product.price.toFixed(2)}</p>
+                        <p className="text-2xl font-bold text-red-600">
+                          €{(product.price * (1 - product.discount / 100)).toFixed(2)}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-2xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
+                    )}
+                  </div>
                   {product.stock <= 0 && <p className="text-red-500 font-semibold">Out of Stock</p>}
                 </CardContent>
                 <CardFooter className="p-4 pt-0 flex gap-2">

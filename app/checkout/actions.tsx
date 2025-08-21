@@ -1,7 +1,7 @@
 "use server"
 
 import { Resend } from "resend"
-import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload" // Corrected import name
+import { uploadProofOfPaymentToDrive } from "@/lib/google-drive-upload"
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -51,6 +51,7 @@ interface ProductData {
   colors?: string[]
   stock: number // Total stock (sum of all variants)
   variants?: ProductVariant[] // Individual variant stock levels
+  discount?: number // NEW: Discount percentage
 }
 
 interface OrderData {
@@ -245,7 +246,7 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
       productHeaders.forEach((header, index) => {
         const value = row[index]
         // Convert specific fields to numbers or arrays
-        if (header === "id" || header === "price") {
+        if (header === "id" || header === "price" || header === "discount") {
           product[header] = Number(value)
         } else if (header === "stock") {
           // Stock is now handled by variants, but keep for backward compatibility

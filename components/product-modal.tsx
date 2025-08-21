@@ -33,6 +33,7 @@ interface Product {
   sizes?: string[]
   colors?: string[]
   stock: number
+  discount?: number // NEW: Discount percentage
   variants?: ProductVariant[]
 }
 
@@ -156,7 +157,18 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
           {/* Product Details */}
           <div className="space-y-6">
             <div>
-              <p className="text-3xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
+              <div className="flex items-center">
+                {product.discount && product.discount > 0 ? (
+                  <>
+                    <p className="text-gray-500 text-sm line-through mr-2">€{product.price.toFixed(2)}</p>
+                    <p className="text-3xl font-bold text-red-600">
+                      €{(product.price * (1 - product.discount / 100)).toFixed(2)}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-3xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
+                )}
+              </div>
               <p className="text-gray-600 mt-2">{product.description}</p>
             </div>
 
@@ -204,7 +216,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                               // If color is required but not yet selected, sum stock for all colors for this size
                               sum += v.stock
                             } else {
-                              // Color is not required, ensure variant color is null/undefined/empty
+                              // Size is not required, ensure variant color is null/undefined/empty
                               if (v.color === undefined || v.color === null || v.color === "") {
                                 sum += v.stock
                               }
