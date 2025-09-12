@@ -8,9 +8,9 @@ import { Toaster } from "@/components/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Simple Shop - Proof of Payment",
-  description: "Shop with proof of payment system",
-    generator: 'v0.dev'
+  title: "Aachen Studio - By PPI Aachen",
+  description: "Aachen Studio shop system by PPI Aachen",
+    generator: 'v0.app'
 }
 
 export default function RootLayout({

@@ -94,7 +94,7 @@ importers:
         version: 1.2.8(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@react-email/render':
         specifier: latest
-        version: 1.2.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+        version: 1.2.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       autoprefixer:
         specifier: ^10.4.20
         version: 10.4.20(postcss@8.5.0)
@@ -115,13 +115,10 @@ importers:
         version: 8.6.0(react@19.0.0)
       google-auth-library:
         specifier: latest
-        version: 10.2.1
-      google-spreadsheet:
-        specifier: latest
-        version: 5.0.2(google-auth-library@10.2.1)
+        version: 10.3.0
       googleapis:
         specifier: latest
-        version: 156.0.0
+        version: 159.0.0
       input-otp:
         specifier: latest
         version: 1.4.2(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -148,13 +145,13 @@ importers:
         version: 7.62.0(react@19.0.0)
       react-resizable-panels:
         specifier: latest
-        version: 3.0.4(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+        version: 3.0.5(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       recharts:
         specifier: latest
-        version: 3.1.2(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react-is@18.3.1)(react@19.0.0)(redux@5.0.1)
+        version: 3.2.0(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react-is@18.3.1)(react@19.0.0)(redux@5.0.1)
       resend:
         specifier: latest
-        version: 6.0.1(@react-email/render@1.2.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0))
+        version: 6.0.3(@react-email/render@1.2.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0))
       sonner:
         specifier: latest
         version: 2.0.7(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -1185,8 +1182,8 @@ packages:
   '@radix-ui/rect@1.1.1':
     resolution: {integrity: sha512-HPwpGIzkl28mWyZqG52jiqDJ12waP11Pa1lGoiyUkIEuMLBP0oeK/C89esbXrxsky5we7dfd8U58nm0SgAWpVw==}
 
-  '@react-email/render@1.2.1':
-    resolution: {integrity: sha512-7M4Xi8ITESZKS7pOPE0HWhKJWtS/JrAqPIyFPqIPJXZJHkjFMYXn2b/tAsHOufYW5/LTk4U1IkBMaVwE06kykw==}
+  '@react-email/render@1.2.3':
+    resolution: {integrity: sha512-qu3XYNkHGao3teJexVD5CrcgFkNLrzbZvpZN17a7EyQYUN3kHkTkE9saqY4VbvGx6QoNU3p8rsk/Xm++D/+pTw==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
@@ -1539,9 +1536,6 @@ packages:
     resolution: {integrity: sha512-FGgH2h8zKNim9ljj7dankFPcICIK9Cp5bm+c2gQSYePhpaG5+esrLODihIorn+Pe6FGJzWhXQotPv73jTaldXA==}
     engines: {node: '>= 0.4'}
 
-  es-toolkit@1.39.10:
-    resolution: {integrity: sha512-E0iGnTtbDhkeczB0T+mxmoVlT4YNweEKBLq7oaU4p11mecdsZpNWOglI4895Vh4usbQ+LsJiuLuI2L0Vdmfm2w==}
-
   es-toolkit@1.39.7:
     resolution: {integrity: sha512-ek/wWryKouBrZIjkwW2BFf91CWOIMvoy2AE5YYgUrfWsJQM2Su1LoLtrw8uusEpN9RfqLlV/0FVNjT0WMv8Bxw==}
 
@@ -1624,28 +1618,20 @@ packages:
     resolution: {integrity: sha512-7Bv8RF0k6xjo7d4A/PxYLbUCfb6c+Vpd2/mB2yRDlew7Jb5hEXiCD9ibfO7wpk8i4sevK6DFny9h7EYbM3/sHg==}
     hasBin: true
 
-  google-auth-library@10.2.1:
-    resolution: {integrity: sha512-HMxFl2NfeHYnaL1HoRIN1XgorKS+6CDaM+z9LSSN+i/nKDDL4KFFEWogMXu7jV4HZQy2MsxpY+wA5XIf3w410A==}
+  google-auth-library@10.3.0:
+    resolution: {integrity: sha512-ylSE3RlCRZfZB56PFJSfUCuiuPq83Fx8hqu1KPWGK8FVdSaxlp/qkeMMX/DT/18xkwXIHvXEXkZsljRwfrdEfQ==}
     engines: {node: '>=18'}
 
   google-logging-utils@1.1.1:
     resolution: {integrity: sha512-rcX58I7nqpu4mbKztFeOAObbomBbHU2oIb/d3tJfF3dizGSApqtSwYJigGCooHdnMyQBIw8BrWyK96w3YXgr6A==}
     engines: {node: '>=14'}
 
-  google-spreadsheet@5.0.2:
-    resolution: {integrity: sha512-8ugGYGsy6BLl6d4z2zwllEv8hFB2IVcCNAUYT/seo4DU7Pk6m79qv+qRxE2cE8bxbf4S13T5fzrjcPhbk2ogsw==}
-    peerDependencies:
-      google-auth-library: '>=8.8.0'
-    peerDependenciesMeta:
-      google-auth-library:
-        optional: true
-
   googleapis-common@8.0.0:
     resolution: {integrity: sha512-66if47It7y+Sab3HMkwEXx1kCq9qUC9px8ZXoj1CMrmLmUw81GpbnsNlXnlyZyGbGPGcj+tDD9XsZ23m7GLaJQ==}
     engines: {node: '>=18.0.0'}
 
-  googleapis@156.0.0:
-    resolution: {integrity: sha512-Th401jKVdtrIaAc/b5iv8dfNVN2O7EgU/32Zvb2zxK3hiRrBU8hNbF7wMmOAEsvqnEKssq6XlXMaCBKazrvakw==}
+  googleapis@159.0.0:
+    resolution: {integrity: sha512-halby2+lQwHNxUDk70aQNXP1BlBwdwr7svTJZvDi7vKwrWbVMKhVrZ86h8p3zRcWbO4qAgLQ4ODAf8TgD3DhGQ==}
     engines: {node: '>=18'}
 
   gopd@1.2.0:
@@ -1733,10 +1719,6 @@ packages:
 
   jws@4.0.0:
     resolution: {integrity: sha512-KDncfTmOZoOMTFG4mBlG0qUIOlc03fmzH+ru6RgYVZhPkyiy/92Owlt/8UEN+a4TXR1FQetfIpJE8ApdvdVxTg==}
-
-  ky@1.8.2:
-    resolution: {integrity: sha512-XybQJ3d4Ea1kI27DoelE5ZCT3bSJlibYTtQuMsyzKox3TMyayw1asgQdl54WroAm+fIA3ZCr8zXW2RpR7qWVpA==}
-    engines: {node: '>=18'}
 
   leac@0.6.0:
     resolution: {integrity: sha512-y+SqErxb8h7nE/fiEX07jsbuhrpO9lL8eca7/Y1nuWV2moNlXhyd59iDGcRf6moVyDMbmTNzL40SUyrFU/yDpg==}
@@ -1993,8 +1975,8 @@ packages:
       '@types/react':
         optional: true
 
-  react-resizable-panels@3.0.4:
-    resolution: {integrity: sha512-8Y4KNgV94XhUvI2LeByyPIjoUJb71M/0hyhtzkHaqpVHs+ZQs8b627HmzyhmVYi3C9YP6R+XD1KmG7hHjEZXFQ==}
+  react-resizable-panels@3.0.5:
+    resolution: {integrity: sha512-3z1yN25DMTXLg2wfyFrW32r5k4WEcUa3F7cJ2EgtNK07lnOs4mpM8yWLGunCpkhcQRwJX4fqoLcIh/pHPxzlmQ==}
     peerDependencies:
       react: ^16.14.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
       react-dom: ^16.14.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
@@ -2020,8 +2002,8 @@ packages:
     resolution: {integrity: sha512-hOS089on8RduqdbhvQ5Z37A0ESjsqz6qnRcffsMU3495FuTdqSm+7bhJ29JvIOsBDEEnan5DPu9t3To9VRlMzA==}
     engines: {node: '>=8.10.0'}
 
-  recharts@3.1.2:
-    resolution: {integrity: sha512-vhNbYwaxNbk/IATK0Ki29k3qvTkGqwvCgyQAQ9MavvvBwjvKnMTswdbklJpcOAoMPN/qxF3Lyqob0zO+ZXkZ4g==}
+  recharts@3.2.0:
+    resolution: {integrity: sha512-fX0xCgNXo6mag9wz3oLuANR+dUQM4uIlTYBGTGq9CBRgW/8TZPzqPGYs5NTt8aENCf+i1CI8vqxT1py8L/5J2w==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -2039,8 +2021,8 @@ packages:
   reselect@5.1.1:
     resolution: {integrity: sha512-K/BG6eIky/SBpzfHZv/dd+9JBFiS4SWV7FIujVyJRux6e45+73RaUHXLmIR1f7WOMaQ0U1km6qwklRQxpJJY0w==}
 
-  resend@6.0.1:
-    resolution: {integrity: sha512-xNZ0gKAOqQcH83lXsqNOwBbpKROnsZpQr9mXRdG6hrHTF9G9Il2pkoTRtq7rJzXMvCZX+I79oahsbSeaYOWRFA==}
+  resend@6.0.3:
+    resolution: {integrity: sha512-Yb7o2n52v91LjkUjq5vIZQbJrGiaPoMo2VPAyS0QTKA73tmvHMUQ7P1M56J1ux/Cw9Lf68PeaKidTl6GuS8DTA==}
     engines: {node: '>=18'}
     peerDependencies:
       '@react-email/render': ^1.1.0
@@ -3230,7 +3212,7 @@ snapshots:
 
   '@radix-ui/rect@1.1.1': {}
 
-  '@react-email/render@1.2.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
+  '@react-email/render@1.2.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
       html-to-text: 9.0.5
       prettier: 3.5.3
@@ -3562,8 +3544,6 @@ snapshots:
     dependencies:
       es-errors: 1.3.0
 
-  es-toolkit@1.39.10: {}
-
   es-toolkit@1.39.7: {}
 
   escalade@3.2.0: {}
@@ -3664,7 +3644,7 @@ snapshots:
       package-json-from-dist: 1.0.1
       path-scurry: 1.11.1
 
-  google-auth-library@10.2.1:
+  google-auth-library@10.3.0:
     dependencies:
       base64-js: 1.5.1
       ecdsa-sig-formatter: 1.0.11
@@ -3678,26 +3658,19 @@ snapshots:
 
   google-logging-utils@1.1.1: {}
 
-  google-spreadsheet@5.0.2(google-auth-library@10.2.1):
-    dependencies:
-      es-toolkit: 1.39.10
-      ky: 1.8.2
-    optionalDependencies:
-      google-auth-library: 10.2.1
-
   googleapis-common@8.0.0:
     dependencies:
       extend: 3.0.2
       gaxios: 7.1.1
-      google-auth-library: 10.2.1
+      google-auth-library: 10.3.0
       qs: 6.14.0
       url-template: 2.0.8
     transitivePeerDependencies:
       - supports-color
 
-  googleapis@156.0.0:
+  googleapis@159.0.0:
     dependencies:
-      google-auth-library: 10.2.1
+      google-auth-library: 10.3.0
       googleapis-common: 8.0.0
     transitivePeerDependencies:
       - supports-color
@@ -3793,8 +3766,6 @@ snapshots:
     dependencies:
       jwa: 2.0.1
       safe-buffer: 5.2.1
-
-  ky@1.8.2: {}
 
   leac@0.6.0: {}
 
@@ -4010,7 +3981,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.0.0
 
-  react-resizable-panels@3.0.4(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
+  react-resizable-panels@3.0.5(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
     dependencies:
       react: 19.0.0
       react-dom: 19.0.0(react@19.0.0)
@@ -4033,7 +4004,7 @@ snapshots:
     dependencies:
       picomatch: 2.3.1
 
-  recharts@3.1.2(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react-is@18.3.1)(react@19.0.0)(redux@5.0.1):
+  recharts@3.2.0(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react-is@18.3.1)(react@19.0.0)(redux@5.0.1):
     dependencies:
       '@reduxjs/toolkit': 2.8.2(react-redux@9.2.0(@types/react@19.0.0)(react@19.0.0)(redux@5.0.1))(react@19.0.0)
       clsx: 2.1.1
@@ -4061,9 +4032,9 @@ snapshots:
 
   reselect@5.1.1: {}
 
-  resend@6.0.1(@react-email/render@1.2.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)):
+  resend@6.0.3(@react-email/render@1.2.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0)):
     optionalDependencies:
-      '@react-email/render': 1.2.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      '@react-email/render': 1.2.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
 
   resolve@1.22.10:
     dependencies:
