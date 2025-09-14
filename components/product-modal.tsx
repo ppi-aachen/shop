@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AlertTriangle } from "lucide-react"
+import { Plus, Truck, Shield, RotateCcw, AlertTriangle } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import { ImageGallery } from "@/components/image-gallery"
 import { getProductImages } from "@/lib/image-utils"
@@ -109,7 +109,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
         ...product,
         selectedSize,
         selectedColor,
-        variantStock, // <-- add this line
+        variantStock,
       },
     })
 
@@ -219,10 +219,10 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                                 sum += v.stock
                               }
                             } else if (requiresColor && !selectedColor) {
-                              // If color is required but not yet selected, sum stock for all sizes for this color
+                              // If color is required but not yet selected, sum stock for all colors for this size
                               sum += v.stock
                             } else {
-                              // Size is not required, ensure variant color is null/undefined/empty
+                              // Color is not required, ensure variant color is null/undefined/empty
                               if (v.color === undefined || v.color === null || v.color === "") {
                                 sum += v.stock
                               }
@@ -388,4 +388,31 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             )}
 
             {/* Product Benefits */}
-            <div className="\
+            <div className="grid grid-cols-1 gap-3 pt-4 border-t">
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+                <Truck className="h-4 w-4 text-green-600" />
+                <span>Free pickup in Aachen or delivery available</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+                <Shield className="h-4 w-4 text-green-600" />
+                <span>Quality guarantee</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm text-gray-600">
+                <RotateCcw className="h-4 w-4 text-green-600" />
+                <span>30-day return policy</span>
+              </div>
+            </div>
+
+            {/* Add to Cart Button */}
+            <Button onClick={addToCart} className="w-full" size="lg" disabled={!canAddToCart || product.stock === 0}>
+              <Plus className="h-4 w-4 mr-2" />
+              {product.stock > 0 ? `Add to Cart - €${discountedPrice.toFixed(2)}` : "Out of Stock"}
+            </Button>
+          </div>
+        </div>
+        <div className="h-4" />
+        <div className="h-4" />
+      </DialogContent>
+    </Dialog>
+  )
+}
