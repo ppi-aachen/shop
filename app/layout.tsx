@@ -8,8 +8,8 @@ import { Toaster } from "@/components/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Your New Website Title Here",
-  description: "Your website description here",
+  title: "Aachen Studio by PPI Aachen",
+  description: "",
     generator: 'v0.app'
 }
 
