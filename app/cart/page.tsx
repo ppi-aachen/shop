@@ -94,7 +94,22 @@ export default function CartPage() {
                           <span className="text-xs bg-gray-100 px-2 py-1 rounded">Color: {item.selectedColor}</span>
                         )}
                       </div>
-                      <p className="text-lg font-bold text-green-600 mt-1">€{item.price.toFixed(2)}</p>
+                      {/* Show price with discount if applicable */}
+                      <div className="flex items-center mt-1">
+                        {item.originalPrice && item.discount ? (
+                          <>
+                            <span className="text-sm text-gray-500 line-through mr-2">
+                              €{item.originalPrice.toFixed(2)}
+                            </span>
+                            <span className="text-lg font-bold text-red-600">€{item.price.toFixed(2)}</span>
+                            <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded ml-2">
+                              {item.discount}% OFF
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-lg font-bold text-green-600">€{item.price.toFixed(2)}</span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2 mt-2 sm:mt-0">
@@ -111,13 +126,23 @@ export default function CartPage() {
                         max={item.variantStock ?? item.stock}
                       />
 
-                      <Button variant="outline" size="sm" onClick={() => updateQuantity(index, item.quantity + 1)} disabled={item.quantity >= (item.variantStock ?? item.stock)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateQuantity(index, item.quantity + 1)}
+                        disabled={item.quantity >= (item.variantStock ?? item.stock)}
+                      >
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
 
                     <div className="text-right mt-2 sm:mt-0">
                       <p className="font-semibold text-lg">€{(item.price * item.quantity).toFixed(2)}</p>
+                      {item.originalPrice && item.discount && (
+                        <p className="text-sm text-gray-500 line-through">
+                          €{(item.originalPrice * item.quantity).toFixed(2)}
+                        </p>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -211,7 +236,7 @@ export default function CartPage() {
                 </Link>
 
                 <Link href="/" className="block">
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full bg-transparent">
                     Continue Shopping
                   </Button>
                 </Link>

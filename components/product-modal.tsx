@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Truck, Shield, RotateCcw, AlertTriangle } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 import { useCart } from "@/lib/cart-context"
 import { ImageGallery } from "@/components/image-gallery"
 import { getProductImages } from "@/lib/image-utils"
@@ -50,6 +50,11 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
   const { toast } = useToast()
 
   if (!product) return null
+
+  // Calculate discounted price
+  const originalPrice = product.price
+  const discountedPrice =
+    product.discount && product.discount > 0 ? originalPrice * (1 - product.discount / 100) : originalPrice
 
   const addToCart = () => {
     // Check for required options
@@ -160,13 +165,14 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
               <div className="flex items-center">
                 {product.discount && product.discount > 0 ? (
                   <>
-                    <p className="text-gray-500 text-sm line-through mr-2">€{product.price.toFixed(2)}</p>
-                    <p className="text-3xl font-bold text-red-600">
-                      €{(product.price * (1 - product.discount / 100)).toFixed(2)}
-                    </p>
+                    <p className="text-gray-500 text-sm line-through mr-2">€{originalPrice.toFixed(2)}</p>
+                    <p className="text-3xl font-bold text-red-600">€{discountedPrice.toFixed(2)}</p>
+                    <span className="text-sm bg-red-100 text-red-800 px-2 py-1 rounded ml-2">
+                      {product.discount}% OFF
+                    </span>
                   </>
                 ) : (
-                  <p className="text-3xl font-bold text-green-600">€{product.price.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-green-600">€{originalPrice.toFixed(2)}</p>
                 )}
               </div>
               <p className="text-gray-600 mt-2">{product.description}</p>
@@ -213,7 +219,7 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
                                 sum += v.stock
                               }
                             } else if (requiresColor && !selectedColor) {
-                              // If color is required but not yet selected, sum stock for all colors for this size
+                              // If color is required but not yet selected, sum stock for all sizes for this color
                               sum += v.stock
                             } else {
                               // Size is not required, ensure variant color is null/undefined/empty
@@ -382,31 +388,4 @@ export function ProductModal({ product, isOpen, onClose }: ProductModalProps) {
             )}
 
             {/* Product Benefits */}
-            <div className="grid grid-cols-1 gap-3 pt-4 border-t">
-              <div className="flex items-center gap-3 text-sm text-gray-600">
-                <Truck className="h-4 w-4 text-green-600" />
-                <span>Free pickup in Aachen or delivery available</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-gray-600">
-                <Shield className="h-4 w-4 text-green-600" />
-                <span>Quality guarantee</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-gray-600">
-                <RotateCcw className="h-4 w-4 text-green-600" />
-                <span>30-day return policy</span>
-              </div>
-            </div>
-
-            {/* Add to Cart Button */}
-            <Button onClick={addToCart} className="w-full" size="lg" disabled={!canAddToCart || product.stock === 0}>
-              <Plus className="h-4 w-4 mr-2" />
-              {product.stock > 0 ? `Add to Cart - €${product.price.toFixed(2)}` : "Out of Stock"}
-            </Button>
-          </div>
-        </div>
-        <div className="h-4" />
-        <div className="h-4" />
-      </DialogContent>
-    </Dialog>
-  )
-}
+            <div className="\

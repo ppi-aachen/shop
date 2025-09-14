@@ -1313,7 +1313,10 @@ export async function submitOrder(formData: FormData) {
     return { success: true, orderId, emailsSent: !emailsFailed, orderData, orderItemsData }
   } catch (error) {
     console.error("Error submitting order:", error)
-    return { success: false, error: "Failed to submit order" }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    }
   }
 }
 
