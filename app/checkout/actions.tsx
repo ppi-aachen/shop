@@ -221,9 +221,9 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
           variantsData = variantRows.slice(1).map((row) => {
             const variant: any = {}
             variantHeaders.forEach((header, index) => {
-              const value = row[index]
+              const value = row[index] || ""
               if (header === "product_id" || header === "stock") {
-                variant[header === "product_id" ? "productId" : "stock"] = Number(value)
+                variant[header === "product_id" ? "productId" : "stock"] = Number(value) || 0
               } else if (header === "size" || header === "color") {
                 variant[header] = value === "null" || value === "" ? undefined : value
               } else {
@@ -244,10 +244,10 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
     const products = productRows.slice(1).map((row) => {
       const product: any = {}
       productHeaders.forEach((header, index) => {
-        const value = row[index]
+        const value = row[index] || ""
         // Convert specific fields to numbers or arrays
         if (header === "id" || header === "price" || header === "discount") {
-          product[header] = Number(value)
+          product[header] = Number(value) || 0
         } else if (header === "stock") {
           // Stock is now handled by variants, but keep for backward compatibility
           product[header] = Number(value) || 0
@@ -258,9 +258,19 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
           header === "materials" ||
           header === "careInstructions"
         ) {
-          product[header] = value ? value.split(",").map((s: string) => s.trim()) : []
+          product[header] = value
+            ? value
+                .split(",")
+                .map((s: string) => s.trim())
+                .filter(Boolean)
+            : []
         } else if (header === "images") {
-          product[header] = value ? value.split(",").map((s: string) => s.trim()) : []
+          product[header] = value
+            ? value
+                .split(",")
+                .map((s: string) => s.trim())
+                .filter(Boolean)
+            : []
         } else if (header === "specifications") {
           try {
             product[header] = value ? JSON.parse(value) : {}
@@ -269,7 +279,7 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
             product[header] = {}
           }
         } else {
-          product[header] = value
+          product[header] = value || ""
         }
       })
 
@@ -280,8 +290,8 @@ export async function getProductsFromGoogleSheet(): Promise<ProductData[]> {
         // Calculate total stock from variants
         product.stock = productVariants.reduce((total, variant) => total + variant.stock, 0)
       } else {
-        // If no variants found, set stock to 0 (since stock column was removed)
-        product.stock = 0
+        // If no variants found, use the stock from the Products sheet
+        product.stock = product.stock || 0
       }
 
       return product as ProductData
@@ -375,9 +385,9 @@ async function validateStockAvailability(cartItems: CartItem[]): Promise<{ valid
           variantsData = variantRows.slice(1).map((row: string[]) => {
             const variant: any = {}
             variantHeaders.forEach((header: string, index: number) => {
-              const value = row[index]
+              const value = row[index] || ""
               if (header === "product_id" || header === "stock") {
-                variant[header === "product_id" ? "productId" : "stock"] = Number(value)
+                variant[header === "product_id" ? "productId" : "stock"] = Number(value) || 0
               } else if (header === "size" || header === "color") {
                 variant[header] = value === "null" || value === "" ? undefined : value
               } else {
@@ -476,24 +486,24 @@ async function validateLegacyStock(
 
   // Find the stock column index
   const headers = products[0]
-  const stockColumnIndex = headers.findIndex((header: string) => header.toLowerCase() === "stock")
-  const idColumnIndex = headers.findIndex((header: string) => header.toLowerCase() === "id")
+  const stockColumnIndex = headers.findIndex((header: string) => header && header.toLowerCase() === "stock")
+  const idColumnIndex = headers.findIndex((header: string) => header && header.toLowerCase() === "id")
 
   if (stockColumnIndex === -1 || idColumnIndex === -1) {
     return { valid: false, errors: ["Stock or ID column not found in Products sheet"] }
   }
 
   // Create a map of product ID to current stock
-  const productStockMap = new Map<number, { rowIndex: number; currentStock: number }>()
+  const productStockMap = new Map<number, { rowIndex: number; currentStock: number; name: string }>()
 
   for (let i = 1; i < products.length; i++) {
     const row = products[i]
-    const productId = Number.parseInt(row[idColumnIndex])
+    const productId = Number.parseInt(row[idColumnIndex]) || 0
     const currentStock = Number.parseInt(row[stockColumnIndex]) || 0
-    const productName = row[headers.findIndex((h: string) => h.toLowerCase() === "name")] || "Unknown Product"
+    const productName = row[headers.findIndex((h: string) => h && h.toLowerCase() === "name")] || "Unknown Product"
 
-    if (!isNaN(productId)) {
-      productStockMap.set(productId, { currentStock, name: productName })
+    if (productId > 0) {
+      productStockMap.set(productId, { rowIndex: i + 1, currentStock, name: productName })
     }
   }
 
@@ -585,12 +595,12 @@ async function updateVariantStock(
 
     for (let i = 1; i < variantRows.length; i++) {
       const row = variantRows[i]
-      const productId = Number.parseInt(row[productIdIndex])
+      const productId = Number.parseInt(row[productIdIndex]) || 0
       const size = row[sizeIndex] === "null" || row[sizeIndex] === "" ? undefined : row[sizeIndex]
       const color = row[colorIndex] === "null" || row[colorIndex] === "" ? undefined : row[colorIndex]
       const currentStock = Number.parseInt(row[stockIndex]) || 0
 
-      if (!isNaN(productId)) {
+      if (productId > 0) {
         // Use the same encoding as the variant ID generation
         const encodedSize = size ? encodeURIComponent(size) : "null"
         const encodedColor = color ? encodeURIComponent(color) : "null"
@@ -686,8 +696,8 @@ async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
 
   // Find the stock column index
   const headers = products[0]
-  const stockColumnIndex = headers.findIndex((header: string) => header.toLowerCase() === "stock")
-  const idColumnIndex = headers.findIndex((header: string) => header.toLowerCase() === "id")
+  const stockColumnIndex = headers.findIndex((header: string) => header && header.toLowerCase() === "stock")
+  const idColumnIndex = headers.findIndex((header: string) => header && header.toLowerCase() === "id")
 
   if (stockColumnIndex === -1 || idColumnIndex === -1) {
     console.warn("Stock or ID column not found in Products sheet")
@@ -699,11 +709,10 @@ async function updateLegacyStock(cartItems: CartItem[], accessToken: string) {
 
   for (let i = 1; i < products.length; i++) {
     const row = products[i]
-    const productId = Number.parseInt(row[idColumnIndex])
+    const productId = Number.parseInt(row[idColumnIndex]) || 0
     const currentStock = Number.parseInt(row[stockColumnIndex]) || 0
-    const productName = row[headers.findIndex((h: string) => h.toLowerCase() === "name")] || "Unknown Product"
 
-    if (!isNaN(productId)) {
+    if (productId > 0) {
       productStockMap.set(productId, { rowIndex: i + 1, currentStock }) // +1 because sheets are 1-indexed
     }
   }
@@ -1433,15 +1442,6 @@ export async function submitPOSOrder(formData: FormData) {
       addOrderItemsToGoogleSheet(orderItemsData),
       updateProductStock(cartItems), // Update stock after successful order
     ])
-
-    // Optionally send confirmation emails for POS sales if desired, but typically not needed for in-person
-    // The email templates below are for the main checkout, not POS specific.
-    // If POS needs emails, a separate, tax-free template would be ideal.
-    // For now, I'll modify the existing ones to remove tax display.
-    // const emailResults = await Promise.allSettled([
-    //   sendCustomerConfirmationEmail(orderData, orderItemsData),
-    //   sendBusinessNotificationEmail(orderData, orderItemsData),
-    // ])
 
     return { success: true, message: `Order ${orderId} successfully processed!` }
   } catch (error: any) {

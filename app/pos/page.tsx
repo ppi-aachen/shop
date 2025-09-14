@@ -1,16 +1,29 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import type React from "react"
+
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { useCart } from "@/lib/cart-context"
-import { Plus, Minus, Trash2, ShoppingCart, Search, Receipt, Store, Clock, X } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Separator } from "@/components/ui/separator"
+import { POSHeader } from "@/components/pos-header"
+import { LoadingOverlay } from "@/components/loading-overlay"
+import { Plus, Minus, Trash2, ShoppingCart, FileText, Check } from "lucide-react"
 import { getProductImage } from "@/lib/image-utils"
 import { useToast } from "@/hooks/use-toast"
-import { getProductsFromGoogleSheet } from "@/app/checkout/actions"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { getProductsFromGoogleSheet, submitPOSOrder } from "@/app/checkout/actions"
+
+interface ProductVariant {
+  productId: number
+  size?: string
+  color?: string
+  stock: number
+  variantId: string
+}
 
 interface Product {
   id: number
@@ -27,22 +40,31 @@ interface Product {
   sizes?: string[]
   colors?: string[]
   stock: number
+  discount?: number // NEW: Discount percentage
+  variants?: ProductVariant[]
+}
+
+interface CartItem extends Product {
+  quantity: number
+  selectedSize?: string
+  selectedColor?: string
+  variantStock?: number
 }
 
 export default function POSPage() {
-  const { state, dispatch } = useCart()
-  const { toast } = useToast()
   const [products, setProducts] = useState<Product[]>([])
+  const [cart, setCart] = useState<CartItem[]>([])
   const [loadingProducts, setLoadingProducts] = useState(true)
   const [errorLoadingProducts, setErrorLoadingProducts] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
-  const [quickAddId, setQuickAddId] = useState("")
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("card")
-  const [cashReceived, setCashReceived] = useState("")
-  const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const [selectedSize, setSelectedSize] = useState<string | null>(null)
-  const [selectedColor, setSelectedColor] = useState<string | null>(null)
+  const [customerName, setCustomerName] = useState("")
+  const [customerContact, setCustomerContact] = useState("")
+  const [deliveryAddress, setDeliveryAddress] = useState("")
+  const [proofOfPayment, setProofOfPayment] = useState<File | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [orderComplete, setOrderComplete] = useState(false)
+  const [completedOrderId, setCompletedOrderId] = useState("")
+  const { toast } = useToast()
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -67,682 +89,437 @@ export default function POSPage() {
     fetchProducts()
   }, [toast])
 
-  // Keyboard shortcuts for POS efficiency
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      // Ctrl/Cmd + K to focus search
-      if ((event.ctrlKey || event.metaKey) && event.key === "k") {
-        event.preventDefault()
-        const searchInput = document.querySelector('input[placeholder*="Search products"]') as HTMLInputElement
-        if (searchInput) {
-          searchInput.focus()
-        }
-      }
-
-      // Enter to complete sale when cart has items
-      if (event.key === "Enter" && state.items.length > 0 && !showPaymentModal) {
-        event.preventDefault()
-        handleCheckout()
-      }
-
-      // Escape to close payment modal
-      if (event.key === "Escape" && showPaymentModal) {
-        setShowPaymentModal(false)
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyPress)
-    return () => document.removeEventListener("keydown", handleKeyPress)
-  }, [state.items.length, showPaymentModal])
-
   const filteredProducts = products.filter(
     (product) =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.description.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  const addToCart = (product: Product) => {
-    const requiresSize = product.sizes && product.sizes.length > 0
-    const requiresColor = product.colors && product.colors.length > 0
+  const addToCart = (product: Product, selectedSize?: string, selectedColor?: string) => {
+    // Calculate discounted price
+    const originalPrice = product.price
+    const discountedPrice =
+      product.discount && product.discount > 0 ? originalPrice * (1 - product.discount / 100) : originalPrice
 
-    if (product.stock <= 0) {
-      toast({
-        variant: "destructive",
-        title: "Out of Stock",
-        description: `${product.name} is currently out of stock.`,
-      })
-      return
-    }
+    const existingItemIndex = cart.findIndex(
+      (item) => item.id === product.id && item.selectedSize === selectedSize && item.selectedColor === selectedColor,
+    )
 
-    if (requiresSize || requiresColor) {
-      const missingOptions = []
-      if (requiresSize) missingOptions.push("size")
-      if (requiresColor) missingOptions.push("color")
-
-      toast({
-        variant: "warning",
-        title: "Options Required",
-        description: `Please select ${missingOptions.join(" and ")} options first.`,
-      })
-
-      setSelectedProduct(product)
-      return
-    }
-
-    dispatch({ type: "ADD_ITEM", payload: product })
-
-    toast({
-      variant: "success",
-      title: "Added to Cart!",
-      description: `${product.name} has been added to your cart.`,
-    })
-  }
-
-  const updateQuantity = (index: number, quantity: number) => {
-    dispatch({ type: "UPDATE_QUANTITY", payload: { id: index, quantity } })
-  }
-
-  const removeItem = (index: number) => {
-    dispatch({ type: "REMOVE_ITEM", payload: index })
-  }
-
-  const clearCart = () => {
-    dispatch({ type: "CLEAR_CART" })
-    toast({
-      variant: "success",
-      title: "Cart Cleared",
-      description: "All items have been removed from the cart.",
-    })
-  }
-
-  const handleCheckout = () => {
-    if (state.items.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "Empty Cart",
-        description: "Please add items to the cart before checkout.",
-      })
-      return
-    }
-    setShowPaymentModal(true)
-  }
-
-  const quickAddById = () => {
-    const productId = Number.parseInt(quickAddId)
-    if (isNaN(productId)) {
-      toast({
-        variant: "destructive",
-        title: "Invalid ID",
-        description: "Please enter a valid product ID.",
-      })
-      return
-    }
-
-    const product = products.find((p) => p.id === productId)
-    if (!product) {
-      toast({
-        variant: "destructive",
-        title: "Product Not Found",
-        description: `No product found with ID ${productId}.`,
-      })
-      return
-    }
-
-    addToCart(product)
-    setQuickAddId("")
-  }
-
-  const processPayment = () => {
-    if (paymentMethod === "cash" && Number.parseFloat(cashReceived) < state.total * 1.19) {
-      toast({
-        variant: "destructive",
-        title: "Insufficient Payment",
-        description: "Cash received is less than the total amount.",
-      })
-      return
-    }
-
-    // Generate receipt content
-    const receiptContent = generateReceipt()
-
-    // Simulate receipt printing
-    const printWindow = window.open("", "_blank")
-    if (printWindow) {
-      printWindow.document.write(receiptContent)
-      printWindow.document.close()
-      printWindow.print()
-      printWindow.close()
-    }
-
-    // Process the sale
-    toast({
-      variant: "success",
-      title: "Sale Complete!",
-      description: `Payment received: €${paymentMethod === "cash" ? cashReceived : (state.total * 1.19).toFixed(2)}`,
-    })
-
-    // Clear cart and reset payment modal
-    dispatch({ type: "CLEAR_CART" })
-    setShowPaymentModal(false)
-    setCashReceived("")
-    setPaymentMethod("card")
-  }
-
-  const generateReceipt = () => {
-    const now = new Date()
-    const receiptNumber = Math.floor(Math.random() * 1000000)
-      .toString()
-      .padStart(6, "0")
-
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Receipt</title>
-        <style>
-          body { font-family: monospace; font-size: 12px; margin: 0; padding: 20px; }
-          .header { text-align: center; margin-bottom: 20px; }
-          .items { margin: 20px 0; }
-          .item { display: flex; justify-content: space-between; margin: 5px 0; }
-          .total { border-top: 1px solid #000; margin-top: 20px; padding-top: 10px; }
-          .footer { text-align: center; margin-top: 30px; font-size: 10px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h2>Aachen Studio</h2>
-          <p>Receipt #${receiptNumber}</p>
-          <p>${now.toLocaleDateString()} ${now.toLocaleTimeString()}</p>
-        </div>
-        
-        <div class="items">
-          ${state.items
-            .map(
-              (item) => `
-            <div class="item">
-              <span>${item.name}${item.selectedSize ? ` (${item.selectedSize})` : ""}${item.selectedColor ? ` (${item.selectedColor})` : ""} x${item.quantity}</span>
-              <span>€${(item.price * item.quantity).toFixed(2)}</span>
-            </div>
-          `,
-            )
-            .join("")}
-        </div>
-        
-        <div class="total">
-          <div class="item">
-            <span>Subtotal</span>
-            <span>€${state.total.toFixed(2)}</span>
-          </div>
-          <div class="item">
-            <span>Tax (19%)</span>
-            <span>€${(state.total * 0.19).toFixed(2)}</span>
-          </div>
-          <div class="border-t pt-2">
-            <div class="item">
-              <strong>Total</strong>
-              <strong>€${(state.total * 1.19).toFixed(2)}</strong>
-            </div>
-          </div>
-          <div class="item">
-            <span>Payment Method</span>
-            <span>${paymentMethod === "cash" ? "Cash" : "Card"}</span>
-          </div>
-          ${
-            paymentMethod === "cash" && cashReceived
-              ? `
-            <div class="item">
-              <span>Cash Received</span>
-              <span>€${Number.parseFloat(cashReceived).toFixed(2)}</span>
-            </div>
-            <div class="item">
-              <span>Change</span>
-              <span>€${(Number.parseFloat(cashReceived) - state.total * 1.19).toFixed(2)}</span>
-            </div>
-          `
-              : ""
-          }
-        </div>
-        
-        <div class="footer">
-          <p>Thank you for your purchase!</p>
-          <p>Aachen Studio by PPI Aachen</p>
-        </div>
-      </body>
-      </html>
-    `
-  }
-
-  const cashChange = paymentMethod === "cash" && cashReceived ? Number.parseFloat(cashReceived) - state.total * 1.19 : 0
-
-  const handleAddToCart = (product: Product) => {
-    const requiresSize = product.sizes && product.sizes.length > 0
-    const requiresColor = product.colors && product.colors.length > 0
-
-    if (product.stock <= 0) {
-      toast({
-        variant: "destructive",
-        title: "Out of Stock",
-        description: `${product.name} is currently out of stock.`,
-      })
-      return
-    }
-
-    if (requiresSize || requiresColor) {
-      const missingOptions = []
-      if (requiresSize) missingOptions.push("size")
-      if (requiresColor) missingOptions.push("color")
-
-      toast({
-        variant: "warning",
-        title: "Options Required",
-        description: `Please select ${missingOptions.join(" and ")} options first.`,
-      })
-
-      setSelectedProduct(product)
-      return
-    }
-
-    dispatch({ type: "ADD_ITEM", payload: product })
-
-    toast({
-      variant: "success",
-      title: "Added to Cart!",
-      description: `${product.name} has been added to your cart.`,
-    })
-  }
-
-  const handleAddVariantToCart = () => {
-    if (!selectedProduct) return
-
-    const variantStock = selectedProduct.stock
-    if (variantStock <= 0) {
-      toast({
-        variant: "destructive",
-        title: "Out of Stock",
-        description: `${selectedProduct.name} is currently out of stock.`,
-      })
-      return
-    }
-
-    dispatch({
-      type: "ADD_ITEM",
-      payload: {
-        ...selectedProduct,
+    if (existingItemIndex >= 0) {
+      const updatedCart = [...cart]
+      updatedCart[existingItemIndex].quantity += 1
+      setCart(updatedCart)
+    } else {
+      const newItem: CartItem = {
+        ...product,
+        price: discountedPrice, // Use discounted price
+        quantity: 1,
         selectedSize,
         selectedColor,
-      },
-    })
+      }
+      setCart([...cart, newItem])
+    }
 
     toast({
       variant: "success",
-      title: "Added to Cart!",
-      description: `${selectedProduct.name} (${selectedSize ? `Size: ${selectedSize}` : ""}${selectedColor ? ` Color: ${selectedColor}` : ""}) has been added to your cart.`,
+      title: "Added to Cart",
+      description: `${product.name} added to cart`,
     })
-
-    setSelectedProduct(null)
-    setSelectedSize(null)
-    setSelectedColor(null)
   }
 
-  const currentVariantStock = selectedProduct ? selectedProduct.stock : 0
+  const updateQuantity = (index: number, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      removeFromCart(index)
+      return
+    }
+
+    const updatedCart = [...cart]
+    updatedCart[index].quantity = newQuantity
+    setCart(updatedCart)
+  }
+
+  const removeFromCart = (index: number) => {
+    const updatedCart = cart.filter((_, i) => i !== index)
+    setCart(updatedCart)
+  }
+
+  const calculateTotal = () => {
+    return cart.reduce((total, item) => total + item.price * item.quantity, 0)
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setProofOfPayment(file)
+    }
+  }
+
+  const handleSubmitOrder = async () => {
+    if (!customerName || !customerContact || !deliveryAddress || !proofOfPayment || cart.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please fill in all customer details, add items to cart, and upload proof of payment.",
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const formData = new FormData()
+      formData.append("customerName", customerName)
+      formData.append("customerContact", customerContact)
+      formData.append("deliveryAddress", deliveryAddress)
+      formData.append("cartItems", JSON.stringify(cart))
+      formData.append("totalAmount", calculateTotal().toString())
+      formData.append("proofOfPayment", proofOfPayment)
+
+      const result = await submitPOSOrder(formData)
+
+      if (result.success) {
+        toast({
+          variant: "success",
+          title: "Order Completed",
+          description: result.message,
+        })
+        setOrderComplete(true)
+        setCompletedOrderId(result.message.split(" ")[1]) // Extract order ID from message
+        // Reset form
+        setCart([])
+        setCustomerName("")
+        setCustomerContact("")
+        setDeliveryAddress("")
+        setProofOfPayment(null)
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Order Failed",
+          description: result.message,
+        })
+      }
+    } catch (error) {
+      console.error("Error submitting POS order:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to submit order. Please try again.",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const startNewOrder = () => {
+    setOrderComplete(false)
+    setCompletedOrderId("")
+  }
+
+  if (orderComplete) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <POSHeader />
+        <main className="max-w-4xl mx-auto px-4 py-8">
+          <Card className="text-center p-8">
+            <div className="mb-6">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Check className="h-8 w-8 text-green-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Completed Successfully!</h2>
+              <p className="text-gray-600 mb-4">Order ID: {completedOrderId}</p>
+              <p className="text-sm text-gray-500">
+                The order has been recorded and the customer has been provided with their receipt.
+              </p>
+            </div>
+            <Button onClick={startNewOrder} size="lg">
+              Start New Order
+            </Button>
+          </Card>
+        </main>
+      </div>
+    )
+  }
 
   return (
-    <Suspense
-      fallback={<div className="min-h-screen bg-gray-100 flex items-center justify-center">Loading POS System...</div>}
-    >
-      <div className="min-h-screen bg-gray-100">
-        {/* POS Header */}
-        <header className="bg-white shadow-lg border-b-4 border-green-600">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <Store className="h-8 w-8 text-green-600" />
-                  <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Aachen Studio POS</h1>
-                    <p className="text-gray-600">Point of Sale System</p>
+    <div className="min-h-screen bg-gray-50">
+      <POSHeader />
+      {isSubmitting && <LoadingOverlay message="Processing order..." />}
+
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Products Section */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5" />
+                  Products
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4">
+                  <Input
+                    type="text"
+                    placeholder="Search products..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+
+                {loadingProducts && <div className="text-center py-8 text-gray-600">Loading products...</div>}
+
+                {errorLoadingProducts && (
+                  <div className="text-center py-8 text-red-600">
+                    Failed to load products. Please check your configuration.
                   </div>
-                </div>
-              </div>
+                )}
 
-              <div className="flex items-center space-x-6">
-                <div className="text-right">
-                  <div className="flex items-center space-x-2 text-gray-600">
-                    <Clock className="h-4 w-4" />
-                    <span className="text-sm">Current Time</span>
-                  </div>
-                  <p className="text-lg font-semibold text-gray-900">{new Date().toLocaleTimeString()}</p>
-                </div>
+                {!loadingProducts && !errorLoadingProducts && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                    {filteredProducts.map((product) => {
+                      // Calculate discounted price for display
+                      const originalPrice = product.price
+                      const discountedPrice =
+                        product.discount && product.discount > 0
+                          ? originalPrice * (1 - product.discount / 100)
+                          : originalPrice
+                      const hasDiscount = product.discount && product.discount > 0
 
-                <div className="text-right">
-                  <p className="text-sm text-gray-600">Items in Cart</p>
-                  <p className="text-lg font-semibold text-green-600">{state.itemCount}</p>
-                </div>
-
-                <Button
-                  variant="outline"
-                  onClick={clearCart}
-                  disabled={state.items.length === 0}
-                  className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 bg-transparent"
-                >
-                  <X className="h-5 w-5 mr-2" />
-                  Clear Cart
-                </Button>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <div className="flex h-[calc(100vh-120px)]">
-          {/* Left Side - Products */}
-          <div className="flex-1 p-6 overflow-hidden">
-            {/* Search and Quick Add Bar */}
-            <div className="mb-6 space-y-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                <Input
-                  type="text"
-                  placeholder="Search products... (Ctrl+K to focus)"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-12 text-lg"
-                />
-              </div>
-
-              {/* Quick Add by ID */}
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  placeholder="Quick add by Product ID"
-                  value={quickAddId}
-                  onChange={(e) => setQuickAddId(e.target.value)}
-                  className="flex-1"
-                  onKeyPress={(e) => e.key === "Enter" && quickAddById()}
-                />
-                <Button onClick={quickAddById} disabled={!quickAddId}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Quick Add
-                </Button>
-              </div>
-
-              <div className="text-xs text-gray-500">
-                💡 Keyboard shortcuts: Ctrl+K (search) | Enter (complete sale) | Esc (close modal)
-              </div>
-            </div>
-
-            {/* Products Grid */}
-            <div className="h-full overflow-y-auto">
-              {loadingProducts && <div className="text-center text-gray-600 text-xl py-20">Loading products...</div>}
-
-              {errorLoadingProducts && (
-                <div className="text-center text-red-600 text-xl py-20">
-                  Failed to load products. Please check your configuration.
-                </div>
-              )}
-
-              {!loadingProducts && !errorLoadingProducts && filteredProducts.length === 0 && (
-                <div className="text-center text-gray-600 text-xl py-20">
-                  {searchTerm ? "No products found matching your search." : "No products available."}
-                </div>
-              )}
-
-              {!loadingProducts && !errorLoadingProducts && filteredProducts.length > 0 && (
-                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {filteredProducts.map((product) => (
-                    <Card
-                      key={product.id}
-                      className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
-                      onClick={() => handleAddToCart(product)}
-                    >
-                      <CardHeader className="p-0 relative">
-                        <div className="relative w-full h-32 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
-                          <img
-                            src={getProductImage(product.image) || "/placeholder.svg"}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement
-                              target.style.display = "none"
-                              const parent = target.parentElement
-                              if (parent) {
-                                const iconDiv = document.createElement("div")
-                                iconDiv.className = "flex items-center justify-center w-full h-full"
-                                iconDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class="text-gray-400"><rect width="20" height="16" x="2" y="4" rx="2"></rect><path d="M10 4v4"></path><path d="M2 8h20"></path><path d="M6 12h.01"></path><path d="M6 16h.01"></path><path d="M10 12h8"></path><path d="M10 16h8"></path></svg>`
-                                parent.appendChild(iconDiv)
-                              }
-                            }}
-                          />
-                          {product.stock === 0 && (
-                            <div className="absolute inset-0 bg-red-600 bg-opacity-75 flex items-center justify-center">
-                              <span className="text-white font-bold text-lg">OUT OF STOCK</span>
-                            </div>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-3">
-                        <CardTitle className="text-sm font-semibold mb-1 line-clamp-2">{product.name}</CardTitle>
-                        <p className="text-xs text-gray-600 mb-2 line-clamp-1">{product.description}</p>
-                        <div className="flex items-center justify-between">
-                          <p className="text-base md:text-lg font-bold text-green-600">€{product.price.toFixed(2)}</p>
-                          <Badge variant={product.stock > 0 ? "default" : "destructive"} className="text-xs">
-                            {product.stock > 0 ? `${product.stock} in stock` : "Out of stock"}
-                          </Badge>
-                        </div>
-                      </CardContent>
-                      <CardFooter className="p-3 pt-0">
-                        <Button
-                          className="w-full text-xs md:text-sm"
-                          size="sm"
-                          disabled={
-                            product.stock <= 0 && (!product.variants || product.variants.every((v) => v.stock <= 0))
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleAddToCart(product)
-                          }}
+                      return (
+                        <Card
+                          key={product.id}
+                          className="cursor-pointer hover:shadow-md transition-shadow"
+                          onClick={() => addToCart(product)}
                         >
-                          <Plus className="h-3 w-3 mr-1" />
-                          Add
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
+                          <CardContent className="p-4">
+                            <div className="flex gap-3">
+                              <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                                <img
+                                  src={getProductImage(product.image) || "/placeholder.svg"}
+                                  alt={product.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement
+                                    target.src = "/placeholder.svg"
+                                  }}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-medium text-sm mb-1 truncate">{product.name}</h3>
+                                <p className="text-xs text-gray-600 mb-2 line-clamp-2">{product.description}</p>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1">
+                                    {hasDiscount ? (
+                                      <>
+                                        <span className="text-gray-500 text-xs line-through">
+                                          €{originalPrice.toFixed(2)}
+                                        </span>
+                                        <span className="font-bold text-red-600 text-sm">
+                                          €{discountedPrice.toFixed(2)}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span className="font-bold text-green-600 text-sm">
+                                        €{originalPrice.toFixed(2)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <Badge variant={product.stock > 0 ? "default" : "destructive"} className="text-xs">
+                                    {product.stock > 0 ? "In Stock" : "Out"}
+                                  </Badge>
+                                </div>
+                                {hasDiscount && (
+                                  <Badge className="bg-red-100 text-red-800 text-xs mt-1">
+                                    {product.discount}% OFF
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Right Side - Cart */}
-          <div className="w-96 bg-white shadow-lg md:border-l flex flex-col">
-            <div className="p-4 md:p-6 h-full flex flex-col">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl md:text-2xl font-bold text-gray-900">Current Sale</h2>
-                <ShoppingCart className="h-5 w-5 md:h-6 w-6 text-green-600" />
-              </div>
-
-              {/* Cart Items */}
-              <div className="flex-1 overflow-y-auto space-y-3 mb-6">
-                {state.items.length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">
-                    <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>No items in cart</p>
-                    <p className="text-sm">Click on products to add them</p>
-                  </div>
+          {/* Cart and Customer Info Section */}
+          <div className="space-y-6">
+            {/* Cart */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Current Order</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {cart.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">No items in cart</p>
                 ) : (
-                  state.items.map((item, index) => (
-                    <Card key={`${item.id}-${item.selectedSize}-${item.selectedColor}-${index}`} className="border">
-                      <CardContent className="p-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center border overflow-hidden shrink-0">
+                  <div className="space-y-3">
+                    {cart.map((item, index) => {
+                      const hasDiscount = item.discount && item.discount > 0
+                      const originalPrice = hasDiscount ? item.price / (1 - item.discount / 100) : item.price
+
+                      return (
+                        <div key={`${item.id}-${index}`} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                          <div className="w-12 h-12 bg-gray-200 rounded overflow-hidden flex-shrink-0">
                             <img
                               src={getProductImage(item.image) || "/placeholder.svg"}
                               alt={item.name}
                               className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement
+                                target.src = "/placeholder.svg"
+                              }}
                             />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-sm truncate">{item.name}</h4>
-                            <div className="flex gap-1 mt-1">
-                              {item.selectedSize && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Size: {item.selectedSize}
-                                </Badge>
-                              )}
-                              {item.selectedColor && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Color: {item.selectedColor}
-                                </Badge>
+                            <h4 className="font-medium text-sm truncate">{item.name}</h4>
+                            <div className="flex items-center gap-1">
+                              {hasDiscount ? (
+                                <>
+                                  <span className="text-gray-500 text-xs line-through">
+                                    €{originalPrice.toFixed(2)}
+                                  </span>
+                                  <span className="font-bold text-red-600 text-xs">€{item.price.toFixed(2)}</span>
+                                </>
+                              ) : (
+                                <span className="font-bold text-green-600 text-xs">€{item.price.toFixed(2)}</span>
                               )}
                             </div>
-                            <p className="text-xs md:text-sm text-gray-600">€{item.price.toFixed(2)} each</p>
+                            {item.selectedSize && (
+                              <Badge variant="outline" className="text-xs mt-1">
+                                Size: {item.selectedSize}
+                              </Badge>
+                            )}
+                            {item.selectedColor && (
+                              <Badge variant="outline" className="text-xs mt-1 ml-1">
+                                Color: {item.selectedColor}
+                              </Badge>
+                            )}
                           </div>
-                          <div className="flex items-center gap-1 md:gap-2">
+                          <div className="flex items-center gap-2">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => updateQuantity(index, item.quantity - 1)}
-                              disabled={item.quantity <= 1}
-                              className="h-7 w-7 md:h-8 w-8"
                             >
                               <Minus className="h-3 w-3" />
                             </Button>
-                            <span className="text-base md:text-lg font-semibold min-w-[1.5rem] text-center">
-                              {item.quantity}
-                            </span>
+                            <span className="w-8 text-center text-sm">{item.quantity}</span>
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => updateQuantity(index, item.quantity + 1)}
-                              disabled={item.quantity >= (item.variantStock ?? item.stock)}
-                              className="h-7 w-7 md:h-8 w-8"
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => removeItem(index)}
-                              className="text-red-600 hover:text-red-700 h-7 w-7 md:h-8 w-8"
+                              onClick={() => removeFromCart(index)}
+                              className="text-red-600 hover:text-red-700"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
                         </div>
-                        <div className="mt-2 text-right">
-                          <p className="font-bold text-base md:text-lg">€{(item.price * item.quantity).toFixed(2)}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
-                )}
-              </div>
-
-              {/* Order Summary */}
-              <div className="border-t pt-4 space-y-3">
-                <div className="flex justify-between text-base md:text-lg">
-                  <span>Subtotal ({state.itemCount} items)</span>
-                  <span>€{state.total.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-base md:text-lg">
-                  <span>Tax (19%)</span>
-                  <span>€{(state.total * 0.19).toFixed(2)}</span>
-                </div>
-                <div className="border-t pt-2">
-                  <div className="flex justify-between text-xl md:text-2xl font-bold">
-                    <span>Total</span>
-                    <span>€{(state.total * 1.19).toFixed(2)}</span>
+                      )
+                    })}
+                    <Separator />
+                    <div className="flex justify-between items-center font-bold">
+                      <span>Total:</span>
+                      <span className="text-green-600">€{calculateTotal().toFixed(2)}</span>
+                    </div>
                   </div>
-                </div>
-              </div>
+                )}
+              </CardContent>
+            </Card>
 
-              {/* Checkout Button */}
-              <Button
-                onClick={handleCheckout}
-                className="w-full mt-6 h-12 md:h-14 text-base md:text-lg font-semibold"
-                disabled={state.items.length === 0}
-              >
-                <Receipt className="h-4 w-4 md:h-5 w-5 mr-2" />
-                Complete Sale
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Product Details Modal */}
-        {selectedProduct && (
-          <Dialog open={!!selectedProduct} onOpenChange={() => setSelectedProduct(null)}>
-            <DialogContent className="sm:max-w-[425px] md:max-w-2xl p-6">
-              <DialogHeader>
-                <DialogTitle className="text-2xl font-bold">{selectedProduct.name}</DialogTitle>
-              </DialogHeader>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+            {/* Customer Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Customer Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div>
-                  <img
-                    src={getProductImage(selectedProduct.image) || "/placeholder.svg"}
-                    alt={selectedProduct.name}
-                    className="w-full h-64 object-cover rounded-lg"
+                  <Label htmlFor="customerName">Customer Name *</Label>
+                  <Input
+                    id="customerName"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Enter customer name"
                   />
                 </div>
+                <div>
+                  <Label htmlFor="customerContact">Contact (Email/Phone) *</Label>
+                  <Input
+                    id="customerContact"
+                    value={customerContact}
+                    onChange={(e) => setCustomerContact(e.target.value)}
+                    placeholder="Enter email or phone"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="deliveryAddress">Delivery Address *</Label>
+                  <Textarea
+                    id="deliveryAddress"
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    placeholder="Enter full delivery address"
+                    rows={3}
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
+            {/* Proof of Payment */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Proof of Payment</CardTitle>
+              </CardHeader>
+              <CardContent>
                 <div className="space-y-4">
                   <div>
-                    <p className="text-2xl md:text-3xl font-bold text-green-600">€{selectedProduct.price.toFixed(2)}</p>
-                    <p className="text-gray-600 mt-2">{selectedProduct.description}</p>
+                    <Label htmlFor="proofOfPayment">Upload Receipt/Proof *</Label>
+                    <Input
+                      id="proofOfPayment"
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={handleFileChange}
+                      className="mt-1"
+                    />
                   </div>
-
-                  {selectedProduct.sizes && selectedProduct.sizes.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold text-base md:text-lg mb-2">Size</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedProduct.sizes.map((size) => (
-                          <Button key={size} variant="outline" size="sm" onClick={() => setSelectedSize(size)}>
-                            {size}
-                          </Button>
-                        ))}
-                      </div>
+                  {proofOfPayment && (
+                    <div className="flex items-center gap-2 text-sm text-green-600">
+                      <FileText className="h-4 w-4" />
+                      <span>{proofOfPayment.name}</span>
                     </div>
                   )}
-
-                  {selectedProduct.colors && selectedProduct.colors.length > 0 && (
-                    <div>
-                      <h4 className="font-semibold text-base md:text-lg mb-2">Color</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedProduct.colors.map((color) => (
-                          <Button
-                            key={color}
-                            variant={selectedColor === color ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setSelectedColor(color)}
-                            disabled={currentVariantStock <= 0}
-                          >
-                            {color}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="pt-4">
-                    <Button
-                      onClick={handleAddVariantToCart}
-                      className="w-full h-10 md:h-12 text-base md:text-lg"
-                      disabled={
-                        currentVariantStock <= 0 ||
-                        (selectedProduct.sizes?.length > 0 && !selectedSize) ||
-                        (selectedProduct.colors?.length > 0 && !selectedColor)
-                      }
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      {currentVariantStock > 0 ? `Add to Cart - €${selectedProduct.price.toFixed(2)}` : "Out of Stock"}
-                    </Button>
-                  </div>
                 </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
-    </Suspense>
+              </CardContent>
+            </Card>
+
+            {/* Complete Order */}
+            <Button
+              onClick={handleSubmitOrder}
+              disabled={
+                !customerName ||
+                !customerContact ||
+                !deliveryAddress ||
+                !proofOfPayment ||
+                cart.length === 0 ||
+                isSubmitting
+              }
+              className="w-full"
+              size="lg"
+            >
+              {isSubmitting ? "Processing..." : `Complete Order - €${calculateTotal().toFixed(2)}`}
+            </Button>
+          </div>
+        </div>
+      </main>
+    </div>
   )
 }
